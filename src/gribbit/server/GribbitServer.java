@@ -62,6 +62,11 @@ public class GribbitServer {
 
     private long CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS = 2;
 
+    static {
+        // Initialize logger
+        Log.info("Starting Gribbit server");
+    }
+    
     // ------------------------------------------------------------------------------------------------------------------------------------------------
 
     /**
@@ -111,7 +116,7 @@ public class GribbitServer {
      */
     public GribbitServer(String domain, int port, String appPackageName, String staticResourceRoot) {
         GribbitServer.appPackageName = appPackageName;
-
+        
         if (!portAvailable(port)) {
             System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
             System.exit(1);
