@@ -77,7 +77,7 @@ public class GribbitServer {
      * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise, they are able to log in if they can be authorized with OAuth2 or any
      * other enabled login method.
      */
-    public static void setUserWhitelistChecker(LoginWhitelistChecker checker) {
+    public static void setLoginWhitelistChecker(LoginWhitelistChecker checker) {
         loginWhitelistChecker = checker;
     }
 
