@@ -27,7 +27,9 @@ package gribbit.auth;
 
 import gribbit.auth.Cookie.EncodingType;
 import gribbit.auth.User.Token.TokenType;
+import gribbit.exception.BadRequestException;
 import gribbit.model.DBModelStringKey;
+import gribbit.server.GribbitServer;
 import gribbit.server.Request;
 import gribbit.server.Response;
 import gribbit.server.siteresources.Database;
@@ -44,7 +46,7 @@ import java.util.HashMap;
 import org.mongojack.MongoCollection;
 
 /**
- * Used to store user identity and authentication information in the database.  
+ * Used to store user identity and authentication information in the database.
  */
 @MongoCollection(name = "users")
 public class User extends DBModelStringKey {
@@ -62,7 +64,7 @@ public class User extends DBModelStringKey {
      * Auth token, stored in both encrypted session-in-client cookie and server. Allows for browser cookie to be revoked.
      */
     public Token sessionTok;
-    
+
     /** Store CSRF token in User object to avoid re-calculating it where possible */
     public String csrfTok;
 
@@ -71,7 +73,7 @@ public class User extends DBModelStringKey {
 
     /** Token used for resetting password. */
     public Token passwordResetTok;
-    
+
     // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     // Placeholder in password field for federated logins
@@ -262,10 +264,12 @@ public class User extends DBModelStringKey {
      * 
      * @throws AppException
      *             if new password is too short or invalid, or if user is not logged in, or session has expired.
+     * @throws BadRequestException
+     *             if user is not whitelisted for login
      */
-    public void changePassword(String newPassword, Response res) throws AppException {
+    public void changePassword(String newPassword, Response res) throws BadRequestException, AppException {
         if (sessionTokHasExpired()) {
-            throw new AppException("Session has expired");
+            throw new BadRequestException("Session has expired");
         }
         // Re-hash user password
         passwordHash = Hash.hashPassword(newPassword);
@@ -291,7 +295,7 @@ public class User extends DBModelStringKey {
      * 
      * @return User if successfully authenticated, null otherwise
      */
-    public static User authenticate(String email, String password, Response res) throws AppException {
+    public static User authenticate(String email, String password, Response res) throws BadRequestException {
         // FIXME: Allow only one login attempt per email address every 5 seconds. Add email addrs to a ConcurrentTreeSet or something
         // (*if* the email addr is already in the database, to prevent DoS), and every 5s, purge old entries from the tree. If an
         // attempt is made in less than 5s, then return an error rather than blocking for up to 5s, again to prevent DoS.   
@@ -310,21 +314,31 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Decrypt the session-in-client cookie in the HttpRequest, look up the user, and return the user if the user's auth token is valid (i.e. if their session has not expired or
-     * been revoked). Returns null if any of this fails.
+     * Decrypt the session cookie in the HttpRequest, look up the user, and return the user if the user's auth token is valid (i.e. if their session has not expired or been
+     * revoked).
+     * 
+     * @return Returns null if session is invalid or user is no longer allowed to log in.
      */
     public static User getLoggedInUser(Request req) {
+        // Get email address from cookie
         Cookie emailCookie = req.getCookie(Cookie.EMAIL_COOKIE_NAME);
         if (emailCookie != null && !emailCookie.hasExpired()) {
-            Cookie sessionCookie = req.getCookie(Cookie.SESSION_COOKIE_NAME);
-            if (sessionCookie != null && !sessionCookie.hasExpired()) {
-                try {
-                    // Look up email address in database, and check session cookie against session token for that email address in the database
-                    User user = validateTok(emailCookie.getValue(), sessionCookie.getValue(), TokenType.SESSION);
-                    // If no exception thrown, user is logged in and auth token is valid
-                    return user;
+            String email = emailCookie.getValue();
 
-                } catch (Exception e) {
+            // Check user against login whitelist, if it exists (in case whitelist has changed)
+            if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
+
+                // Get session cookie
+                Cookie sessionCookie = req.getCookie(Cookie.SESSION_COOKIE_NAME);
+                if (sessionCookie != null && !sessionCookie.hasExpired()) {
+                    try {
+                        // Look up email address in database, and check session cookie against session token stored in the database for that email address
+                        User user = validateTok(email, sessionCookie.getValue(), TokenType.SESSION);
+                        // If no exception thrown, user is logged in and auth token is valid
+                        return user;
+
+                    } catch (Exception e) {
+                    }
                 }
             }
         }
@@ -358,20 +372,34 @@ public class User extends DBModelStringKey {
         }
     }
 
-    /** Create a new authentication token for user and save session-in-client cookie in response. */
-    public void logIn(Response res) throws AppException {
-        // Create new session token
-        sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
-        csrfTok = CSRF.generateRandomCSRFToken();
-        save();
-        if (sessionTokHasExpired()) {
-            // Shouldn't happen, since we just created session tok, but just in case
-            clearSessionTok();
-            throw new AppException("Couldn't create auth session");
-        }
+    /**
+     * Create a new authentication token for user and save session-in-client cookie in response.
+     * 
+     * @throws BadRequestException
+     *             if the user is not whitelisted for login, or their login session has expired.
+     */
+    public void logIn(Response res) throws BadRequestException {
+        // Check user against login whitelist, if it exists
+        if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
 
-        res.setCookie(Cookie.SESSION_COOKIE_NAME, sessionTok.token, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
-        res.setCookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
+            // Create new session token
+            sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
+            csrfTok = CSRF.generateRandomCSRFToken();
+            save();
+            if (sessionTokHasExpired()) {
+                // Shouldn't happen, since we just created session tok, but just in case
+                clearSessionTok();
+                throw new BadRequestException("Couldn't create auth session");
+            }
+
+            // Save login cookies in result
+            res.setCookie(Cookie.SESSION_COOKIE_NAME, sessionTok.token, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
+            res.setCookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
+
+        } else {
+            // User is not authorized
+            throw new BadRequestException("User is not whitelisted for login: " + id);
+        }
     }
 
     // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -379,45 +407,53 @@ public class User extends DBModelStringKey {
     /**
      * Create a user and log them in.
      * 
-     * @throws AppException
+     * @throws BadRequestException
      *             if a user with this email addr already exists.
      */
-    private static User create(String email, String passwordHash, boolean validateEmail, Response res) throws AppException {
-        // Check if a user of this name already exists, and if not, create user record in database. TODO: should probably be a transaction.
-        if (findByEmail(email) != null) {
-            throw new AppException("Could not create new user; user already exists");
+    private static User create(String email, String passwordHash, boolean validateEmail, Response res) throws BadRequestException {
+        // Check user against login whitelist, if it exists
+        if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
+
+            // Check if a user of this name already exists, and if not, create user record in database. TODO: should probably be a transaction.
+            if (findByEmail(email) != null) {
+                throw new BadRequestException("Could not create new user: user \"" + email + "\" already exists");
+            }
+
+            User user = new User(email);
+
+            user.passwordHash = passwordHash;
+
+            user.createdDate = ZonedDateTime.now().format(DateTimeFormatter.ISO_ZONED_DATE_TIME);
+            user.emailValidated = validateEmail;
+
+            // Log in and save user 
+            user.logIn(res);
+
+            return user;
+
+        } else {
+            // User is not authorized
+            throw new BadRequestException("User is not whitelisted for account creation: " + email);
         }
-
-        User user = new User(email);
-
-        user.passwordHash = passwordHash;
-
-        user.createdDate = ZonedDateTime.now().format(DateTimeFormatter.ISO_ZONED_DATE_TIME);
-        user.emailValidated = validateEmail;
-
-        // Log in and save user 
-        user.logIn(res);
-
-        return user;
     }
 
     /**
      * Create a user from email and password hash, and log them in.
      * 
-     * @throws AppException
+     * @throws BadRequestException
      *             if a user with this email addr already exists.
      */
-    public static User create(String email, String passwordHash, Response res) throws AppException {
-        return create(email, passwordHash, /* validateEmail = */ false, res);
+    public static User create(String email, String passwordHash, Response res) throws BadRequestException {
+        return create(email, passwordHash, /* validateEmail = */false, res);
     }
 
     /**
      * Create a user from a Persona login, and log them in.
      *
-     * @throws AppException
+     * @throws BadRequestException
      *             if a user with this email addr already exists.
      */
-    public static User createFederatedLoginUser(String email, Response res) throws AppException {
-        return create(email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* validateEmail = */ true, res);
+    public static User createFederatedLoginUser(String email, Response res) throws BadRequestException {
+        return create(email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* validateEmail = */true, res);
     }
 }

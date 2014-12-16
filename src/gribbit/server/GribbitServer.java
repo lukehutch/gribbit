@@ -62,11 +62,32 @@ public class GribbitServer {
 
     private long CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS = 2;
 
+    // ------------------------------------------------------------------------------------------------------------------------------------------------
+
+    /** Return true if a user is allowed to log in (whitelisted), based on their email address. */
+    @FunctionalInterface
+    public static interface LoginWhitelistChecker {
+        public boolean allowUserToLogin(String emailAddr);
+    }
+
+    /** If non-null, check that users are whitelisted before allowing them to log in. */
+    public static LoginWhitelistChecker loginWhitelistChecker = null;
+
+    /**
+     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise, they are able to log in if they can be authorized with OAuth2 or any
+     * other enabled login method.
+     */
+    public void setUserWhitelistChecker(LoginWhitelistChecker checker) {
+        loginWhitelistChecker = checker;
+    }
+
+    // ------------------------------------------------------------------------------------------------------------------------------------------------
+
     static {
         // Initialize logger
         Log.info("Starting Gribbit server");
     }
-    
+
     // ------------------------------------------------------------------------------------------------------------------------------------------------
 
     /**
@@ -116,7 +137,7 @@ public class GribbitServer {
      */
     public GribbitServer(String domain, int port, String appPackageName, String staticResourceRoot) {
         GribbitServer.appPackageName = appPackageName;
-        
+
         if (!portAvailable(port)) {
             System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
             System.exit(1);
@@ -124,7 +145,7 @@ public class GribbitServer {
 
         // Make sure we can connect to database server
         Database.checkDatabaseIsConnected();
-        
+
         try {
             scheduledTaskGroup = new NioEventLoopGroup(4);
 
