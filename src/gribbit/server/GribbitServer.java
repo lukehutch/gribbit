@@ -181,7 +181,7 @@ public class GribbitServer {
 
     // -----------------------------------------------------------------------------------------------------------------------------------------------------
 
-    public void start() {
+    public static void start() {
         Log.info("Starting Gribbit server");
         try {
             // TODO: These SSL classes seem to be absent in Java 8.
