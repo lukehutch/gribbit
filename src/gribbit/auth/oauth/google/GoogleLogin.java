@@ -27,6 +27,7 @@ package gribbit.auth.oauth.google;
 
 import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
+import gribbit.exception.UnauthorizedException;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
 import gribbit.server.Response.FlashType;
@@ -38,7 +39,8 @@ import gribbit.util.RequestBuilder;
 
 /**
  * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login (i.e. the route for this handler is "/oauth/google", but the
- * additional URI param "login" should be provided after the route, giving "/oauth/google/login").
+ * additional URI param "login" should be provided after the route, giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at
+ * /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
 public class GoogleLogin extends RestHandler.AuthNotRequired {
@@ -256,6 +258,8 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                     }
                 } catch (BadRequestException e) {
                     error = "Bad request: " + e.getMessage();
+                } catch (UnauthorizedException e) {
+                    error = "Unauthorized: " + e;
                 } catch (Exception e) {
                     Log.exception("Exception during Google OAuth2 login", e);
                     if (error == null) {
@@ -272,8 +276,19 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                 user.logOut(res);
             }
             res.clearFlashMessages();
-            res.addFlashMessage(FlashType.ERROR, "Error", "Could not log in, please check your password and try again, or contact the site administrator");
-            GribbitServer.siteResources.getUnauthorizedRoute().callHandler(req, res);
+            if (error.contains("Unauthorized")) {
+                res.addFlashMessage(FlashType.ERROR, "Error",
+                        "Could not log in, you are not authorized to access this site. Please contact the site administrator for authorization.");
+            } else {
+                res.addFlashMessage(FlashType.ERROR, "Error", "Could not log in, please check your password and try again, or contact the site administrator.");
+            }
+            if ("callback".equals(action)) {
+                // We don't want the long callback URI in the browser address field, so redirect to the unauthorized handler's route
+                res.redirect(GribbitServer.siteResources.getUnauthorizedRoute().getHandler());
+            } else {
+                // Otherwise just call the unauthorized handler without actually redirecting to the unauthorized route
+                GribbitServer.siteResources.getUnauthorizedRoute().callHandler(req, res);
+            }
         }
     }
 }

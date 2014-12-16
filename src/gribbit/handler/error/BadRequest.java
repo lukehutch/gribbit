@@ -36,7 +36,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * setting the route of this handler to that URI, so that this handler is automatically called for requests that were detected as mal-formed by Netty before we even see them. We
  * can also call this handler ourselves if user-supplied data is invalid.
  */
-@RouteOverride("/bad-request")
+@RouteOverride("/gribbit/err/bad-request")
 public class BadRequest extends RestHandler.AuthNotRequired {
     public void get() {
         res.setStatus(HttpResponseStatus.BAD_REQUEST);

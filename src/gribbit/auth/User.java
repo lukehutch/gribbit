@@ -27,7 +27,7 @@ package gribbit.auth;
 
 import gribbit.auth.Cookie.EncodingType;
 import gribbit.auth.User.Token.TokenType;
-import gribbit.exception.BadRequestException;
+import gribbit.exception.UnauthorizedException;
 import gribbit.model.DBModelStringKey;
 import gribbit.server.GribbitServer;
 import gribbit.server.Request;
@@ -264,12 +264,12 @@ public class User extends DBModelStringKey {
      * 
      * @throws AppException
      *             if new password is too short or invalid, or if user is not logged in, or session has expired.
-     * @throws BadRequestException
+     * @throws UnauthorizedException
      *             if user is not whitelisted for login
      */
-    public void changePassword(String newPassword, Response res) throws BadRequestException, AppException {
+    public void changePassword(String newPassword, Response res) throws UnauthorizedException, AppException {
         if (sessionTokHasExpired()) {
-            throw new BadRequestException("Session has expired");
+            throw new UnauthorizedException("Session has expired");
         }
         // Re-hash user password
         passwordHash = Hash.hashPassword(newPassword);
@@ -295,7 +295,7 @@ public class User extends DBModelStringKey {
      * 
      * @return User if successfully authenticated, null otherwise
      */
-    public static User authenticate(String email, String password, Response res) throws BadRequestException {
+    public static User authenticate(String email, String password, Response res) throws UnauthorizedException {
         // FIXME: Allow only one login attempt per email address every 5 seconds. Add email addrs to a ConcurrentTreeSet or something
         // (*if* the email addr is already in the database, to prevent DoS), and every 5s, purge old entries from the tree. If an
         // attempt is made in less than 5s, then return an error rather than blocking for up to 5s, again to prevent DoS.   
@@ -375,10 +375,10 @@ public class User extends DBModelStringKey {
     /**
      * Create a new authentication token for user and save session-in-client cookie in response.
      * 
-     * @throws BadRequestException
+     * @throws UnauthorizedException
      *             if the user is not whitelisted for login, or their login session has expired.
      */
-    public void logIn(Response res) throws BadRequestException {
+    public void logIn(Response res) throws UnauthorizedException {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
 
@@ -389,7 +389,7 @@ public class User extends DBModelStringKey {
             if (sessionTokHasExpired()) {
                 // Shouldn't happen, since we just created session tok, but just in case
                 clearSessionTok();
-                throw new BadRequestException("Couldn't create auth session");
+                throw new UnauthorizedException("Couldn't create auth session");
             }
 
             // Save login cookies in result
@@ -398,7 +398,7 @@ public class User extends DBModelStringKey {
 
         } else {
             // User is not authorized
-            throw new BadRequestException("User is not whitelisted for login: " + id);
+            throw new UnauthorizedException("User is not whitelisted for login: " + id);
         }
     }
 
@@ -407,16 +407,16 @@ public class User extends DBModelStringKey {
     /**
      * Create a user and log them in.
      * 
-     * @throws BadRequestException
+     * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
-    private static User create(String email, String passwordHash, boolean validateEmail, Response res) throws BadRequestException {
+    private static User create(String email, String passwordHash, boolean validateEmail, Response res) throws UnauthorizedException {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
 
             // Check if a user of this name already exists, and if not, create user record in database. TODO: should probably be a transaction.
             if (findByEmail(email) != null) {
-                throw new BadRequestException("Could not create new user: user \"" + email + "\" already exists");
+                throw new UnauthorizedException("Could not create new user: user \"" + email + "\" already exists");
             }
 
             User user = new User(email);
@@ -433,27 +433,27 @@ public class User extends DBModelStringKey {
 
         } else {
             // User is not authorized
-            throw new BadRequestException("User is not whitelisted for account creation: " + email);
+            throw new UnauthorizedException("User is not whitelisted for account creation: " + email);
         }
     }
 
     /**
      * Create a user from email and password hash, and log them in.
      * 
-     * @throws BadRequestException
+     * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
-    public static User create(String email, String passwordHash, Response res) throws BadRequestException {
+    public static User create(String email, String passwordHash, Response res) throws UnauthorizedException {
         return create(email, passwordHash, /* validateEmail = */false, res);
     }
 
     /**
      * Create a user from a Persona login, and log them in.
      *
-     * @throws BadRequestException
+     * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
-    public static User createFederatedLoginUser(String email, Response res) throws BadRequestException {
+    public static User createFederatedLoginUser(String email, Response res) throws UnauthorizedException {
         return create(email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* validateEmail = */true, res);
     }
 }

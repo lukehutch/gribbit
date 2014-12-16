@@ -26,12 +26,14 @@
 package gribbit.handler.error;
 
 import gribbit.auth.Cookie;
+import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.RestHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * Default handler called when user is not authorized to see a given resource.
  */
+@RouteOverride("/gribbit/err/unauthorized")
 public class Unauthorized extends RestHandler.AuthNotRequired {
     public void get() {
         res.deleteCookie(Cookie.EMAIL_COOKIE_NAME);

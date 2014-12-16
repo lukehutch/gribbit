@@ -25,12 +25,14 @@
  */
 package gribbit.handler.error;
 
+import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.RestHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * Default "not modified" handler, used when served version is not newer than version cached in client.
  */
+@RouteOverride("/gribbit/err/not-modified")
 public class NotModified extends RestHandler.AuthNotRequired {
     public void get() {
         res.setStatus(HttpResponseStatus.NOT_MODIFIED);

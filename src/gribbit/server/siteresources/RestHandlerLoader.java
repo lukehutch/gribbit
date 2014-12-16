@@ -40,7 +40,6 @@ import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.model.DataModel;
 import gribbit.server.RestHandler;
 import gribbit.server.Route;
-import gribbit.util.Log;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -116,7 +115,7 @@ class RestHandlerLoader {
         }
         return route;
     }
-    
+
     /** Get the set of all DataModels that are bound to POST handlers. */
     public Set<Class<? extends DataModel>> getAllFormDataModels() {
         return formModelToRoute.keySet();
@@ -124,7 +123,7 @@ class RestHandlerLoader {
 
     // ------------------------------------------------------------------------------------------------------------------------------------
 
-    private void removeRoute(Route route) {
+    public void removeRoute(Route route) {
         if (route != null) {
             routeForHandler.remove(route.getHandler());
             routeForRoutePath.remove(route.getRoutePath());
@@ -149,6 +148,46 @@ class RestHandlerLoader {
                 }
             }
 
+            Route route = new Route(handler, routeOverride);
+
+            // Check for error handler annotations
+            for (Annotation ann : handler.getAnnotations()) {
+                Class<? extends Annotation> annType = ann.annotationType();
+
+                boolean hasErrHandlerAnnotation = false;
+                Route existingErrHandler = null;
+                if (annType == OnInternalServerError.class) {
+                    hasErrHandlerAnnotation = true;
+                    existingErrHandler = internalServerErrorRoute;
+                    internalServerErrorRoute = route;
+                } else if (annType == OnBadRequest.class) {
+                    hasErrHandlerAnnotation = true;
+                    existingErrHandler = badRequestRoute;
+                    badRequestRoute = route;
+                } else if (annType == On404NotFound.class) {
+                    hasErrHandlerAnnotation = true;
+                    existingErrHandler = notFoundRoute;
+                    notFoundRoute = route;
+                } else if (annType == OnUnauthorized.class) {
+                    hasErrHandlerAnnotation = true;
+                    existingErrHandler = unauthorizedRoute;
+                    unauthorizedRoute = route;
+                } else if (annType == OnEmailNotValidated.class) {
+                    hasErrHandlerAnnotation = true;
+                    existingErrHandler = emailNotValidatedRoute;
+                    emailNotValidatedRoute = route;
+                }
+                if (existingErrHandler != null) {
+                    // Can't have two non-default error handlers with an error handler annotation, because classpath traversal order is somewhat arbitrary 
+                    throw new RuntimeException("Both " + existingErrHandler.getHandler().getName() + " and " + handler.getName() + " have the annotation @"
+                            + annType.getSimpleName() + " -- you cannot have two error handlers with the same annotation");
+                }
+                if (hasErrHandlerAnnotation && (!route.hasGetMethod() || route.getNumGetParams() > 0)) {
+                    // All errors are served using GET
+                    throw new RuntimeException("Handler " + handler.getName() + " has an error handler notation, but does not have a get() method that takes zero params");
+                }
+            }
+
             // If this route has been overridden, need to compare against all other routes to make sure it is not a prefix of another route or vice versa (this is not possible with the default routes derived from classnames).
             // The only route that is allowed to be a prefix of others is "/".
             if (routeOverride != null && !routeOverride.equals("/")) {
@@ -164,9 +203,6 @@ class RestHandlerLoader {
                     }
                 }
             }
-
-            Route route = new Route(handler, routeOverride);
-            // Log.info("Found handler: " + handler.getName() + " -> " + route.getRoutePath());
 
             // Make sure route is unique
             Route existing = routeForRoutePath.put(route.getRoutePath(), route);
@@ -189,44 +225,8 @@ class RestHandlerLoader {
                             + route.getHandler().getName() + ", " + prev.getHandler().getName());
                 }
             }
-
-            // Check for error handler annotations
-            for (Annotation ann : handler.getAnnotations()) {
-                Class<? extends Annotation> annType = ann.annotationType();
-
-                boolean hasErrHandlerAnnotation = false;
-                Route existingErrHandler = null;
-                if (annType == OnInternalServerError.class) {
-                    hasErrHandlerAnnotation = true;
-                    removeRoute(existingErrHandler = internalServerErrorRoute);
-                    internalServerErrorRoute = route;
-                } else if (annType == OnBadRequest.class) {
-                    hasErrHandlerAnnotation = true;
-                    removeRoute(existingErrHandler = badRequestRoute);
-                    badRequestRoute = route;
-                } else if (annType == On404NotFound.class) {
-                    hasErrHandlerAnnotation = true;
-                    removeRoute(existingErrHandler = notFoundRoute);
-                    notFoundRoute = route;
-                } else if (annType == OnUnauthorized.class) {
-                    hasErrHandlerAnnotation = true;
-                    removeRoute(existingErrHandler = unauthorizedRoute);
-                    unauthorizedRoute = route;
-                } else if (annType == OnEmailNotValidated.class) {
-                    hasErrHandlerAnnotation = true;
-                    removeRoute(existingErrHandler = emailNotValidatedRoute);
-                    emailNotValidatedRoute = route;
-                }
-                if (existingErrHandler != null) {
-                    // Can't have two non-default error handlers with an error annotation 
-                    Log.info("Replacing error handler for " + existingErrHandler.getRoutePath() + " with " + route.getRoutePath() + " based on annotation @"
-                            + annType.getSimpleName());
-                }
-                if (hasErrHandlerAnnotation && (!route.hasGetMethod() || route.getNumGetParams() > 0)) {
-                    // All errors are served using GET
-                    throw new RuntimeException("Handler " + handler.getName() + " has an error handler notation, but does not have a get() method with no params");
-                }
-            }
+            
+            // Log.info("Found handler: " + handler.getName() + " -> " + route.getRoutePath());
         }
     }
 }
