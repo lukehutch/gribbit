@@ -27,7 +27,6 @@ package gribbit.model;
 
 import gribbit.auth.CSRF;
 import gribbit.model.field.annotation.DBIndex;
-import gribbit.model.field.annotation.DBIndexUnique;
 import gribbit.model.field.annotation.Email;
 import gribbit.model.field.annotation.MaxIntegerValue;
 import gribbit.model.field.annotation.MaxLength;
@@ -150,9 +149,8 @@ public abstract class DataModel {
     // ------------------------------------------------------------------------------------------------------------------------------------------------------
 
     private static boolean isRequired(Field f) {
-        return f.getAnnotation(Required.class) != null || f.getAnnotation(DBIndex.class) != null || f.getAnnotation(DBIndexUnique.class) != null
-                || f.getAnnotation(MinLength.class) != null || f.getAnnotation(MaxLength.class) != null || f.getAnnotation(MinIntegerValue.class) != null
-                || f.getAnnotation(MaxIntegerValue.class) != null;
+        return f.getAnnotation(Required.class) != null || f.getAnnotation(DBIndex.class) != null || f.getAnnotation(MinLength.class) != null
+                || f.getAnnotation(MaxLength.class) != null || f.getAnnotation(MinIntegerValue.class) != null || f.getAnnotation(MaxIntegerValue.class) != null;
     }
 
     /**

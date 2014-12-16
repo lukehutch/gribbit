@@ -27,11 +27,11 @@ package gribbit.auth;
 
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Base64Safe;
-import gribbit.util.WebUtils;
 import gribbit.util.Log;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.UTF8;
 import gribbit.util.UTF8.UTF8Exception;
+import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.ServerCookieEncoder;
 

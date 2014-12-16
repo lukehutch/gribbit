@@ -34,13 +34,11 @@ import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 
 import java.io.File;
-import java.lang.reflect.Field;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 
 import org.jsoup.nodes.Document;
-import org.mongojack.JacksonDBCollection;
 
 import com.lukehutch.fastclasspathscanner.FastClasspathScanner;
 
@@ -54,7 +52,7 @@ public class SiteResources {
 
     private RestHandlerLoader restHandlerLoader;
 
-    private Database dbModelLoader;
+    public Database db;
 
     private TemplateLoader templateLoader;
 
@@ -84,14 +82,6 @@ public class SiteResources {
 
     public Route getEmailNotValidatedRoute() {
         return restHandlerLoader.getEmailNotValidatedRoute();
-    }
-
-    public <T extends DBModel, K> JacksonDBCollection<T, K> dbCollectionForDBModel(Class<T> klass) {
-        return dbModelLoader.dbCollectionForDBModel(klass);
-    }
-
-    public Field idFieldForDBModel(Class<? extends DBModel> klass) {
-        return dbModelLoader.idFieldForDBModel(klass);
     }
 
     public byte[] getVulcanizedHTMLBytes() {
@@ -238,14 +228,14 @@ public class SiteResources {
         }
 
         restHandlerLoader = new RestHandlerLoader();
-        dbModelLoader = new Database();
+        db = new Database();
         templateLoader = new TemplateLoader(this, polymerModuleRootDir);
 
         // Scan classpath for handlers, models and templates
         classpathScanner = new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
                 .matchSubclassesOf(RestHandler.class, matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
                 .matchSubclassesOf(DataModel.class, templateClass -> templateLoader.gotDataModel(templateClass)) //
-                .matchSubclassesOf(DBModel.class, matchingClass -> dbModelLoader.registerDBModel(matchingClass)) //
+                .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass)) //
                 .matchFilenamePattern(".*\\.(html|js|css)", (absolutePath, relativePath, inputStream) -> templateLoader.gotWebResource(absolutePath, relativePath, inputStream)); //
         classpathScanner.scan();
 
@@ -253,7 +243,7 @@ public class SiteResources {
 
         // Make sure that all DataModel classes that are bound by POST requests or that are subclasses of DBModel can be initialized with a zero-argument constructor
         HashSet<Class<? extends DataModel>> classesThatNeedZeroArgConstructor = new HashSet<>(restHandlerLoader.getAllFormDataModels());
-        classesThatNeedZeroArgConstructor.addAll(dbModelLoader.getAllDBModelClasses());
+        classesThatNeedZeroArgConstructor.addAll(db.getAllDBModelClasses());
         for (Class<? extends DataModel> classThatNeedsZeroArgConstructor : classesThatNeedZeroArgConstructor) {
             // Try instantiating DataModel with default constructor to make sure there will be no problems instantiating it later 
             try {

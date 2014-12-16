@@ -26,9 +26,9 @@
 package gribbit.server.siteresources;
 
 import gribbit.handler.vulcanized.VulcanizedJSHandler;
-import gribbit.util.WebUtils;
 import gribbit.util.StringUtils;
 import gribbit.util.UTF8;
+import gribbit.util.WebUtils;
 
 import java.io.File;
 import java.io.IOException;
