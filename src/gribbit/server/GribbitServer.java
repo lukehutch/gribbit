@@ -52,15 +52,19 @@ public class GribbitServer {
     /** The URI the server is running on. */
     public static URI uri;
 
-    public static String SERVER_IDENTIFIER = "Gribbit/1.0";
-
     public static String appPackageName;
+
+    private static String domain;
+    
+    private static int port;
 
     public static SiteResources siteResources;
 
     public static EventLoopGroup scheduledTaskGroup;
 
-    private long CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS = 2;
+    public static String SERVER_IDENTIFIER = "Gribbit/1.0";
+
+    private static final long CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS = 2;
 
     // ------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -121,29 +125,30 @@ public class GribbitServer {
     /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
      */
-    public GribbitServer(String appPackageName, String staticResourceRoot) {
-        this("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
+    public void configure(String appPackageName, String staticResourceRoot) {
+        configure("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
     }
 
     /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
      */
-    public GribbitServer(String domain, int port, String appPackageName, String staticResourceRoot) {
-        Log.info("Starting Gribbit server");
-
-        GribbitServer.appPackageName = appPackageName;
+    public void configure(String domain, int port, String appPackageName, String staticResourceRoot) {
+        GribbitServer.domain = domain;
 
         if (!portAvailable(port)) {
             System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
             System.exit(1);
         }
+        GribbitServer.port = port;
+
+        GribbitServer.appPackageName = appPackageName;
 
         // Make sure we can connect to database server
         Database.checkDatabaseIsConnected();
+        
+        GribbitServer.scheduledTaskGroup = new NioEventLoopGroup(4);
 
         try {
-            scheduledTaskGroup = new NioEventLoopGroup(4);
-
             // Scan classpath for handlers, templates etc.
             loadSiteResources(appPackageName, staticResourceRoot);
 
@@ -151,22 +156,34 @@ public class GribbitServer {
             // (Only RestHandler, DataModel and DBModel subclasses are currently reloaded and re-registered.)
             // FIXME: need to implement my own class loader to get this working: http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
             // (although class reloading works now when running in Eclipse, because Eclipse does hot code swap, and template reloading should already work)
-            Runnable classpathChangeDetector = new Runnable() {
-                @Override
-                public void run() {
-                    if (siteResources.classpathContentsModifiedSinceScan()) {
-                        Log.info("Classpath contents changed -- reloading site resources");
+            if (CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS > 0) {
+                Runnable classpathChangeDetector = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (siteResources.classpathContentsModifiedSinceScan()) {
+                            Log.info("Classpath contents changed -- reloading site resources");
 
-                        // Reload site resources from classpath if something changed, and atomically replace GribbitServer.siteResources
-                        loadSiteResources(appPackageName, staticResourceRoot);
+                            // Reload site resources from classpath if something changed, and atomically replace GribbitServer.siteResources
+                            loadSiteResources(appPackageName, staticResourceRoot);
+                        }
+                        GribbitServer.scheduledTaskGroup.schedule(this, CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS);
                     }
-                    scheduledTaskGroup.schedule(this, CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS);
-                }
-            };
-            scheduledTaskGroup.schedule(classpathChangeDetector, CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS);
+                };
+                GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector, CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            }
 
-            // -----------------------------------------------------------------------------------------------------------------------------------------------------
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("\nFailed to load site resources, cannot initialize web server");
+            System.exit(1);
+        }
+    }
 
+    // -----------------------------------------------------------------------------------------------------------------------------------------------------
+
+    public void start() {
+        Log.info("Starting Gribbit server");
+        try {
             // TODO: These SSL classes seem to be absent in Java 8.
             // TODO: Also need to listen on both SSL and non-SSL ports. Don't allow auth-required RestHandler classes to be served on non-https paths, or forms to be submitted to them.
             //            final SslContext sslCtx;
@@ -249,7 +266,7 @@ public class GribbitServer {
 
         } catch (Exception e) {
             e.printStackTrace();
-            System.err.println("\nFailed to start web server");
+            System.err.println("\nFailed to start server");
             System.exit(1);
         }
     }
