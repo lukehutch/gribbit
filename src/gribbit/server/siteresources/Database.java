@@ -30,6 +30,7 @@ import gribbit.model.DBModelLongKey;
 import gribbit.model.DBModelObjectIdKey;
 import gribbit.model.DBModelStringKey;
 import gribbit.model.field.annotation.DBIndex;
+import gribbit.model.field.annotation.DBIndexUnique;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
@@ -45,6 +46,7 @@ import org.mongojack.DBCursor;
 import org.mongojack.JacksonDBCollection;
 import org.mongojack.MongoCollection;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
 
 public class Database {
@@ -63,7 +65,7 @@ public class Database {
             // Make sure we can connect to MongoDB server
             // This prints three different stacktraces to System.err if database is not running, is there a cleaner way to check if it's running?
             mongoClient.getDatabaseNames();
-            
+
         } catch (Exception e) {
             Log.error("Could not connect to database server, exiting");
             System.exit(1);
@@ -127,11 +129,15 @@ public class Database {
 
             // Ensure that required indices exist for the collection
             for (Field field : dbModelClass.getFields()) {
-                if (field.getAnnotation(DBIndex.class) != null) {
+                if (field.getAnnotation(DBIndexUnique.class) != null) {
+                    // Ensure unique index
+                    dbColl.ensureIndex(new BasicDBObject(field.getName(), 1), null, /* unique = */true);
+                } else if (field.getAnnotation(DBIndex.class) != null) {
+                    // Ensure non-unique index
                     dbColl.ensureIndex(field.getName());
                 }
             }
-            
+
             // Log.info("Found " + DBModel.class.getSimpleName() + " class: " + matchingClass.getName());
         }
     }
