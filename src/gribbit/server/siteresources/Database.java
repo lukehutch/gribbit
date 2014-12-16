@@ -29,6 +29,7 @@ import gribbit.model.DBModel;
 import gribbit.model.DBModelLongKey;
 import gribbit.model.DBModelObjectIdKey;
 import gribbit.model.DBModelStringKey;
+import gribbit.model.field.annotation.DBIndex;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
@@ -124,6 +125,13 @@ public class Database {
                     idType);
             dbModelClassToCollection.put(dbModelClass, dbColl);
 
+            // Ensure that required indices exist for the collection
+            for (Field field : dbModelClass.getFields()) {
+                if (field.getAnnotation(DBIndex.class) != null) {
+                    dbColl.ensureIndex(field.getName());
+                }
+            }
+            
             // Log.info("Found " + DBModel.class.getSimpleName() + " class: " + matchingClass.getName());
         }
     }
