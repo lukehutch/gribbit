@@ -100,15 +100,15 @@ public class GribbitServer {
         }
     }
 
-    private void loadSiteResources(String appPackageName, String staticResourceRoot) {
+    private static void loadSiteResources(String appPackageName, String staticResourceRoot) {
         try {
             long startTime = System.currentTimeMillis();
-            siteResources = new SiteResources(appPackageName, staticResourceRoot);
+            GribbitServer.siteResources = new SiteResources(appPackageName, staticResourceRoot);
             Log.info("Site resource loading took " + String.format("%.3f", (System.currentTimeMillis() - startTime) * 0.001f) + " sec");
 
         } catch (Exception e) {
             // Failed to load site resources
-            if (siteResources == null) {
+            if (GribbitServer.siteResources == null) {
                 // This is the first time site resources have tried to load, can't start up web server
                 Log.exception("Exception during initial attempt to load site resources -- cannot start web server", e);
                 Log.error("EXITING");
@@ -125,14 +125,14 @@ public class GribbitServer {
     /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
      */
-    public void configure(String appPackageName, String staticResourceRoot) {
-        configure("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
+    public static void config(String appPackageName, String staticResourceRoot) {
+        config("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
     }
 
     /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
      */
-    public void configure(String domain, int port, String appPackageName, String staticResourceRoot) {
+    public static void config(String domain, int port, String appPackageName, String staticResourceRoot) {
         GribbitServer.domain = domain;
 
         if (!portAvailable(port)) {
