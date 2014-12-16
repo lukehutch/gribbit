@@ -139,8 +139,13 @@ public class Database {
             }
 
             // Get collection based on class name (or manually overridden collection name)
-            coll = (JacksonDBCollection<T, K>) JacksonDBCollection
-                    .wrap(mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass, idField.getType());
+            try {
+                coll = (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass,
+                        idField.getType());
+            } catch (Exception e) {
+                throw new RuntimeException("Failure during JacksonDBCollection.wrap(), this can be caused by having methods with the prefix \"get\" or \"set\". " + "Fields of "
+                        + DBModel.class.getName() + " subclasses must be public, an getters/setters are not allowed.", e);
+            }
 
             if (GribbitServer.siteResources != null && GribbitServer.siteResources.db != null) {
                 // Save mapping from DBModel class to indexed fields so they're fast to find in future
