@@ -139,11 +139,11 @@ public class Database {
 
             // Ensure that required indices exist for the collection
             for (Field field : dbModelClass.getFields()) {
-                if (field.getAnnotation(DBIndexUnique.class) != null) {
-                    // Ensure unique index
+                if (field.equals(getIdFieldForDBModel(dbModelClass)) || field.getAnnotation(DBIndexUnique.class) != null) {
+                    // Ensure unique index for id fields and fields annotated with @DBIndexUnique
                     dbColl.ensureIndex(new BasicDBObject(field.getName(), 1), null, /* unique = */true);
                 } else if (field.getAnnotation(DBIndex.class) != null) {
-                    // Ensure non-unique index
+                    // Ensure (non-unique) index for fields annotated with @DBIndex
                     dbColl.ensureIndex(field.getName());
                 }
             }
@@ -216,7 +216,7 @@ public class Database {
     }
 
     /** Find a database collection by object type (there is a 1-1 mapping between object types and collections). */
-    public static <T extends DBModel, K> JacksonDBCollection<T, K> coll(Class<T> klass) {
+    public static <T extends DBModel, K> JacksonDBCollection<T, K> collectionForClass(Class<T> klass) {
         return GribbitServer.siteResources.dbCollectionForDBModel(klass);
     }
 
@@ -250,7 +250,7 @@ public class Database {
 
     /** Find a database object by key. */
     public static <T extends DBModel, K> T findById(Class<T> klass, K id) {
-        return coll(klass).findOneById(id);
+        return collectionForClass(klass).findOneById(id);
     }
 
     /**
@@ -258,15 +258,67 @@ public class Database {
      */
     public static WriteResult<DBModel, Object> save(DBModel object) {
         @SuppressWarnings("unchecked")
-        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(object.getClass());
+        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForClass(object.getClass());
         return coll.save(object);
     }
 
     /** Find an object by id. */
     @SuppressWarnings("unchecked")
     public static <T extends DBModel> T findOneById(Class<T> type, Object id) {
-        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(type);
+        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForClass(type);
         return (T) coll.findOneById(id);
+    }
+
+    /** Check that a field exists, that it is accessible, and that it is indexed in the database. */
+    private static <T extends DBModel> void checkFieldIsIndexed(Class<T> type, String fieldName) {
+        Field field;
+        try {
+            field = type.getField(fieldName);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException("Field \"" + fieldName + "\" is not a field of class " + type.getName());
+        } catch (SecurityException e) {
+            throw new RuntimeException("Field \"" + fieldName + "\" of class " + type.getName() + " is not accessible", e);
+        }
+        if (!field.equals(getIdFieldForDBModel(type)) && field.getAnnotation(DBIndex.class) == null && field.getAnnotation(DBIndexUnique.class) == null) {
+            throw new RuntimeException("Field \"" + fieldName + "\" in class " + type.getName()
+                    + " is not an indexed field, so querying it will run in O(N) -- add an annotation @" + DBIndex.class.getName() + " or @" + DBIndexUnique.class.getName()
+                    + " to index the field");
+        }
+    }
+
+    /** Find an item by an indexed field's value */
+    public static <T extends DBModel> T findOneByIndexedField(Class<T> type, String fieldName, String fieldValue) {
+        checkFieldIsIndexed(type, fieldName);
+        DBCursor<T> cursor = null;
+        try {
+            cursor = Database.collectionForClass(type).find(new BasicDBObject(fieldName, fieldValue));
+            if (cursor.hasNext()) {
+                return cursor.next();
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return null;
+    }
+
+    /** Find an item by an indexed field's value */
+    public static <T extends DBModel> ArrayList<T> findAllByIndexedField(Class<T> type, String fieldName, String fieldValue) {
+        checkFieldIsIndexed(type, fieldName);
+        ArrayList<T> results = new ArrayList<T>();
+        DBCursor<T> cursor = null;
+        try {
+            cursor = Database.collectionForClass(type).find(new BasicDBObject(fieldName, fieldValue));
+            while (cursor.hasNext()) {
+                results.add(cursor.next());
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return results;
     }
 
     /**
@@ -276,7 +328,7 @@ public class Database {
      */
     public static WriteResult<DBModel, Object> remove(DBModel object) {
         @SuppressWarnings("unchecked")
-        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(object.getClass());
+        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForClass(object.getClass());
         return coll.removeById(getId(object));
     }
 
@@ -287,7 +339,7 @@ public class Database {
      */
     public static WriteResult<DBModel, Object> removeById(Class<? extends DBModel> type, Object id) {
         @SuppressWarnings("unchecked")
-        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(type);
+        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForClass(type);
         return coll.removeById(id);
     }
 
@@ -297,7 +349,7 @@ public class Database {
      */
     public static <T extends DBModel> ArrayList<T> findAll(Class<T> type) {
         ArrayList<T> results = new ArrayList<>();
-        DBCursor<T> cursor = coll(type).find();
+        DBCursor<T> cursor = collectionForClass(type).find();
         while (cursor.hasNext()) {
             results.add(cursor.next());
         }
