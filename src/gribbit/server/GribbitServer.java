@@ -83,13 +83,6 @@ public class GribbitServer {
 
     // ------------------------------------------------------------------------------------------------------------------------------------------------
 
-    static {
-        // Initialize logger
-        Log.info("Starting Gribbit server");
-    }
-
-    // ------------------------------------------------------------------------------------------------------------------------------------------------
-
     /**
      * Checks to see if a specific port is available. See http://stackoverflow.com/questions/434718/sockets-discover-port-availability-using-java
      */
@@ -136,6 +129,8 @@ public class GribbitServer {
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
      */
     public GribbitServer(String domain, int port, String appPackageName, String staticResourceRoot) {
+        Log.info("Starting Gribbit server");
+
         GribbitServer.appPackageName = appPackageName;
 
         if (!portAvailable(port)) {

@@ -84,48 +84,57 @@ public class Database {
 
     // ------------------------------------------------------------------------------------------------------------------------------------
 
+    /**
+     * Wrap a MongoDB collection in a JacksonDBCollection wrapper. This should generally only be called manually by commandline utilities that want to access database collections
+     * but don't want to startup the web server to produce the mapping from DBModel to JacksonDBCollection.
+     */
+    public JacksonDBCollection<? extends DBModel, ?> wrapDBCollection(Class<? extends DBModel> dbModelClass) {
+        // Read database collection annotation -- see http://mongojack.org/tutorial.html
+        MongoCollection mongoCollectionAnnotation = dbModelClass.getAnnotation(MongoCollection.class);
+        String collectionName = mongoCollectionAnnotation == null ? null : mongoCollectionAnnotation.name();
+        if (collectionName == null || collectionName.isEmpty()) {
+            // No @MongoCollection annotation on DBModel class, default to using class name as collection name 
+            collectionName = dbModelClass.getSimpleName();
+            // Log.info(DBModel.class.getName() + " subclass " + dbClass.getName() + " does not specify collection name using @" + MongoCollection.class.getSimpleName()
+            //         + " annotation; using \"" + collectionName + "\" as collection name");
+        }
+        Class<? extends DBModel> oldDBModelClass = collectionNameToDBModelClass.put(collectionName, dbModelClass);
+        if (oldDBModelClass != null) {
+            throw new RuntimeException("Two database collection classes registered with the same name \"" + collectionName + "\": " + oldDBModelClass.getName() + ", "
+                    + dbModelClass.getName());
+        }
+
+        // Make sure type of @Id-annotated field is correct for model type (int-keyed, string-keyed or ObjectId-keyed)
+        Class<?> idType = DBModelStringKey.class.isAssignableFrom(dbModelClass) ? String.class : DBModelLongKey.class.isAssignableFrom(dbModelClass) ? Long.class
+                : DBModelObjectIdKey.class.isAssignableFrom(dbModelClass) ? ObjectId.class : null;
+        if (idType == null) {
+            throw new RuntimeException("Class " + dbModelClass.getName() + " needs to be a subclass of " + DBModelStringKey.class.getSimpleName() + ", "
+                    + DBModelLongKey.class.getSimpleName() + " or " + DBModelLongKey.class.getSimpleName());
+        }
+        // Get id field
+        Field idField = findIdFieldSlow(dbModelClass);
+        if (idField == null) {
+            throw new RuntimeException("Need a field named \"id\" or \"_id\", or with @Id annotation, in class " + dbModelClass.getName());
+        }
+        if (idField.getType() != idType) {
+            throw new RuntimeException("Field " + idField.getName() + " with @Id annotation in class " + dbModelClass.getName() + " must be of type " + idType.getSimpleName());
+        }
+
+        // Save mapping from DBModel class to id field so it's easy to find in future 
+        dbModelClassToIdField.put(dbModelClass, idField);
+
+        return JacksonDBCollection.wrap(mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass, idType);
+    }
+
+    // ------------------------------------------------------------------------------------------------------------------------------------
+
     /** Register a subclass of DBModel with MongoJack. */
     public void registerDBModel(Class<? extends DBModel> dbModelClass) {
         // Ignore the DBModel[ObjectId|String|Long]Key superclasses, but register everything else
         if (dbModelClass != DBModelObjectIdKey.class && dbModelClass != DBModelStringKey.class && dbModelClass != DBModelLongKey.class) {
-            // Read database collection annotation -- see http://mongojack.org/tutorial.html
-            MongoCollection mongoCollectionAnnotation = dbModelClass.getAnnotation(MongoCollection.class);
-            String collectionName = mongoCollectionAnnotation == null ? null : mongoCollectionAnnotation.name();
-            if (collectionName == null || collectionName.isEmpty()) {
-                // No @MongoCollection annotation on DBModel class, default to using class name as collection name 
-                collectionName = dbModelClass.getSimpleName();
-                // Log.info(DBModel.class.getName() + " subclass " + dbClass.getName() + " does not specify collection name using @" + MongoCollection.class.getSimpleName()
-                //         + " annotation; using \"" + collectionName + "\" as collection name");
-            }
-            Class<? extends DBModel> oldDBModelClass = collectionNameToDBModelClass.put(collectionName, dbModelClass);
-            if (oldDBModelClass != null) {
-                throw new RuntimeException("Two database collection classes registered with the same name \"" + collectionName + "\": " + oldDBModelClass.getName() + ", "
-                        + dbModelClass.getName());
-            }
-
-            // Get id field
-            Field idField = findIdFieldSlow(dbModelClass);
-            if (idField == null) {
-                throw new RuntimeException("Need a field named \"id\" or \"_id\", or with @Id annotation, in class " + dbModelClass.getName());
-            }
-
-            // Make sure type of @Id-annotated field is correct for model type (int-keyed, string-keyed or ObjectId-keyed)
-            Class<?> idType = DBModelStringKey.class.isAssignableFrom(dbModelClass) ? String.class : DBModelLongKey.class.isAssignableFrom(dbModelClass) ? Long.class
-                    : DBModelObjectIdKey.class.isAssignableFrom(dbModelClass) ? ObjectId.class : null;
-            if (idType == null) {
-                throw new RuntimeException("Class " + dbModelClass.getName() + " needs to be a subclass of " + DBModelStringKey.class.getSimpleName() + ", "
-                        + DBModelLongKey.class.getSimpleName() + " or " + DBModelLongKey.class.getSimpleName());
-            }
-            if (idField.getType() != idType) {
-                throw new RuntimeException("Field " + idField.getName() + " with @Id annotation in class " + dbModelClass.getName() + " must be of type " + idType.getSimpleName());
-            }
-
-            // Save mapping from DBModel class to id field so it's easy to find in future 
-            dbModelClassToIdField.put(dbModelClass, idField);
 
             // Create JacksonDBCollection and map from class to collection
-            JacksonDBCollection<? extends DBModel, ?> dbColl = JacksonDBCollection.wrap(mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass,
-                    idType);
+            JacksonDBCollection<? extends DBModel, ?> dbColl = wrapDBCollection(dbModelClass);
             dbModelClassToCollection.put(dbModelClass, dbColl);
 
             // Ensure that required indices exist for the collection
@@ -260,16 +269,22 @@ public class Database {
         return (T) coll.findOneById(id);
     }
 
-    /** Remove this object from the database. 
-     * @return */
+    /**
+     * Remove this object from the database.
+     * 
+     * @return
+     */
     public static WriteResult<DBModel, Object> remove(DBModel object) {
         @SuppressWarnings("unchecked")
         JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(object.getClass());
         return coll.removeById(getId(object));
     }
 
-    /** Remove this object from the database. Slightly faster than remove(), because it doesn't have to find the id field. 
-     * @return */
+    /**
+     * Remove this object from the database. Slightly faster than remove(), because it doesn't have to find the id field.
+     * 
+     * @return
+     */
     public static WriteResult<DBModel, Object> removeById(Class<? extends DBModel> type, Object id) {
         @SuppressWarnings("unchecked")
         JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(type);

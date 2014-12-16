@@ -26,6 +26,8 @@
 package gribbit.model;
 
 import gribbit.auth.CSRF;
+import gribbit.model.field.annotation.DBIndex;
+import gribbit.model.field.annotation.DBIndexUnique;
 import gribbit.model.field.annotation.Email;
 import gribbit.model.field.annotation.MaxIntegerValue;
 import gribbit.model.field.annotation.MaxLength;
@@ -148,8 +150,9 @@ public abstract class DataModel {
     // ------------------------------------------------------------------------------------------------------------------------------------------------------
 
     private static boolean isRequired(Field f) {
-        return f.getAnnotation(Required.class) != null || f.getAnnotation(MinLength.class) != null || f.getAnnotation(MaxLength.class) != null
-                || f.getAnnotation(MinIntegerValue.class) != null || f.getAnnotation(MaxIntegerValue.class) != null;
+        return f.getAnnotation(Required.class) != null || f.getAnnotation(DBIndex.class) != null || f.getAnnotation(DBIndexUnique.class) != null
+                || f.getAnnotation(MinLength.class) != null || f.getAnnotation(MaxLength.class) != null || f.getAnnotation(MinIntegerValue.class) != null
+                || f.getAnnotation(MaxIntegerValue.class) != null;
     }
 
     /**
@@ -171,7 +174,7 @@ public abstract class DataModel {
                     String fieldName = field.getName();
 
                     boolean required = isRequired(field);
-                    if (required && fieldVal == null || (fieldVal instanceof String && ((String) fieldVal).isEmpty())) {
+                    if (required && (fieldVal == null || (fieldVal instanceof String && ((String) fieldVal).isEmpty()))) {
                         throw new RuntimeException("Required field " + fieldName + " is null or empty");
                     }
 
@@ -1586,7 +1589,8 @@ public abstract class DataModel {
      * Recursively traverse the DOM of a template, rendering each node into HTML. Returns true if the node was indented (which happens when prettyPrint == true and the node or one
      * of its children is a block element).
      */
-    private boolean renderDOMNode(Node node, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel, StringBuilder buf) {
+    private boolean renderDOMNode(Node node, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel,
+            StringBuilder buf) {
         boolean nodeWasIndented = false;
 
         if (node instanceof Element) {
@@ -1698,7 +1702,8 @@ public abstract class DataModel {
     }
 
     /** Recursively render the children of a DOM node into HTML. Returns true if a child of this node was indented on its own line. */
-    private boolean renderChildrenOfElement(Element e, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel, StringBuilder buf) {
+    private boolean renderChildrenOfElement(Element e, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, boolean normalizeTextSpacing,
+            int indentLevel, StringBuilder buf) {
         boolean childWasIndented = false;
         for (Node child : e.childNodes()) {
             // Recursively render each child node
