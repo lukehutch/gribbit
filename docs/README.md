@@ -1,5 +1,5 @@
 
 
 Credits:
-- frog.jpg: derived from http://commons.wikimedia.org/wiki/File:Emerald_Glass_Frog_(Centrolene_prosoblepon)_lightbox.jpg
+- frog.jpg: Emerald Glass Frog (Centrolene prosoblepon), by Brian Gratwicke, CC-licensed. Source: http://www.flickr.com/photos/19731486@N07/4745436447
 
