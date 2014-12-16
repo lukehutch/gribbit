@@ -46,7 +46,7 @@ public class JSON {
     static ObjectMapper mapper = new ObjectMapper(factory);
     static {
         mapper.setVisibilityChecker(mapper.getSerializationConfig().getDefaultVisibilityChecker() //
-                .withFieldVisibility(JsonAutoDetect.Visibility.NONE) //
+                .withFieldVisibility(JsonAutoDetect.Visibility.PUBLIC_ONLY) //
                 .withGetterVisibility(JsonAutoDetect.Visibility.NONE) //
                 .withSetterVisibility(JsonAutoDetect.Visibility.NONE) //
                 .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
@@ -54,7 +54,7 @@ public class JSON {
         if (GribbitProperties.PRETTY_PRINT_JSON) {
             mapper.enable(SerializationFeature.INDENT_OUTPUT);
         }
-        mapper.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+        // mapper.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     }
 
     public static <T> T jsonToObject(String jsonString, Class<T> klass) throws JsonParseException, JsonMappingException, IOException {

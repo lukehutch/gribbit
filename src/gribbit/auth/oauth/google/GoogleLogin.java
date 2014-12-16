@@ -255,7 +255,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                         }
                     }
                 } catch (BadRequestException e) {
-                    error = "Bad request";
+                    error = "Bad request: " + e.getMessage();
                 } catch (Exception e) {
                     Log.exception("Exception during Google OAuth2 login", e);
                     if (error == null) {
@@ -272,7 +272,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                 user.logOut(res);
             }
             res.clearFlashMessages();
-            res.addFlashMessage(FlashType.ERROR, "Error", "Could not log into your Google account, please try again");
+            res.addFlashMessage(FlashType.ERROR, "Error", "Could not log in, please check your password and try again, or contact the site administrator");
             GribbitServer.siteResources.getUnauthorizedRoute().callHandler(req, res);
         }
     }
