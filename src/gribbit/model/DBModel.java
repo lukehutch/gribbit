@@ -25,10 +25,12 @@
  */
 package gribbit.model;
 
+import org.mongojack.WriteResult;
+
 public abstract class DBModel extends DataModel {
     /** Save (upsert) this object into the database. */
-    public abstract void save();
+    public abstract WriteResult<DBModel, Object> save();
 
     /** Remove this object from the database. */
-    public abstract void remove();
+    public abstract WriteResult<DBModel, Object> remove();
 }

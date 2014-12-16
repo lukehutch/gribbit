@@ -29,6 +29,7 @@ import gribbit.server.siteresources.Database;
 
 import org.bson.types.ObjectId;
 import org.mongojack.Id;
+import org.mongojack.WriteResult;
 
 public abstract class DBModelObjectIdKey extends DBModel {
 
@@ -38,13 +39,15 @@ public abstract class DBModelObjectIdKey extends DBModel {
     public DBModelObjectIdKey() {
     }
 
-    /** Save (upsert) this object into the database. */
-    public void save() {
+    /**
+     * Save (upsert) this object into the database.
+     */
+    public WriteResult<DBModel, Object> save() {
         if (id == null) {
             // Create new ObjectId if this object was not previously retrieved from the database
             id = new ObjectId();
         }
-        
+
         // Check that values in the object fields satisfy any constraint annotations
         try {
             checkFieldValuesAgainstConstraints();
@@ -52,15 +55,15 @@ public abstract class DBModelObjectIdKey extends DBModel {
             throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: " + e.getMessage());
         }
 
-        Database.save(this);
+        return Database.save(this);
     }
 
     /** Remove this object from the database. */
-    public void remove() {
+    public WriteResult<DBModel, Object> remove() {
         if (id == null) {
             throw new RuntimeException("id is null, so object cannot be removed (object was not previously saved in or retrieved from database)");
         }
-        Database.removeById(getClass(), id);
+        return Database.removeById(getClass(), id);
     }
 
     public ObjectId getId() {

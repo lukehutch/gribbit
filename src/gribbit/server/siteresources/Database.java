@@ -45,6 +45,7 @@ import org.bson.types.ObjectId;
 import org.mongojack.DBCursor;
 import org.mongojack.JacksonDBCollection;
 import org.mongojack.MongoCollection;
+import org.mongojack.WriteResult;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
@@ -243,11 +244,13 @@ public class Database {
         return coll(klass).findOneById(id);
     }
 
-    /** Save (upsert) this object into the database. */
-    public static void save(DBModel object) {
+    /**
+     * Save (upsert) this object into the database.
+     */
+    public static WriteResult<DBModel, Object> save(DBModel object) {
         @SuppressWarnings("unchecked")
         JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(object.getClass());
-        coll.save(object);
+        return coll.save(object);
     }
 
     /** Find an object by id. */
@@ -257,18 +260,20 @@ public class Database {
         return (T) coll.findOneById(id);
     }
 
-    /** Remove this object from the database. */
-    public static void remove(DBModel object) {
+    /** Remove this object from the database. 
+     * @return */
+    public static WriteResult<DBModel, Object> remove(DBModel object) {
         @SuppressWarnings("unchecked")
         JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(object.getClass());
-        coll.removeById(getId(object));
+        return coll.removeById(getId(object));
     }
 
-    /** Remove this object from the database. Slightly faster than remove(), because it doesn't have to find the id field. */
-    public static void removeById(Class<? extends DBModel> type, Object id) {
+    /** Remove this object from the database. Slightly faster than remove(), because it doesn't have to find the id field. 
+     * @return */
+    public static WriteResult<DBModel, Object> removeById(Class<? extends DBModel> type, Object id) {
         @SuppressWarnings("unchecked")
         JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) coll(type);
-        coll.removeById(id);
+        return coll.removeById(id);
     }
 
     /**
