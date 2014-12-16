@@ -585,6 +585,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                         // Client already closed the connection, nothing can be sent
                         // Log.info("Channel closed by client before response sent");
                     }
+                    
+                    // Log.info("Took " + (System.currentTimeMillis() - req.getReqReceivedTimeMillis()) + " msec to serve URI " + req.getURI());
                 }
                 // Finished request
                 destroyDecoder();

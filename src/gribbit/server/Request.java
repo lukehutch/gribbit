@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class Request {
+    private long reqReceivedTimeMillis;
     private HttpMethod method;
     private String requestor;
     private String host;
@@ -94,6 +95,7 @@ public class Request {
     // ----------------------------------------------------------------------------------------------------------------------------------
 
     public Request(HttpRequest httpReq) {
+        this.reqReceivedTimeMillis = System.currentTimeMillis();
         HttpHeaders headers = httpReq.headers();
 
         // Parse and decode/decrypt cookies
@@ -137,6 +139,10 @@ public class Request {
         }
     }
 
+    public long getReqReceivedTimeMillis() {
+        return reqReceivedTimeMillis;
+    }
+    
     void setPostParams(HashMap<String, String> postParamToValue) {
         this.postParamToValue = postParamToValue;
     }
