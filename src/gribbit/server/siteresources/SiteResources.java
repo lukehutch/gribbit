@@ -27,6 +27,7 @@ package gribbit.server.siteresources;
 
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
+import gribbit.server.GribbitServer;
 import gribbit.server.RestHandler;
 import gribbit.server.Route;
 import gribbit.util.Reflection;
@@ -231,12 +232,24 @@ public class SiteResources {
         db = new Database();
         templateLoader = new TemplateLoader(this, polymerModuleRootDir);
 
+        // Set up classpath scanner
+        classpathScanner =
+                new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
+                        .matchSubclassesOf(RestHandler.class, matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
+                        .matchSubclassesOf(DataModel.class, templateClass -> templateLoader.gotDataModel(templateClass)) //
+                        .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass)) //
+                        .matchFilenamePattern(".*\\.(html|js|css)",
+                                (absolutePath, relativePath, inputStream) -> templateLoader.gotWebResource(absolutePath, relativePath, inputStream));
+
+        // If this is the second or subsequent loading of site resources, directly load constant literal values of static fields that contain inline templates,
+        // so that we can dynamically pick up these changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
+        HashSet<String> staticFieldNames = GribbitServer.siteResources == null ? null : GribbitServer.siteResources.templateLoader.getInlineTemplateStaticFieldNames();
+        if (staticFieldNames != null) {
+            classpathScanner.matchStaticFieldNames(staticFieldNames,
+                    (String className, String fieldName, Object fieldConstantValue) -> templateLoader.gotTemplateStaticFieldValue(className, (String) fieldConstantValue));
+        }
+
         // Scan classpath for handlers, models and templates
-        classpathScanner = new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
-                .matchSubclassesOf(RestHandler.class, matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
-                .matchSubclassesOf(DataModel.class, templateClass -> templateLoader.gotDataModel(templateClass)) //
-                .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass)) //
-                .matchFilenamePattern(".*\\.(html|js|css)", (absolutePath, relativePath, inputStream) -> templateLoader.gotWebResource(absolutePath, relativePath, inputStream)); //
         classpathScanner.scan();
 
         templateLoader.initializeTemplates();

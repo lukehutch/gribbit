@@ -40,6 +40,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
@@ -55,6 +56,12 @@ public class TemplateLoader {
     private ArrayList<String> headContent = new ArrayList<>(), tailContent = new ArrayList<>();
 
     private HashMap<Class<? extends DataModel>, Document> templateClassToDocument = new HashMap<>();
+
+    private HashMap<String, String> classNameToInlineTemplate = new HashMap<>();
+
+    private HashMap<String, String> classNameToInlineTemplateOverride = new HashMap<>();
+
+    private HashSet<String> inlineTemplateStaticFieldNames = new HashSet<>();
 
     private static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
 
@@ -84,7 +91,9 @@ public class TemplateLoader {
         return vulcanizer.vulcanizedJSBytes;
     }
 
-    /** Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for prettyprinting) */
+    /**
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for prettyprinting)
+     */
     HashSet<String> getCustomInlineElements() {
         return vulcanizer.customInlineElements;
     }
@@ -94,30 +103,17 @@ public class TemplateLoader {
         return templateClassToDocument.get(templateClass);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
-
-    void initializeTemplates() {
-        // Vulcanize HTML/CSS/JS resources into one CSS+HTML file and one JS file, in topological sort order of dependencies 
-        vulcanizer.vulcanize();
-
-        // The set of all template names is the intersection between html file names and DataModel class names
-        HashSet<String> templateNames = new HashSet<>(vulcanizer.templateNameToDocument.keySet());
-        templateNames.retainAll(classNameToDataModel.keySet());
-
-        for (String templateName : templateNames) {
-            Class<? extends DataModel> templateClass = classNameToDataModel.get(templateName);
-            Document templateDoc = vulcanizer.templateNameToDocument.get(templateName);
-
-            // Cross-check parameter names between HTML templates and DataModel subclasses 
-            DataModel.crossCheckDataModelAndView(siteResources, templateName, templateClass, templateDoc);
-
-            // Create a mapping from DataModel class to the HTML doc that holds the template contents
-            templateClassToDocument.put(templateClass, templateDoc);
-        }
+    /**
+     * Get the names of all the static fields containing inline templates that were discovered during classpath scanning, so that when there are changes on the classpath, we can
+     * dynamically reload the constant values in these static fields.
+     */
+    public HashSet<String> getInlineTemplateStaticFieldNames() {
+        return inlineTemplateStaticFieldNames;
     }
 
     // ------------------------------------------------------------------------------------------------------------------------------------
 
+    /** Got a DataModel subclass on the classpath. */
     void gotDataModel(Class<? extends DataModel> dataModelClass) {
         if (dataModelClass != DBModel.class && dataModelClass != DBModelObjectIdKey.class && dataModelClass != DBModelStringKey.class && dataModelClass != DBModelLongKey.class) {
 
@@ -139,10 +135,10 @@ public class TemplateLoader {
                 if (templateField != null) {
                     int modifiers = templateField.getModifiers();
                     if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers) && templateField.getType().equals(String.class)) {
-                        // Make it look like we loaded the inline template from a correspondingly-named HTML file
-                        String relativePath = dataModelClass.getName().replace('.', '/') + ".html";
+                        // Got an inline template in the static field named "_template" of a DataModel class
+                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "." + templateField.getName());
                         String templateStr = (String) templateField.get(null);
-                        vulcanizer.addResource("/" + relativePath, templateStr);
+                        classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
                     }
                 }
             } catch (NoSuchFieldException e) {
@@ -153,6 +149,7 @@ public class TemplateLoader {
         }
     }
 
+    /** Got an HTML, CSS or JS file on the classpath. */
     void gotWebResource(String absolutePath, String relativePath, InputStream inputStream) {
         try {
             if (absolutePath.endsWith("/head-content.html")) {
@@ -171,5 +168,48 @@ public class TemplateLoader {
             throw new RuntimeException("Could not read web resource " + absolutePath, e);
         }
         // Log.info("Found web resource: " + relativePath);
+    }
+
+    /**
+     * Found a static initializer value in a classfile on a second or subsequent loading of site resources. Use this value instead of the one read using reflection, so that hot
+     * changes of static constant values is supported.
+     */
+    public void gotTemplateStaticFieldValue(String className, String templateString) {
+        classNameToInlineTemplateOverride.put(className, templateString);
+    }
+
+    // ------------------------------------------------------------------------------------------------------------------------------------
+
+    void initializeTemplates() {
+        // Add inline templates to the vulcanizer
+        for (Entry<String, String> ent : classNameToInlineTemplate.entrySet()) {
+            String className = ent.getKey();
+            // Allow dynamically-loaded static constants to override the version obtained by reflection
+            String templateStr = classNameToInlineTemplateOverride.get(className);
+            if (templateStr == null) {
+                templateStr = ent.getValue();
+            }
+            // Make it look like we loaded the inline static field templates from an HTML file named the same as the class
+            String relativePath = className.replace('.', '/') + ".html";
+            vulcanizer.addResource("/" + relativePath, templateStr);
+        }
+
+        // Vulcanize HTML/CSS/JS resources into one CSS+HTML file and one JS file, in topological sort order of dependencies 
+        vulcanizer.vulcanize();
+
+        // The set of all template names is the intersection between html file names and DataModel class names
+        HashSet<String> templateNames = new HashSet<>(vulcanizer.templateNameToDocument.keySet());
+        templateNames.retainAll(classNameToDataModel.keySet());
+
+        for (String templateName : templateNames) {
+            Class<? extends DataModel> templateClass = classNameToDataModel.get(templateName);
+            Document templateDoc = vulcanizer.templateNameToDocument.get(templateName);
+
+            // Cross-check parameter names between HTML templates and DataModel subclasses 
+            DataModel.crossCheckDataModelAndView(siteResources, templateName, templateClass, templateDoc);
+
+            // Create a mapping from DataModel class to the HTML doc that holds the template contents
+            templateClassToDocument.put(templateClass, templateDoc);
+        }
     }
 }
