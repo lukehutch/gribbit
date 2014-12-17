@@ -217,7 +217,7 @@ public class WebUtils {
     }
 
     /** Convert a URI query param key of the form "q" in "?q=v", %-encoding of UTF8 bytes for unusual characters. */
-    private static void escapeQueryParamKey(String str, StringBuilder buf) {
+    public static void escapeQueryParamKey(String str, StringBuilder buf) {
         byte[] utf8Bytes = UTF8.stringToUTF8(str);
         for (int i = 0; i < utf8Bytes.length; i++) {
             char c = (char) utf8Bytes[i];
@@ -231,7 +231,7 @@ public class WebUtils {
     }
 
     /** Convert a URI query param value of the form "v" in "?q=v". We use '+' to escape spaces, by convention, and %-encoding of UTF8 bytes for unusual characters. */
-    private static void escapeQueryParamVal(String str, StringBuilder buf) {
+    public static void escapeQueryParamVal(String str, StringBuilder buf) {
         byte[] utf8Bytes = UTF8.stringToUTF8(str);
         for (int i = 0; i < utf8Bytes.length; i++) {
             char c = (char) utf8Bytes[i];
@@ -259,14 +259,32 @@ public class WebUtils {
      * https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#RULE_.235_-_URL_Escape_Before_Inserting_Untrusted_Data_into_HTML_URL_Parameter_Values
      */
     public static String encodeURI(String unsafeURI) {
+        // Look for scheme
+        int startIdx = 0;
+        int colonIdx = unsafeURI.indexOf(':');
+        if (colonIdx > 0) {
+            int firstSlashIdx = unsafeURI.indexOf('/');
+            if (firstSlashIdx > 0 && firstSlashIdx > colonIdx) {
+                startIdx = colonIdx + 1;
+            }
+        }
+        // Look for query params
         String[] parts;
+        int endIdx = unsafeURI.length();
         int paramIdx = unsafeURI.indexOf('?');
-        if (paramIdx < 0) {
+        if (paramIdx >= 0) {
+            endIdx = paramIdx;
+        }
+        // Split part between scheme and query params at "/"
+        if (startIdx == 0 && endIdx == unsafeURI.length()) {
             parts = StringUtils.split(unsafeURI, "/");
         } else {
-            parts = StringUtils.split(unsafeURI.substring(0, paramIdx), "/");
+            parts = StringUtils.split(unsafeURI.substring(startIdx, endIdx), "/");
         }
         StringBuilder buf = new StringBuilder(unsafeURI.length() * 2);
+        // Add scheme, if present
+        buf.append(unsafeURI.substring(0, startIdx));
+        // Escape each segment of URI separately until query params 
         for (int i = 0; i < parts.length; i++) {
             String part = parts[i];
             if (i > 0) {
@@ -276,6 +294,7 @@ public class WebUtils {
             // Need to use Punycode to represent general Unicode domains. 
             buf.append(escapeURISegment(part));
         }
+        // Add query params, if present
         if (paramIdx >= 0) {
             buf.append('?');
             String[] qparts = StringUtils.split(unsafeURI.substring(paramIdx + 1), "&");

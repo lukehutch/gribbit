@@ -1727,7 +1727,7 @@ public abstract class DataModel {
     public void renderTemplate(boolean prettyPrint, int indentLevel, StringBuilder buf) {
         Document doc = getAssociatedTemplateDoc();
         if (doc == null) {
-            throw new RuntimeException("No template corresponding to class " + this.getClass().getName());
+            throw new RuntimeException("Could not find a template named " + this.getClass().getSimpleName() + ".html to render model " + this.getClass().getName());
         }
         renderTemplate(doc, prettyPrint, indentLevel, buf);
     }
