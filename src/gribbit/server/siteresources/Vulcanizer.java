@@ -634,9 +634,7 @@ public class Vulcanizer {
             String content = uriToContent.get(uri);
 
             String baseURI = uri.substring(0, uri.lastIndexOf('/'));
-            if (uri.endsWith(".html") ||
-            // For HTML templates embedded inline in a static _template field in a DataModel class:
-                    uri.endsWith(".java")) {
+            if (uri.endsWith(".html")) {
                 addHTML(uri, content, baseURI);
             } else if (uri.endsWith(".css")) {
                 addCSS(uri, content, baseURI);

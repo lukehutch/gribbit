@@ -139,7 +139,8 @@ public class TemplateLoader {
                 if (templateField != null) {
                     int modifiers = templateField.getModifiers();
                     if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers) && templateField.getType().equals(String.class)) {
-                        String relativePath = dataModelClass.getName().replace('.', '/') + ".java";
+                        // Make it look like we loaded the inline template from a correspondingly-named HTML file
+                        String relativePath = dataModelClass.getName().replace('.', '/') + ".html";
                         String templateStr = (String) templateField.get(null);
                         vulcanizer.addResource("/" + relativePath, templateStr);
                     }
