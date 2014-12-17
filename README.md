@@ -4,5 +4,5 @@ The Gribbit Web Framework
 
 The Gribbit Web Framework is a new ultra-secure, ultra-simple, ultra-fast framework for building complex web apps in Java and other JVM languages.
 
-Gribbit is still under heavy development, and is not ready for widespread use. Check back later for updates.
+Gribbit is still under heavy development, is not ready for widespread use, and is (so far) completely undocumented. Check back later for updates.
 
