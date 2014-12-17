@@ -36,5 +36,7 @@ public class a extends DataModel {
         this.href = href;
         this.text = text;
     }
+ 
+    public static final String _template = "<a href='${href}' target='_blank'>${text}</a>";
     
 }

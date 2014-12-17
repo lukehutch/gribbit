@@ -30,10 +30,13 @@ import gribbit.model.DBModelLongKey;
 import gribbit.model.DBModelObjectIdKey;
 import gribbit.model.DBModelStringKey;
 import gribbit.model.DataModel;
+import gribbit.util.Log;
 import gribbit.util.StringUtils;
 
 import java.io.File;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +55,8 @@ public class TemplateLoader {
     private ArrayList<String> headContent = new ArrayList<>(), tailContent = new ArrayList<>();
 
     private HashMap<Class<? extends DataModel>, Document> templateClassToDocument = new HashMap<>();
+
+    private static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
 
     /** Pattern for template parameters, of the form "${name}" */
     public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern.compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
@@ -110,7 +115,7 @@ public class TemplateLoader {
             templateClassToDocument.put(templateClass, templateDoc);
         }
     }
-    
+
     // ------------------------------------------------------------------------------------------------------------------------------------
 
     void gotDataModel(Class<? extends DataModel> dataModelClass) {
@@ -125,6 +130,24 @@ public class TemplateLoader {
                 // TODO: don't use just leafnames for data models and templates; use whole package name so that names don't have to be unique across the whole project
                 throw new RuntimeException("Class name \"" + dataModelClass.getSimpleName() + "\" is not unique (two different classes extending " + DataModel.class.getName()
                         + " have the same class name)");
+            }
+
+            // If the DataModel contains a "_template" field, load the inline template as if it were in an HTML file of the same name as the class
+            Field templateField;
+            try {
+                templateField = dataModelClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+                if (templateField != null) {
+                    int modifiers = templateField.getModifiers();
+                    if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers) && templateField.getType().equals(String.class)) {
+                        String relativePath = dataModelClass.getName().replace('.', '/') + ".java";
+                        String templateStr = (String) templateField.get(null);
+                        vulcanizer.addResource("/" + relativePath, templateStr);
+                    }
+                }
+            } catch (NoSuchFieldException e) {
+                // Ignore
+            } catch (SecurityException | IllegalAccessException | IllegalArgumentException | NullPointerException e) {
+                Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class " + dataModelClass + ": " + e);
             }
         }
     }

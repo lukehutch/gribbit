@@ -37,4 +37,8 @@ public class div extends DataModel {
         this.cssClass = cssClass;
         this.content = content;
     }
+
+    // Id and name fields must be preceeded with a prefix, i.e. id='div${id}', not id='${id}', to mitigate the effect of
+    // injection attacks by namespacing the parameterized id fields of elements in templates.
+    public static final String _template = "<div class='${cssClass}' id='div${id}'>${content}</div>";
 }

@@ -98,8 +98,8 @@ public class Vulcanizer {
 
     private File polymerModuleRootDir;
 
-    final HashSet<String> customInlineElements = new HashSet<>(); 
-    
+    final HashSet<String> customInlineElements = new HashSet<>();
+
     // ------------------------------------------------------------------------------------------------------------------------------------
 
     public Vulcanizer(SiteResources siteResources, File polymerModuleRootDir) {
@@ -431,7 +431,7 @@ public class Vulcanizer {
             if (oldDoc != null) {
                 // We only match template names and DataModel names on the leafname currently, so html files in classpath have to have unique names
                 String leaf = StringUtils.leafName(baseURI);
-                throw new RuntimeException("Two .html files found in classpath with same name \"" + leaf + "\"");
+                throw new RuntimeException("Two HTML template files found in classpath with same name \"" + leaf + "\"");
             }
         }
     }
@@ -634,7 +634,9 @@ public class Vulcanizer {
             String content = uriToContent.get(uri);
 
             String baseURI = uri.substring(0, uri.lastIndexOf('/'));
-            if (uri.endsWith(".html")) {
+            if (uri.endsWith(".html") ||
+            // For HTML templates embedded inline in a static _template field in a DataModel class:
+                    uri.endsWith(".java")) {
                 addHTML(uri, content, baseURI);
             } else if (uri.endsWith(".css")) {
                 addCSS(uri, content, baseURI);

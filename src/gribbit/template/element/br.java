@@ -28,4 +28,7 @@ package gribbit.template.element;
 import gribbit.model.DataModel;
 
 public class br extends DataModel {
+    
+    public static final String _template = "<br>";
+    
 }
