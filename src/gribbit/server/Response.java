@@ -364,7 +364,7 @@ public class Response {
     // ----------------------------------------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * Add a possibly-encrypted cookie to the response.
+     * Add a possibly-base64-encoded cookie to the response.
      */
     public Response setCookie(String cookieName, String val, String path, int maxAgeInSeconds, EncodingType encodingType) {
         if (cookies == null)
@@ -382,14 +382,14 @@ public class Response {
     }
 
     /**
-     * Add an encrypted cookie to the response.
+     * Add base64-encoded cookie to the response.
      */
     public Response setCookie(String key, String val, String path, int maxAgeInSeconds) {
-        return setCookie(key, val, path, maxAgeInSeconds, EncodingType.ENCRYPTED);
+        return setCookie(key, val, path, maxAgeInSeconds, EncodingType.BASE64_ENCODED);
     }
 
     /**
-     * Add a cookie to the response.
+     * Add a base64-encoded cookie to the response.
      */
     public Response setCookie(String key, String val, String path, Instant expiry, EncodingType encodingType) {
         long secondsLeft = Math.max(0, ChronoUnit.SECONDS.between(Instant.now(), expiry));
@@ -398,10 +398,10 @@ public class Response {
     }
 
     /**
-     * Add an encrypted cookie to the response.
+     * Add base64-encoded cookie to the response.
      */
     public Response setCookie(String key, String val, String path, Instant expiry) {
-        return setCookie(key, val, path, expiry, EncodingType.ENCRYPTED);
+        return setCookie(key, val, path, expiry, EncodingType.BASE64_ENCODED);
     }
 
     /** Delete a cookie from the response */

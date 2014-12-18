@@ -37,12 +37,16 @@ import org.apache.commons.mail.ImageHtmlEmail;
 public class SendEmail {
 
     /** Send an email. Don't forget to use fully-qualified URLs in the message body. */
-    public static void sendEmail(final String toName, final String to, final String subject, final DataModel message,
-            final String messagePlainText) {
+    public static void sendEmail(final String toName, final String to, final String subject, final DataModel message, final String messagePlainText) {
         // Queue sending of email in a new thread
         GribbitServer.scheduledTaskGroup.execute(new Runnable() {
             @Override
             public void run() {
+                if (GribbitProperties.SMTP_SERVER == null || GribbitProperties.SEND_EMAIL_ADDRESS == null || GribbitProperties.SEND_EMAIL_PASSWORD == null
+                        || GribbitProperties.SEND_EMAIL_ADDRESS == null || GribbitProperties.SEND_EMAIL_NAME == null) {
+                    throw new RuntimeException("SMTP is not fully configured in the properties file");
+                }
+
                 String fullEmailAddr = "\"" + toName + "\" <" + to + ">";
                 try {
                     HtmlEmail email = new ImageHtmlEmail();
