@@ -35,14 +35,6 @@ import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.ServerCookieEncoder;
 
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
-
 /**
  * Cookies!
  */
@@ -51,7 +43,7 @@ public class Cookie {
     private final String name;
 
     public enum EncodingType {
-        PLAIN, BASE64_ENCODED, ENCRYPTED;
+        PLAIN, BASE64_ENCODED;
     }
 
     // ------------------------------------------------------------------------------------------------------------------------
@@ -77,16 +69,13 @@ public class Cookie {
     // ------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * Private class for encapsulating access to cookie values so that we can lazily handle encryption / decryption and encoding / decoding of values (to save time if a cookie is
-     * not used in a given request).
+     * Private class for encapsulating access to cookie values so that we can lazily handle encoding / decoding of values (to save time if a cookie is not used in a given request).
      */
     private class CookieJar {
-        /**
-         * The Netty cookie containing the base64-encoded, possibly encrypted UTF8 bytes representing the cookie's string value
-         */
+        /** The Netty cookie containing the possibly-base64-encoded UTF8 bytes representing the cookie's string value */
         private io.netty.handler.codec.http.Cookie encodedNettyCookie;
 
-        /** The unencrypted cookie value. */
+        /** The unencoded cookie value. */
         private String unencodedValue;
 
         /** Tracks whether encoded and/or decoded values are known. */
@@ -95,13 +84,12 @@ public class Cookie {
         private EncodingType encodingType;
 
         private static final String BASE64_ENCODED_PREFIX = "!0!";
-        private static final String ENCRYPTED_PREFIX = "!1!";
 
         public CookieJar(io.netty.handler.codec.http.Cookie nettyCookie) {
             hasEncodedValue = true;
             this.encodedNettyCookie = nettyCookie;
             String value = nettyCookie.getValue();
-            encodingType = value.startsWith(BASE64_ENCODED_PREFIX) ? EncodingType.BASE64_ENCODED : value.startsWith(ENCRYPTED_PREFIX) ? EncodingType.ENCRYPTED : EncodingType.PLAIN;
+            encodingType = value.startsWith(BASE64_ENCODED_PREFIX) ? EncodingType.BASE64_ENCODED : EncodingType.PLAIN;
         }
 
         public CookieJar(String name, String unencodedValue, String path, long maxAgeInSeconds, EncodingType encodingType, boolean discardAtEndOfBrowserSession) {
@@ -149,14 +137,8 @@ public class Cookie {
                     try {
                         if (encodedValue.startsWith(BASE64_ENCODED_PREFIX)) {
                             // Base64-encoded UTF8 bytes
-                            byte[] unencryptedBytes = Base64Safe.base64Decode(encodedValue.substring(BASE64_ENCODED_PREFIX.length()));
-                            unencodedValue = UTF8.utf8ToString(unencryptedBytes);
-
-                        } else if (encodedValue.startsWith(ENCRYPTED_PREFIX)) {
-                            // Base64-encoded, encrypted UTF8 bytes
-                            byte[] encryptedBytes = Base64Safe.base64Decode(encodedValue.substring(ENCRYPTED_PREFIX.length()));
-                            byte[] unencryptedBytes = decrypt(encryptedBytes);
-                            unencodedValue = UTF8.utf8ToString(unencryptedBytes);
+                            byte[] base64UTF8Bytes = Base64Safe.base64Decode(encodedValue.substring(BASE64_ENCODED_PREFIX.length()));
+                            unencodedValue = UTF8.utf8ToString(base64UTF8Bytes);
 
                         } else /* PLAIN */{
                             unencodedValue = WebUtils.unescapeCookieValue(encodedValue);
@@ -178,11 +160,9 @@ public class Cookie {
                     encodedValue = WebUtils.escapeCookieValue(unencodedValue);
 
                 } else {
-                    // Either encrypt and then base64-encode the value, or just base64-encode it
+                    // Base64-encode the value
                     byte[] utf8Bytes = UTF8.stringToUTF8(unencodedValue);
-                    byte[] maybeEncryptedBytes = encodingType == EncodingType.ENCRYPTED ? encrypt(utf8Bytes) : utf8Bytes;
-                    String prefix = encodingType == EncodingType.ENCRYPTED ? ENCRYPTED_PREFIX : BASE64_ENCODED_PREFIX;
-                    encodedValue = prefix + Base64Safe.base64Encode(maybeEncryptedBytes);
+                    encodedValue = BASE64_ENCODED_PREFIX + Base64Safe.base64Encode(utf8Bytes);
                 }
                 if (encodedValue.length() > 3700) {
                     // > 4000 bytes total kills performance and/or doesn't work in many browsers
@@ -209,7 +189,7 @@ public class Cookie {
     // ------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie and encode/encrypt its value. If maxAgeInSeconds is Long.MIN_VALUE, then cookie will expire at end of browser session.
+     * Create a cookie and possibly base64-encode its value. If maxAgeInSeconds is Long.MIN_VALUE, then cookie will expire at end of browser session.
      */
     public Cookie(String name, String unencodedValue, String path, long maxAgeInSeconds, EncodingType encodingType, boolean discardAtEndOfBrowserSession) throws Exception {
         this.name = name;
@@ -217,17 +197,17 @@ public class Cookie {
     }
 
     /**
-     * Create a possibly-encrypted cookie with the discard flag set to false (cookie is not discarded when browser session closes).
+     * Create a possibly-base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser session closes).
      */
     public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds, EncodingType encodingType) throws Exception {
         this(name, valueCleartext, path, maxAgeInSeconds, encodingType, false);
     }
 
     /**
-     * Create an encrypted cookie with the discard flag set to false (cookie is not discarded when browser session closes).
+     * Create a base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser session closes).
      */
     public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds) throws Exception {
-        this(name, valueCleartext, path, maxAgeInSeconds, EncodingType.ENCRYPTED, false);
+        this(name, valueCleartext, path, maxAgeInSeconds, EncodingType.BASE64_ENCODED, false);
     }
 
     /**
@@ -263,125 +243,16 @@ public class Cookie {
 
     // ------------------------------------------------------------------------------------------------------------------------
 
-    private static final SecretKeySpec secretKeySpec = new SecretKeySpec(GribbitProperties.COOKIE_ENCRYPTION_KEY, "AES");
-    private static Cipher encryptCipher = null, decryptCipher = null;
-    static {
-        try {
-            // Takes about 175ms to start up
-            encryptCipher = Cipher.getInstance("AES");
-            encryptCipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);
-            decryptCipher = Cipher.getInstance("AES");
-            decryptCipher.init(Cipher.DECRYPT_MODE, secretKeySpec);
-        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
-    }
-
-    // ------------------------------------------------------------------------------------------------------------------------
-
-    private static final byte COOKIE_FORMAT_CODE = 1;
-
-    /** Increases security of cookie encryption by making content less predictable. */
-    private static final int SALT_BYTES = 6;
-
-    /**
-     * Encrypt a cookie's contents.
-     */
-    public static byte[] encrypt(byte[] unencryptedCookieBytes) {
-        try {
-            byte[] saltBytes = RandomTokenGenerator.generateRandomBytes(SALT_BYTES);
-            byte[] saltedCookieValue = new byte[1 + saltBytes.length + unencryptedCookieBytes.length];
-            saltedCookieValue[0] = COOKIE_FORMAT_CODE;
-            for (int i = 0; i < saltBytes.length; i++) {
-                saltedCookieValue[1 + i] = saltBytes[i];
-            }
-            for (int i = 0; i < unencryptedCookieBytes.length; i++) {
-                saltedCookieValue[1 + saltBytes.length + i] = unencryptedCookieBytes[i];
-            }
-            byte[] encryptedCookieBytes;
-            synchronized (encryptCipher) {
-                encryptedCookieBytes = encryptCipher.doFinal(saltedCookieValue);
-            }
-            return encryptedCookieBytes;
-
-        } catch (Exception e) {
-            // Should never happen
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Decrypt an encrypted cookie.
-     */
-    public static byte[] decrypt(byte[] encryptedCookieBytes) throws IllegalArgumentException {
-        try {
-            byte[] decrypted;
-            synchronized (decryptCipher) {
-                decrypted = decryptCipher.doFinal(encryptedCookieBytes);
-            }
-            if (decrypted[0] != COOKIE_FORMAT_CODE) {
-                // Bad cookie format
-                throw new RuntimeException("Bad cookie format");
-            }
-            return Arrays.copyOfRange(decrypted, 1 + SALT_BYTES, decrypted.length);
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    // ------------------------------------------------------------------------------------------------------------------------
-
-    // /** Test cookie encryption and decryption */
-    // public static void main(String[] args) {
-    // EncryptedSessionCookie cookie = new EncryptedSessionCookie("luke", 2, "test");
-    // EncryptedSessionCookie cookieDec = new EncryptedSessionCookie(cookie.getEncryptedCookie());
-    // if (Math.abs(cookie.getSessionExpiry().getTime() - cookieDec.getSessionExpiry().getTime()) > 2000)
-    // throw new RuntimeException("Cookie mismatch");
-    //
-    // try {
-    // long t2 = System.currentTimeMillis();
-    //
-    // int nreps = 1000;
-    // for (int i = 0; i < nreps; i++) {
-    // int n = (int) (3000 * Math.random());
-    // StringBuilder buf = new StringBuilder(n);
-    // for (int j = 0; j < n; j++) {
-    // buf.append((char) (32 + 95 * Math.random()));
-    // }
-    // String plaintext = buf.toString();
-    // String encCookie = encryptCookie(plaintext);
-    // // System.out.println(encCookie);
-    // String decCookie = decryptCookie(encCookie);
-    // // System.out.println(decCookie + "\n");
-    // if (!decCookie.equals(plaintext))
-    // throw new RuntimeException("Cookie mismatch after decryption");
-    // }
-    //
-    // long t3 = System.currentTimeMillis();
-    // System.out.println("Encryption and decryption passed");
-    // System.out.println((t3 - t2) / (float) nreps + " msec on average to encrypt + decrypt a cookie");
-    //
-    // } catch (Exception ex) {
-    // ex.printStackTrace();
-    // }
-    // }
-
-    // ------------------------------------------------------------------------------------------------------------------------
-
     /**
      * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is set to zero)
      */
     public static Cookie deleteCookie(String name) throws Exception {
-        return new Cookie(name, "", "/", 0);
+        return new Cookie(name, "", "/", 0, EncodingType.PLAIN, false);
     }
 
     // ------------------------------------------------------------------------------------------------------------------------
 
-    /**
-     * Get the cookie as an HTTP header string, including all cookie headers, with the value encoded in base64 and possibly also encrypted.
-     */
+    /** Get the cookie as an HTTP header string, including all cookie headers, with the value encoded in base64 */
     @Override
     public String toString() {
         return ServerCookieEncoder.encode(cookieJar.getEncodedCookie());
@@ -395,7 +266,7 @@ public class Cookie {
         return cookieJar.getPath();
     }
 
-    /** Get unencoded, unencrypted value of cookie. */
+    /** Get unencoded value of cookie. */
     public String getValue() {
         return cookieJar.getUnencodedValue();
     }
