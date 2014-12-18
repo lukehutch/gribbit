@@ -38,6 +38,8 @@ import java.io.File;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.jsoup.nodes.Document;
 
@@ -243,12 +245,13 @@ public class SiteResources {
 
         // If this is the second or subsequent loading of site resources, directly load constant literal values of static fields that contain inline templates,
         // so that we can dynamically pick up these changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
+        // Full hot code swap / dynamic class reloading is problematic, see http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
         HashSet<String> staticFieldNames = GribbitServer.siteResources == null ? null : GribbitServer.siteResources.templateLoader.getInlineTemplateStaticFieldNames();
         if (staticFieldNames != null) {
-            classpathScanner.matchStaticFieldNames(staticFieldNames,
+            classpathScanner.matchStaticFinalFieldNames(staticFieldNames,
                     (String className, String fieldName, Object fieldConstantValue) -> templateLoader.gotTemplateStaticFieldValue(className, (String) fieldConstantValue));
         }
-
+        
         // Scan classpath for handlers, models and templates
         classpathScanner.scan();
 
