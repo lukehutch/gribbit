@@ -55,7 +55,7 @@ public class GribbitServer {
     public static String appPackageName;
 
     private static String domain;
-    
+
     private static int port;
 
     public static SiteResources siteResources;
@@ -63,8 +63,6 @@ public class GribbitServer {
     public static EventLoopGroup scheduledTaskGroup;
 
     public static String SERVER_IDENTIFIER = "Gribbit/1.0";
-
-    private static final long CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS = 2;
 
     // ------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -145,7 +143,7 @@ public class GribbitServer {
 
         // Make sure we can connect to database server
         Database.checkDatabaseIsConnected();
-        
+
         GribbitServer.scheduledTaskGroup = new NioEventLoopGroup(4);
 
         try {
@@ -156,7 +154,7 @@ public class GribbitServer {
             // (Only RestHandler, DataModel and DBModel subclasses are currently reloaded and re-registered.)
             // FIXME: need to implement my own class loader to get this working: http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
             // (although class reloading works now when running in Eclipse, because Eclipse does hot code swap, and template reloading should already work)
-            if (CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS > 0) {
+            if (GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS > 0) {
                 Runnable classpathChangeDetector = new Runnable() {
                     @Override
                     public void run() {
@@ -166,10 +164,10 @@ public class GribbitServer {
                             // Reload site resources from classpath if something changed, and atomically replace GribbitServer.siteResources
                             loadSiteResources(appPackageName, staticResourceRoot);
                         }
-                        GribbitServer.scheduledTaskGroup.schedule(this, CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS);
+                        GribbitServer.scheduledTaskGroup.schedule(this, GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
                     }
                 };
-                GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector, CLASSPATH_CHANGE_DETECTOR_POLL_INTERVAL_SECONDS, TimeUnit.SECONDS);
+                GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector, GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
             }
 
         } catch (Exception e) {

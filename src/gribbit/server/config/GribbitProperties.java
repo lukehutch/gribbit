@@ -115,4 +115,6 @@ public class GribbitProperties {
 
     public static boolean ALLOW_GET_MODEL = getPropertyBoolean("_getmodel.allow", true);
 
+    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = getPropertyInt("classpath.poll.ms", 5000);
+
 }
