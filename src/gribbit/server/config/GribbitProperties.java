@@ -26,7 +26,7 @@
 package gribbit.server.config;
 
 import gribbit.server.GribbitServer;
-import gribbit.util.KeyGenerator;
+import gribbit.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,131 +51,68 @@ public class GribbitProperties {
         }
     }
 
-    public static int PORT;
-    public static boolean SSL;
-    static {
-        String portStr = properties.getProperty("port");
-        String sslStr = properties.getProperty("ssl");
-        if (sslStr == null) {
-            SSL = false;
-        } else {
-            SSL = true;
-        }
-        if (portStr == null) {
-            PORT = SSL ? 8443 : 8080;
-        } else {
-            PORT = SSL ? 443 : Integer.parseInt(portStr);
-        }
-    }
+    // ---------------------------------------------------------------------------------------------------------------------
 
-    public static String SMTP_SERVER = properties.getProperty("smtpServer");
-    public static int SMTP_PORT;
-    public static String SEND_EMAIL_ADDRESS = properties.getProperty("emailAddress");
-    public static String SEND_EMAIL_NAME = properties.getProperty("emailName");
-    public static String SEND_EMAIL_PASSWORD = properties.getProperty("emailPassword");
-    static {
-        if (SMTP_SERVER == null) {
-            throw new RuntimeException("Need to specify smtpServer in " + propFilename);
-        }
-        String smtpPortStr = properties.getProperty("smtpPort");
-        if (smtpPortStr != null) {
-            try {
-                SMTP_PORT = Integer.parseInt(smtpPortStr);
-            } catch (NumberFormatException e) {
-                throw new RuntimeException("Invalid smtpPort in " + propFilename);
-            }
-        } else {
-            SMTP_PORT = 587;
-        }
-        if (SEND_EMAIL_ADDRESS == null) {
-            throw new RuntimeException("Need to specify emailAddress in " + propFilename);
-        }
-        if (SEND_EMAIL_NAME == null) {
-            throw new RuntimeException("Need to specify emailName in " + propFilename);
-        }
-        if (SEND_EMAIL_PASSWORD == null) {
-            throw new RuntimeException("Need to specify emailPassword in " + propFilename);
-        }
-    }
-
-    public static byte[] COOKIE_ENCRYPTION_KEY;
-    static {
-        String cookieEncryptionKeyHex = properties.getProperty("cookieEncryptionKey");
-        if (cookieEncryptionKeyHex == null) {
-            throw new RuntimeException("Need to specify cookieEncryptionKey in " + propFilename);
-        } else {
-            try {
-                // To generate an encryption key, run gribbit.util.KeyGenerator.main()
-                // FIXME: generate key automatically on first run, and save in the database
-                COOKIE_ENCRYPTION_KEY = KeyGenerator.hexToBytes(cookieEncryptionKeyHex);
-            } catch (NumberFormatException e) {
-                throw new RuntimeException("Invalid cookieEncryptionKey in " + propFilename);
-            }
-        }
-    }
-
-    public static String oauthGoogleClientID = properties.getProperty("oauth.google.client_id");
-    public static String oauthGoogleClientSecret = properties.getProperty("oauth.google.client_secret");
-
-    public static String DB_NAME;
-    static {
-        DB_NAME = properties.getProperty("dbname");
-        if (DB_NAME == null) {
-            DB_NAME = "gribbit";
-        }
-    }
-
-    public static Level LOG_LEVEL = Level.INFO;
-    static {
-        String logLevelStr = properties.getProperty("loglevel");
-        if (logLevelStr != null) {
-            try {
-                LOG_LEVEL = Level.parse(logLevelStr);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not parse loglevel in properties file");
-            }
-        }
-    }
-
-    private static final Boolean parseBooleanOpt(String optName) {
-        String opt = properties.getProperty(optName);
+    private static final boolean getPropertyBoolean(String propName, boolean defaultValue) {
+        String opt = properties.getProperty(propName);
         if (opt == null) {
-            return null;
+            return defaultValue;
         } else {
-            opt = opt.toLowerCase();
+            opt = opt.toLowerCase().trim();
             if (opt.equals("1") || opt.equals("true") || opt.equals("t") || opt.equals("yes") || opt.equals("y")) {
                 return true;
             } else if (opt.equals("0") || opt.equals("false") || opt.equals("f") || opt.equals("no") || opt.equals("n")) {
                 return false;
             } else {
-                System.err.println("Unrecognized property value: " + optName + "=" + properties.getProperty(optName));
-                return null;
+                Log.warning("Unrecognized property value: " + propName + "=" + properties.getProperty(propName));
+                return defaultValue;
             }
         }
     }
 
-    public static boolean PRETTY_PRINT_HTML = true;
-    static {
-        Boolean prettyPrintHTML = parseBooleanOpt("pretty_print_html");
-        if (prettyPrintHTML != null) {
-            PRETTY_PRINT_HTML = prettyPrintHTML;
+    private static final int getPropertyInt(String propName, int defaultValue) {
+        String opt = properties.getProperty(propName);
+        if (opt == null || opt.isEmpty()) {
+            return defaultValue;
+        } else {
+            try {
+                return Integer.parseInt(opt.trim());
+            } catch (NumberFormatException e) {
+                Log.warning("Illegal property value: " + propName + "=" + properties.getProperty(propName));
+                return defaultValue;
+            }
         }
     }
 
-    public static boolean PRETTY_PRINT_JSON = true;
+    // ---------------------------------------------------------------------------------------------------------------------
+
+    public static Level LOG_LEVEL = Level.INFO;
     static {
-        Boolean prettyPrintJSON = parseBooleanOpt("pretty_print_json");
-        if (prettyPrintJSON != null) {
-            PRETTY_PRINT_JSON = prettyPrintJSON;
+        String logLevelStr = properties.getProperty("loglevel", "INFO");
+        try {
+            LOG_LEVEL = Level.parse(logLevelStr);
+        } catch (Exception e) {
+            throw new RuntimeException("Could not parse loglevel in properties file");
         }
     }
 
-    public static boolean ALLOW_GET_MODEL = true;
-    static {
-        Boolean allowGetModel = parseBooleanOpt("allow_get_model");
-        if (allowGetModel != null) {
-            ALLOW_GET_MODEL = allowGetModel;
-        }
-    }
+    public static boolean SSL = getPropertyBoolean("ssl", true);
+    public static int PORT = getPropertyInt("port", SSL ? 8443 : 8080);
+
+    public static String SMTP_SERVER = properties.getProperty("smtp.server");
+    public static int SMTP_PORT = getPropertyInt("smtp.port", 587);
+    public static String SEND_EMAIL_ADDRESS = properties.getProperty("email.address");
+    public static String SEND_EMAIL_NAME = properties.getProperty("email.fullname");
+    public static String SEND_EMAIL_PASSWORD = properties.getProperty("email.password");
+
+    public static String OAUTH_GOOGLE_CLIENT_ID = properties.getProperty("oauth.google.client.id");
+    public static String OAUTH_GOOGLE_CLIENT_SECRET = properties.getProperty("oauth.google.client.secret");
+
+    public static String DB_NAME = properties.getProperty("dbname", "gribbit");
+
+    public static boolean PRETTY_PRINT_HTML = getPropertyBoolean("prettyprint.html", true);
+    public static boolean PRETTY_PRINT_JSON = getPropertyBoolean("prettyprint.json", true);
+
+    public static boolean ALLOW_GET_MODEL = getPropertyBoolean("_getmodel.allow", true);
 
 }

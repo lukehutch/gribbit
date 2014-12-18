@@ -55,8 +55,8 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
     }
 
     static {
-        if (GribbitProperties.oauthGoogleClientID == null || GribbitProperties.oauthGoogleClientID.isEmpty() || GribbitProperties.oauthGoogleClientSecret == null
-                || GribbitProperties.oauthGoogleClientSecret.isEmpty()) {
+        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty() || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
             throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
         }
     }
@@ -87,8 +87,8 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
             AuthResponse auth = RequestBuilder.postToURLWithJSONResponse(AuthResponse.class, //
                     "https://accounts.google.com/o/oauth2/token", //
                     "refresh_token", refreshToken, //
-                    "client_id", GribbitProperties.oauthGoogleClientID, //
-                    "client_secret", GribbitProperties.oauthGoogleClientSecret, //
+                    "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
+                    "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
                     "grant_type", "refresh_token");
 
             // The access token obtained from the refresh token.
@@ -120,7 +120,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
     private static String getAuthorizationCodeURL(boolean forceApprovalPrompt) {
         return "https://accounts.google.com/o/oauth2/auth" //
                 // The client id from the API console
-                + "?client_id=" + GribbitProperties.oauthGoogleClientID
+                + "?client_id=" + GribbitProperties.OAUTH_GOOGLE_CLIENT_ID
                 // TODO: what is this for?
                 + "&response_type=code"
                 // The api permissions we are requesting
@@ -156,8 +156,8 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                             "https://accounts.google.com/o/oauth2/token", //
                             // Authorization code provided by Google
                             "code", req.getQueryParam("code"), //
-                            "client_id", GribbitProperties.oauthGoogleClientID, //
-                            "client_secret", GribbitProperties.oauthGoogleClientSecret, //
+                            "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
+                            "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
                             "redirect_uri", callbackURI(),//
                             "grant_type", "authorization_code");
 

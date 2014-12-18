@@ -2,23 +2,21 @@
 port=80
 # ssl=1
 
-smtpServer=smtp.gmail.com
-smtpPort=587
-emailAddress= # email address on SMTP server, e.g. myemailaccount@gmail.com
-emailName= # email sender name, e.g. Customer Service
-emailPassword= # email account password
+smtp.server=smtp.gmail.com
+smtp.port=587
+email.address= # email address on SMTP server, e.g. myemailaccount@gmail.com
+email.fullname= # email sender name, e.g. Customer Service
+email.password= # email account password
 
-cookieEncryptionKey= # 32-digit hexadecimal number
-
-oauth.google.client_id= #...
-oauth.google.client_secret= #...
+oauth.google.client.id= #...
+oauth.google.client.secret= #...
 
 loglevel=INFO
 
 #dbname=gribbit
 
-pretty_print_html=true
-pretty_print_json=true
+prettyprint.html=true
+prettyprint.json=true
 
 # if set to false, will disallow getting the model backing an HTML page by appending "?_getmodel=1" to the URL
-# allow_get_model = false
+_getmodel.allow=true
