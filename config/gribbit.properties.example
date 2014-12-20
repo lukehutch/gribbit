@@ -21,7 +21,8 @@ prettyprint.json=true
 # if set to false, will disallow getting the model backing an HTML page by appending "?_getmodel=1" to the URL
 _getmodel.allow=true
 
-# Interval with which to poll the classpath for changes to site resources (HTML templates, CSS, JS) so they can be hot-reloaded.
-# If set to 0, no classpath polling.
+# Interval with which to poll the classpath for changes to site resources (HTML templates, CSS, JS)
+# so that they can be hot-reloaded. Polling takes a few dozen milliseconds each time.
+# If this property is set to 0, the classpath is not polled for changes.
 classpath.poll.ms=5000
 
