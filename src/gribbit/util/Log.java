@@ -52,8 +52,6 @@ public class Log {
 
         InternalLoggerFactory.setDefaultFactory(new Log4JLoggerFactory());
 
-        
-
         // Remove all the default handlers (usually just one console handler)
         Logger rootLogger = Logger.getLogger("");
         Handler[] rootHandlers = rootLogger.getHandlers();
@@ -81,8 +79,12 @@ public class Log {
                 }
                 stackTrace = stacktraceWriter.toString();
             }
-            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.getMillis()), ZoneId.of("UTC")).format(DateTimeFormatter.ISO_ZONED_DATE_TIME) + "\t" + record.getLevel()
-                    + "\t" + record.getMessage() + "\n" + stackTrace;
+            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.getMillis()), ZoneId.of("UTC"))
+                    .format(DateTimeFormatter.ISO_ZONED_DATE_TIME)
+                    + "\t"
+                    + record.getLevel()
+                    + "\t"
+                    + record.getMessage() + "\n" + stackTrace;
         }
     }
 

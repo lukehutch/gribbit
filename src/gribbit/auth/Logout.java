@@ -29,7 +29,7 @@ import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.RestHandler;
 
 /**
- * Default GET/POST handler for /logout URL. Logs the user out then redirects to the home page. 
+ * Default GET/POST handler for /logout URL. Logs the user out then redirects to the home page.
  */
 @RouteOverride("/logout")
 public class Logout extends RestHandler.AuthNotRequired {
@@ -37,7 +37,7 @@ public class Logout extends RestHandler.AuthNotRequired {
         User.logOut(req, res);
         res.redirectToTrustedURL("/");
     }
-    
+
     public void post() {
         get();
     }

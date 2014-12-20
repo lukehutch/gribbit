@@ -45,13 +45,18 @@ public class RequestBuilder {
             if (buf.length() > 0) {
                 buf.append("&");
             }
-            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "", buf);
+            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1
+                    ? keyValuePairs[i + 1] : "", buf);
         }
         return buf.toString();
     }
 
-    /** Get the response from an HttpURLConnection, parse it as JSON, and map it to the requested response type. */
-    private static <T> T getJSONResponse(Class<T> responseType, HttpURLConnection connection) throws IOException, BadRequestException {
+    /**
+     * Get the response from an HttpURLConnection, parse it as JSON, and map it to the requested response
+     * type.
+     */
+    private static <T> T getJSONResponse(Class<T> responseType, HttpURLConnection connection)
+            throws IOException, BadRequestException {
         if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
             try {
                 StringWriter writer = new StringWriter();
@@ -70,14 +75,16 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a POST request to a given URL with the given key-value POST parameters, and parse the JSON result by mapping to a new object of the requested response type.
+     * Send a POST request to a given URL with the given key-value POST parameters, and parse the JSON
+     * result by mapping to a new object of the requested response type.
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be mapped to the response type.
      * @throws BadRequestException
      *             if response code is not OK (200).
      */
-    public static <T> T postToURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs) throws BadRequestException {
+    public static <T> T postToURLWithJSONResponse(Class<T> responseType, String url,
+            String... keyValuePairs) throws BadRequestException {
         HttpURLConnection connection = null;
         try {
             String params = buildParams(keyValuePairs);
@@ -110,14 +117,16 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a GET request to a given URL with the given key-value URL parameters, and parse the JSON result by mapping to a new object of the requested response type.
+     * Send a GET request to a given URL with the given key-value URL parameters, and parse the JSON result
+     * by mapping to a new object of the requested response type.
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be mapped to the response type.
      * @throws BadRequestException
      *             if response code is not OK (200).
      */
-    public static <T> T getFromURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs) throws BadRequestException {
+    public static <T> T getFromURLWithJSONResponse(Class<T> responseType, String url,
+            String... keyValuePairs) throws BadRequestException {
         HttpURLConnection connection = null;
         try {
             StringBuilder buf = new StringBuilder(url);
@@ -126,7 +135,8 @@ public class RequestBuilder {
                 if (buf.length() > 0) {
                     buf.append("&");
                 }
-                WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "", buf);
+                WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1
+                        ? keyValuePairs[i + 1] : "", buf);
             }
             String urlWithParams = buf.toString();
 

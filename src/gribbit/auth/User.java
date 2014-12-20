@@ -61,7 +61,8 @@ public class User extends DBModelStringKey {
     public Boolean emailValidated;
 
     /**
-     * Auth token, stored in both encrypted session-in-client cookie and server. Allows for browser cookie to be revoked.
+     * Auth token, stored in both encrypted session-in-client cookie and server. Allows for browser cookie
+     * to be revoked.
      */
     public Token sessionTok;
 
@@ -74,12 +75,12 @@ public class User extends DBModelStringKey {
     /** Token used for resetting password. */
     public Token passwordResetTok;
 
-    // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     // Placeholder in password field for federated logins
     public static final String FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER = "FEDERATED LOGIN";
 
-    // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public User() {
     }
@@ -88,7 +89,7 @@ public class User extends DBModelStringKey {
         super(email);
     }
 
-    // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** An authentication token, a password reset token or an email address verification token */
     public static class Token {
@@ -128,8 +129,9 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Take an encrypted token, decrypt it, extract the username and token, look up the user, and make sure that the copy of the auth token in the user matches the copy in the
-     * encrypted token, and that the token has not expired. Throws an exception if any of this fails. Returns the user if it all succeeds.
+     * Take an encrypted token, decrypt it, extract the username and token, look up the user, and make sure
+     * that the copy of the auth token in the user matches the copy in the encrypted token, and that the
+     * token has not expired. Throws an exception if any of this fails. Returns the user if it all succeeds.
      */
     // FIXME: remove this, and store tokens in user
     public static User validateTok(String email, String suppliedToken, TokenType tokType) throws Exception {
@@ -149,7 +151,8 @@ public class User extends DBModelStringKey {
         switch (tokType) {
 
         case SESSION:
-            if (user.sessionTok == null || user.sessionTok.hasExpired() || !user.sessionTok.token.equals(suppliedToken)) {
+            if (user.sessionTok == null || user.sessionTok.hasExpired()
+                    || !user.sessionTok.token.equals(suppliedToken)) {
                 // Clear token if there is a mismatch, this will prevent users that manage to crack the cookie encryption key
                 // from doing much, because they would also have to guess the token to log in. Each attempt to guess the auth token
                 // will log them out and require them to log in successfully to generate a new token. The account cannot be accessed
@@ -163,7 +166,8 @@ public class User extends DBModelStringKey {
             break;
 
         case EMAIL_VERIF:
-            if (user.emailValidationTok == null || user.emailValidationTok.hasExpired() || !user.emailValidationTok.token.equals(suppliedToken)) {
+            if (user.emailValidationTok == null || user.emailValidationTok.hasExpired()
+                    || !user.emailValidationTok.token.equals(suppliedToken)) {
                 // Clear token if there is a mismatch, this means that if a user uses an old email validation link, it will invalidate the most recent link.
                 user.clearEmailValidationTok();
             } else {
@@ -173,7 +177,8 @@ public class User extends DBModelStringKey {
             break;
 
         case PW_RESET:
-            if (user.passwordResetTok == null || user.passwordResetTok.hasExpired() || !user.passwordResetTok.token.equals(suppliedToken)) {
+            if (user.passwordResetTok == null || user.passwordResetTok.hasExpired()
+                    || !user.passwordResetTok.token.equals(suppliedToken)) {
                 // Clear token if there is a mismatch, this means that if a user uses an old password reset link, it will invalidate the most recent link.
                 user.clearPasswordResetTok();
             } else {
@@ -190,7 +195,10 @@ public class User extends DBModelStringKey {
 
     // ------------------------------------------------------------------------------------------------------------------------
 
-    /** Puts a key-value pair into the user data HashMap. N.B. does not save user, you need to do that manually once all key-value pairs have been put. */
+    /**
+     * Puts a key-value pair into the user data HashMap. N.B. does not save user, you need to do that
+     * manually once all key-value pairs have been put.
+     */
     public void putData(String key, String val) {
         if (this.data == null) {
             this.data = new HashMap<>();
@@ -211,7 +219,8 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Create a new email validation token, store it in the user's account, and return the token. Expires after 1 day.
+     * Create a new email validation token, store it in the user's account, and return the token. Expires
+     * after 1 day.
      */
     public String generateNewEmailValidationTok() {
         emailValidationTok = new Token(TokenType.EMAIL_VERIF, 1);
@@ -221,7 +230,8 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Create a new password reset token, store it in the user's account, and return the token. Expires after 1 day.
+     * Create a new password reset token, store it in the user's account, and return the token. Expires
+     * after 1 day.
      */
     public String generateNewPasswordResetTok() {
         passwordResetTok = new Token(TokenType.PW_RESET, 1);
@@ -260,10 +270,12 @@ public class User extends DBModelStringKey {
     // ------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * Change a user's password, forcing other clients to be logged out, then log this client in with a new authentication token.
+     * Change a user's password, forcing other clients to be logged out, then log this client in with a new
+     * authentication token.
      * 
      * @throws AppException
-     *             if new password is too short or invalid, or if user is not logged in, or session has expired.
+     *             if new password is too short or invalid, or if user is not logged in, or session has
+     *             expired.
      * @throws UnauthorizedException
      *             if user is not whitelisted for login
      */
@@ -277,7 +289,7 @@ public class User extends DBModelStringKey {
         logIn(res);
     }
 
-    // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public static User findByEmail(String email) {
         if (email == null || email.isEmpty())
@@ -288,21 +300,23 @@ public class User extends DBModelStringKey {
         return Database.findOneById(User.class, email);
     }
 
-    // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
      * Authenticate a user based on values of POST params "email" and "password".
      * 
      * @return User if successfully authenticated, null otherwise
      */
-    public static User authenticate(String email, String password, Response res) throws UnauthorizedException {
+    public static User authenticate(String email, String password, Response res)
+            throws UnauthorizedException {
         // FIXME: Allow only one login attempt per email address every 5 seconds. Add email addrs to a ConcurrentTreeSet or something
         // (*if* the email addr is already in the database, to prevent DoS), and every 5s, purge old entries from the tree. If an
         // attempt is made in less than 5s, then return an error rather than blocking for up to 5s, again to prevent DoS.   
         User user = findByEmail(email);
         if (user != null) {
             // Get the hash password from the salt + clear password (N.B. It takes 80ms to run BCrypt)
-            if (!FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER.equals(user.passwordHash) && Hash.checkPassword(password, user.passwordHash)) {
+            if (!FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER.equals(user.passwordHash)
+                    && Hash.checkPassword(password, user.passwordHash)) {
                 // User successfully authenticated.
                 user.logIn(res);
                 return user;
@@ -314,8 +328,8 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Decrypt the session cookie in the HttpRequest, look up the user, and return the user if the user's auth token is valid (i.e. if their session has not expired or been
-     * revoked).
+     * Decrypt the session cookie in the HttpRequest, look up the user, and return the user if the user's
+     * auth token is valid (i.e. if their session has not expired or been revoked).
      * 
      * @return Returns null if session is invalid or user is no longer allowed to log in.
      */
@@ -326,7 +340,8 @@ public class User extends DBModelStringKey {
             String email = emailCookie.getValue();
 
             // Check user against login whitelist, if it exists (in case whitelist has changed)
-            if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
+            if (GribbitServer.loginWhitelistChecker == null
+                    || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
 
                 // Get session cookie
                 Cookie sessionCookie = req.getCookie(Cookie.SESSION_COOKIE_NAME);
@@ -380,7 +395,8 @@ public class User extends DBModelStringKey {
      */
     public void logIn(Response res) throws UnauthorizedException {
         // Check user against login whitelist, if it exists
-        if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
+        if (GribbitServer.loginWhitelistChecker == null
+                || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
 
             // Create new session token
             sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
@@ -393,8 +409,10 @@ public class User extends DBModelStringKey {
             }
 
             // Save login cookies in result
-            res.setCookie(Cookie.SESSION_COOKIE_NAME, sessionTok.token, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
-            res.setCookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
+            res.setCookie(Cookie.SESSION_COOKIE_NAME, sessionTok.token, "/",
+                    Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN);
+            res.setCookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS,
+                    EncodingType.PLAIN);
 
         } else {
             // User is not authorized
@@ -402,7 +420,7 @@ public class User extends DBModelStringKey {
         }
     }
 
-    // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
      * Create a user and log them in.
@@ -410,13 +428,21 @@ public class User extends DBModelStringKey {
      * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
-    private static User create(String email, String passwordHash, boolean validateEmail, Response res) throws UnauthorizedException {
+    private static User create(String email, String passwordHash, boolean validateEmail, Response res)
+            throws UnauthorizedException {
         // Check user against login whitelist, if it exists
-        if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
+        if (GribbitServer.loginWhitelistChecker == null
+                || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
 
-            // Check if a user of this name already exists, and if not, create user record in database. TODO: should probably be a transaction.
+            // Check if a user of this name already exists, and if not, create user record in database.
+            // Should probably be a transaction, although if the record is created twice within a
+            // short period of time, one of the two account creation operations will simply have its
+            // authorization cookie overwritten by the other, so the first session will be logged out.
+            // Either way, users creating an account with the given email address must be in control
+            // of that email account, so this is still secure.
             if (findByEmail(email) != null) {
-                throw new UnauthorizedException("Could not create new user: user \"" + email + "\" already exists");
+                throw new UnauthorizedException("Could not create new user: user \"" + email
+                        + "\" already exists");
             }
 
             User user = new User(email);

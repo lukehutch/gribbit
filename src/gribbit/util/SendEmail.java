@@ -37,13 +37,16 @@ import org.apache.commons.mail.ImageHtmlEmail;
 public class SendEmail {
 
     /** Send an email. Don't forget to use fully-qualified URLs in the message body. */
-    public static void sendEmail(final String toName, final String to, final String subject, final DataModel message, final String messagePlainText) {
+    public static void sendEmail(final String toName, final String to, final String subject,
+            final DataModel message, final String messagePlainText) {
         // Queue sending of email in a new thread
         GribbitServer.scheduledTaskGroup.execute(new Runnable() {
             @Override
             public void run() {
-                if (GribbitProperties.SMTP_SERVER == null || GribbitProperties.SEND_EMAIL_ADDRESS == null || GribbitProperties.SEND_EMAIL_PASSWORD == null
-                        || GribbitProperties.SEND_EMAIL_ADDRESS == null || GribbitProperties.SEND_EMAIL_NAME == null) {
+                if (GribbitProperties.SMTP_SERVER == null || GribbitProperties.SEND_EMAIL_ADDRESS == null
+                        || GribbitProperties.SEND_EMAIL_PASSWORD == null
+                        || GribbitProperties.SEND_EMAIL_ADDRESS == null
+                        || GribbitProperties.SEND_EMAIL_NAME == null) {
                     throw new RuntimeException("SMTP is not fully configured in the properties file");
                 }
 
@@ -54,7 +57,8 @@ public class SendEmail {
 
                     email.setHostName(GribbitProperties.SMTP_SERVER);
                     email.setSmtpPort(GribbitProperties.SMTP_PORT);
-                    email.setAuthenticator(new DefaultAuthenticator(GribbitProperties.SEND_EMAIL_ADDRESS, GribbitProperties.SEND_EMAIL_PASSWORD));
+                    email.setAuthenticator(new DefaultAuthenticator(GribbitProperties.SEND_EMAIL_ADDRESS,
+                            GribbitProperties.SEND_EMAIL_PASSWORD));
                     email.setStartTLSRequired(true);
 
                     email.addTo(to, toName);
@@ -68,7 +72,8 @@ public class SendEmail {
                     Log.info("Sent email to " + fullEmailAddr + " : " + subject);
 
                 } catch (EmailException e) {
-                    Log.exception("Failure while trying to send email to " + fullEmailAddr + " : " + subject, e);
+                    Log.exception("Failure while trying to send email to " + fullEmailAddr + " : "
+                            + subject, e);
                 }
             }
         });

@@ -37,7 +37,7 @@ public abstract class DBModelLongKey extends DBModel {
 
     public DBModelLongKey() {
     }
-    
+
     public DBModelLongKey(long id) {
         this.id = id;
     }
@@ -49,23 +49,26 @@ public abstract class DBModelLongKey extends DBModel {
         if (id == null) {
             throw new RuntimeException("id cannot be null");
         }
-        
+
         // Check that values in the object fields satisfy any constraint annotations
         try {
             checkFieldValuesAgainstConstraints();
         } catch (Exception e) {
-            throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: " + e.getMessage());
+            throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: "
+                    + e.getMessage());
         }
-        
+
         return Database.save(this);
     }
 
     /**
-     * Remove this object from the database. 
+     * Remove this object from the database.
      */
     public WriteResult<DBModel, Object> remove() {
         if (id == null) {
-            throw new RuntimeException("id is null, so object cannot be removed (object was not previously saved in or retrieved from database)");
+            throw new RuntimeException(
+                    "id is null, so object cannot be removed (object was not previously "
+                            + "saved in or retrieved from database)");
         }
         return Database.removeById(getClass(), id);
     }

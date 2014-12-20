@@ -26,11 +26,15 @@
 package gribbit.util;
 
 import gribbit.auth.User;
+import gribbit.thirdparty.BCrypt;
 
 /**
  */
 public class Hash {
-    /** A password must be longer than this minimum length to pass hashing, otherwise an AppException is thrown. */
+    /**
+     * A password must be longer than this minimum length to pass hashing, otherwise an AppException is
+     * thrown.
+     */
     public static final int MIN_PASSWORD_LENGTH = 6;
 
     /**

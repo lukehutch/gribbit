@@ -28,7 +28,6 @@ package gribbit.template.element;
 import gribbit.model.DataModel;
 
 public class a extends DataModel {
-
     public String href;
     public String text;
 
@@ -36,7 +35,6 @@ public class a extends DataModel {
         this.href = href;
         this.text = text;
     }
- 
+
     public static final String _template = "<a href='${href}' target='_blank'>${text}</a>";
-    
 }

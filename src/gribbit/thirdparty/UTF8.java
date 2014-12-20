@@ -2,55 +2,37 @@
  * This file is part of the Gribbit Web Framework.
  * 
  *     https://github.com/lukehutch/gribbit
+ *     
+ * Originally from:
  * 
- * @author Luke Hutchison
+ *     https://github.com/webbit/webbit/blob/master/src/main/java/org/webbitserver/helpers/UTF8Output.java
  * 
- * --
+ * Which is an adaptation of:
  * 
- * @license Apache 2.0 
+ *     http://bjoern.hoehrmann.de/utf-8/decoder/dfa/
  * 
- * Copyright 2015 Luke Hutchison
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
  * 
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+ * associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
  * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * The above copyright notice and this permission notice shall be included in all copies or substantial
+ * portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+ * LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+ * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package gribbit.util;
+package gribbit.thirdparty;
 
 import java.io.UnsupportedEncodingException;
 
-
 public class UTF8 {
-    /*
-     * Borrowed from https://github.com/webbit/webbit/blob/master/src/main/java/org/webbitserver/helpers/UTF8Output.java
-     * 
-     * Adaptation of http://bjoern.hoehrmann.de/utf-8/decoder/dfa/
-     *
-     * Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
-     *
-     *     Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-     *     documentation files (the "Software"), to deal in the Software without restriction, including without limitation 
-     *     the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and 
-     *     to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-     *
-     *     The above copyright notice and this permission notice shall be included in all copies or substantial portions 
-     *     of the Software.
-     *
-     *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO 
-     *     THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-     *     AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF 
-     *     CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
-     *     IN THE SOFTWARE.
-     */
-
     private static final int UTF8_ACCEPT = 0;
     private static final int UTF8_REJECT = 12;
 
@@ -61,14 +43,14 @@ public class UTF8 {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 9, 9, 9, 9, 9, 9,
             9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
             7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 10, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 11, 6, 6, 6, 5, 8,
-            8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 10, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 11, 6, 6, 6, 5,
+            8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
 
-    private static final byte[] STATES = { 0, 12, 24, 36, 60, 96, 84, 12, 12, 12, 48, 72, 12, 12, 12, 12, 12,
-            12, 12, 12, 12, 12, 12, 12, 12, 0, 12, 12, 12, 12, 12, 0, 12, 0, 12, 12, 12, 24, 12, 12, 12, 12,
-            12, 24, 12, 24, 12, 12, 12, 12, 12, 12, 12, 12, 12, 24, 12, 12, 12, 12, 12, 24, 12, 12, 12, 12,
-            12, 12, 12, 24, 12, 12, 12, 12, 12, 12, 12, 12, 12, 36, 12, 36, 12, 12, 12, 36, 12, 12, 12, 12,
-            12, 36, 12, 36, 12, 12, 12, 36, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12 };
+    private static final byte[] STATES = { 0, 12, 24, 36, 60, 96, 84, 12, 12, 12, 48, 72, 12, 12, 12, 12,
+            12, 12, 12, 12, 12, 12, 12, 12, 12, 0, 12, 12, 12, 12, 12, 0, 12, 0, 12, 12, 12, 24, 12, 12,
+            12, 12, 12, 24, 12, 24, 12, 12, 12, 12, 12, 12, 12, 12, 12, 24, 12, 12, 12, 12, 12, 24, 12, 12,
+            12, 12, 12, 12, 12, 24, 12, 12, 12, 12, 12, 12, 12, 12, 12, 36, 12, 36, 12, 12, 12, 36, 12, 12,
+            12, 12, 12, 36, 12, 36, 12, 12, 12, 36, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12 };
 
     private int state = UTF8_ACCEPT;
     private int codep = 0;
@@ -86,6 +68,7 @@ public class UTF8 {
             this(e.getMessage());
         }
     }
+
     public void append(byte[] bytes) throws UTF8Exception {
         for (int i = 0; i < bytes.length; i++) {
             append(bytes[i]);
@@ -100,7 +83,7 @@ public class UTF8 {
         state = STATES[state + type];
 
         if (state == UTF8_ACCEPT) {
-            // https://github.com/eclipse/jetty.project/blob/master/jetty-util/src/main/java/org/eclipse/jetty/util/Utf8Appendable.java
+            // See http://goo.gl/JdIVSu
             if (codep < Character.MIN_HIGH_SURROGATE) {
                 stringBuilder.append((char) codep);
             } else {
@@ -122,13 +105,13 @@ public class UTF8 {
             throw new UTF8Exception("bytes are not UTF-8");
         }
     }
-    
+
     public static String utf8ToString(byte[] bytes) throws UTF8Exception {
         UTF8 decoder = new UTF8();
         decoder.append(bytes);
         return decoder.getStringAndRecycle();
     }
-    
+
     public static byte[] stringToUTF8(String str) {
         try {
             return str.getBytes("UTF-8");

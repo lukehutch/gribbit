@@ -66,9 +66,10 @@ public class TemplateLoader {
     private static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
 
     /** Pattern for template parameters, of the form "${name}" */
-    public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern.compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
+    public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern
+            .compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     TemplateLoader(SiteResources siteResources, File polymerModuleRootDir) {
         this.siteResources = siteResources;
@@ -92,7 +93,8 @@ public class TemplateLoader {
     }
 
     /**
-     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for prettyprinting)
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block
+     * elements (for prettyprinting)
      */
     HashSet<String> getCustomInlineElements() {
         return vulcanizer.customInlineElements;
@@ -104,47 +106,57 @@ public class TemplateLoader {
     }
 
     /**
-     * Get the names of all the static fields containing inline templates that were discovered during classpath scanning, so that when there are changes on the classpath, we can
-     * dynamically reload the constant values in these static fields.
+     * Get the names of all the static fields containing inline templates that were discovered during
+     * classpath scanning, so that when there are changes on the classpath, we can dynamically reload the
+     * constant values in these static fields.
      */
     public HashSet<String> getInlineTemplateStaticFieldNames() {
         return inlineTemplateStaticFieldNames;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Got a DataModel subclass on the classpath. */
     void gotDataModel(Class<? extends DataModel> dataModelClass) {
-        if (dataModelClass != DBModel.class && dataModelClass != DBModelObjectIdKey.class && dataModelClass != DBModelStringKey.class && dataModelClass != DBModelLongKey.class) {
+        if (dataModelClass != DBModel.class && dataModelClass != DBModelObjectIdKey.class
+                && dataModelClass != DBModelStringKey.class && dataModelClass != DBModelLongKey.class) {
 
             // Make sure that the field types make sense given any constraint annotations on the fields
             DataModel.checkFieldTypesAgainstAnnotations(dataModelClass);
 
             // Store a mapping between class name and DataModel subclass
-            Class<? extends DataModel> oldVal = classNameToDataModel.put(dataModelClass.getSimpleName(), dataModelClass);
+            Class<? extends DataModel> oldVal =
+                    classNameToDataModel.put(dataModelClass.getSimpleName(), dataModelClass);
             if (oldVal != null) {
-                // TODO: don't use just leafnames for data models and templates; use whole package name so that names don't have to be unique across the whole project
-                throw new RuntimeException("Class name \"" + dataModelClass.getSimpleName() + "\" is not unique (two different classes extending " + DataModel.class.getName()
+                // TODO: don't use just leafnames for data models and templates; use whole package name so
+                // that names don't have to be unique across the whole project
+                throw new RuntimeException("Class name \"" + dataModelClass.getSimpleName()
+                        + "\" is not unique (two different classes extending " + DataModel.class.getName()
                         + " have the same class name)");
             }
 
-            // If the DataModel contains a "_template" field, load the inline template as if it were in an HTML file of the same name as the class
+            // If the DataModel contains a "_template" field, load the inline template as if it were in an
+            // HTML file of the same name as the class
             Field templateField;
             try {
                 templateField = dataModelClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
                 if (templateField != null) {
                     int modifiers = templateField.getModifiers();
-                    if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers) && templateField.getType().equals(String.class)) {
+                    if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers)
+                            && templateField.getType().equals(String.class)) {
                         // Got an inline template in the static field named "_template" of a DataModel class
-                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "." + templateField.getName());
+                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "."
+                                + templateField.getName());
                         String templateStr = (String) templateField.get(null);
                         classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
                     }
                 }
             } catch (NoSuchFieldException e) {
                 // Ignore
-            } catch (SecurityException | IllegalAccessException | IllegalArgumentException | NullPointerException e) {
-                Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class " + dataModelClass + ": " + e);
+            } catch (SecurityException | IllegalAccessException | IllegalArgumentException
+                    | NullPointerException e) {
+                Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class "
+                        + dataModelClass + ": " + e);
             }
         }
     }
@@ -154,11 +166,17 @@ public class TemplateLoader {
         try {
             if (absolutePath.endsWith("/head-content.html")) {
                 // Load header HTML content from the classpath, and run it through Jsoup to clean it
-                headContent.addAll(StringUtils.splitAsListOfString(Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body().html(), "\n"));
+                headContent
+                        .addAll(StringUtils.splitAsListOfString(
+                                Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body()
+                                        .html(), "\n"));
 
             } else if (absolutePath.endsWith("/tail-content.html")) {
                 // Load footer HTML content from the classpath, and run it through Jsoup to clean it
-                tailContent.addAll(StringUtils.splitAsListOfString(Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body().html(), "\n"));
+                tailContent
+                        .addAll(StringUtils.splitAsListOfString(
+                                Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body()
+                                        .html(), "\n"));
 
             } else {
                 // Load HTML/CSS/JS resource from the classpath
@@ -171,14 +189,15 @@ public class TemplateLoader {
     }
 
     /**
-     * Found a static initializer value in a classfile on a second or subsequent loading of site resources. Use this value instead of the one read using reflection, so that hot
-     * changes of static constant values is supported.
+     * Found a static initializer value in a classfile on a second or subsequent loading of site resources.
+     * Use this value instead of the one read using reflection, so that hot changes of static constant
+     * values is supported.
      */
     public void gotTemplateStaticFieldValue(String className, String templateString) {
         classNameToInlineTemplateOverride.put(className, templateString);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     void initializeTemplates() {
         // Add inline templates to the vulcanizer
@@ -189,15 +208,17 @@ public class TemplateLoader {
             if (templateStr == null) {
                 templateStr = ent.getValue();
             }
-            // Make it look like we loaded the inline static field templates from an HTML file named the same as the class
+            // Make it look like we loaded the inline static field templates from an HTML file named the
+            // same as the class
             String relativePath = className.replace('.', '/') + ".html";
             vulcanizer.addResource("/" + relativePath, templateStr);
         }
 
-        // Vulcanize HTML/CSS/JS resources into one CSS+HTML file and one JS file, in topological sort order of dependencies 
+        // Vulcanize HTML/CSS/JS resources into one CSS+HTML file and one JS file, in topological sort order
+        // of dependencies 
         vulcanizer.vulcanize();
 
-        // The set of all template names is the intersection between html file names and DataModel class names
+        // The set of template names is the intersection between html file names and DataModel class names
         HashSet<String> templateNames = new HashSet<>(vulcanizer.templateNameToDocument.keySet());
         templateNames.retainAll(classNameToDataModel.keySet());
 

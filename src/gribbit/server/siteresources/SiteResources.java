@@ -59,7 +59,7 @@ public class SiteResources {
 
     private long resourcesLoadedEpochSecond;
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public ArrayList<Route> getAllRoutes() {
         return restHandlerLoader.getAllRoutes();
@@ -93,7 +93,10 @@ public class SiteResources {
         return templateLoader.getVulcanizedJSBytes();
     }
 
-    /** Get the HTML template document for a given template class, or return null if there isn't a template with the given name. */
+    /**
+     * Get the HTML template document for a given template class, or return null if there isn't a template
+     * with the given name.
+     */
     public Document getTemplateDocForClass(Class<? extends DataModel> templateClass) {
         return templateLoader.getTemplateDocument(templateClass);
     }
@@ -110,12 +113,15 @@ public class SiteResources {
         return resourcesLoadedEpochSecond;
     }
 
-    /** Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for prettyprinting) */
+    /**
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block
+     * elements (for prettyprinting)
+     */
     public HashSet<String> getCustomInlineElements() {
         return templateLoader.getCustomInlineElements();
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Return a File reference to a static resource, if it exists within the static resource root. */
     public File getStaticResource(String reqURI) {
@@ -128,10 +134,10 @@ public class SiteResources {
         String[] parts = StringUtils.split(reqURI, "/");
         for (String subdirName : parts) {
             // Unescape %20 -> ' ' etc.
-            // N.B. the unescape is performed only once here, between '/' characters (the URI is not unescaped
-            // by the caller prior to passing the URI to this method), and the unescaped string is passed
-            // directly to new File() below, so there is no possibility of a double-encoding attack -- see:
-            // https://www.owasp.org/index.php/Double_Encoding
+            // N.B. the unescape is performed only once here, between '/' characters (the URI is not
+            // unescaped by the caller prior to passing the URI to this method), and the unescaped string
+            // is passed directly to new File() below, so there is no possibility of a double-encoding
+            // attack -- see https://www.owasp.org/index.php/Double_Encoding
             subdirName = WebUtils.unescapeURISegment(subdirName);
             if (!currFileOrDir.isDirectory()) {
                 // Files don't have subdirectory
@@ -167,7 +173,7 @@ public class SiteResources {
         return currFileOrDir;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
      * Get the Route corresponding to a given RestHandler class.
@@ -190,7 +196,7 @@ public class SiteResources {
         return restHandlerLoader.routeForFormDataModel(formModelClass).getRoutePath();
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
      * Set up classpath scanner for detecting handler classes, models and templates.
@@ -204,15 +210,17 @@ public class SiteResources {
                 File resourceDir = new File(pathElement, staticResourceRootPath);
                 if (resourceDir.exists()) {
                     if (staticResourceRootDir != null) {
-                        throw new RuntimeException("Found two matches for static resource root \"" + staticResourceRootPath + "\" on classpath: " + staticResourceRootDir.getPath()
-                                + " , " + resourceDir.getPath());
+                        throw new RuntimeException("Found two matches for static resource root \""
+                                + staticResourceRootPath + "\" on classpath: "
+                                + staticResourceRootDir.getPath() + " , " + resourceDir.getPath());
                     }
                     staticResourceRootDir = resourceDir;
                 }
                 File polymerDir = new File(pathElement.getPath() + File.separator + polymerModulePath);
                 if (polymerDir.exists()) {
                     if (polymerModuleRootDir != null) {
-                        throw new RuntimeException("Found two matches for Polymer module root \"" + polymerModulePath + "\" on classpath: " + polymerModuleRootDir.getPath()
+                        throw new RuntimeException("Found two matches for Polymer module root \""
+                                + polymerModulePath + "\" on classpath: " + polymerModuleRootDir.getPath()
                                 + " , " + polymerDir.getPath());
                     }
                     polymerModuleRootDir = polymerDir;
@@ -221,11 +229,13 @@ public class SiteResources {
         }
         if (staticResourceRootDir == null) {
             throw new RuntimeException("Could not find static resource path \"" + staticResourceRootPath
-                    + "\" in a directory on the classpath (N.B. cannot be in zipfiles or jarfiles on the classpath)");
+                    + "\" in a directory on the classpath (N.B. cannot be in zipfiles or jarfiles "
+                    + "on the classpath)");
         }
         if (polymerModuleRootDir == null) {
             throw new RuntimeException("Could not find Polymer module root \"" + polymerModulePath
-                    + "\" in a directory on the classpath (N.B. cannot be in zipfiles or jarfiles on the classpath)");
+                    + "\" in a directory on the classpath (N.B. cannot be in zipfiles or jarfiles "
+                    + "on the classpath)");
         }
 
         restHandlerLoader = new RestHandlerLoader();
@@ -234,45 +244,65 @@ public class SiteResources {
 
         // Set up classpath scanner
         classpathScanner =
-                new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
-                        .matchSubclassesOf(RestHandler.class, matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
-                        .matchSubclassesOf(DataModel.class, templateClass -> templateLoader.gotDataModel(templateClass)) //
-                        .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass)) //
-                        .matchFilenamePattern(".*\\.(html|js|css)",
-                                (absolutePath, relativePath, inputStream) -> templateLoader.gotWebResource(absolutePath, relativePath, inputStream));
+                new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath,
+                        "org/polymerproject" })
+                        .matchSubclassesOf(RestHandler.class,
+                                matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
+                        .matchSubclassesOf(DataModel.class,
+                                templateClass -> templateLoader.gotDataModel(templateClass)) //
+                        .matchSubclassesOf(DBModel.class,
+                                matchingClass -> db.registerDBModel(matchingClass))
+                        //
+                        .matchFilenamePattern(
+                                ".*\\.(html|js|css)",
+                                (absolutePath, relativePath, inputStream) -> templateLoader.gotWebResource(
+                                        absolutePath, relativePath, inputStream));
 
-        // If this is the second or subsequent loading of site resources, directly load constant literal values of static fields that contain inline templates,
-        // so that we can dynamically pick up these changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
-        // Full hot code swap / dynamic class reloading is problematic, see http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
-        HashSet<String> staticFieldNames = GribbitServer.siteResources == null ? null : GribbitServer.siteResources.templateLoader.getInlineTemplateStaticFieldNames();
+        // If this is the second or subsequent loading of site resources, directly load constant literal
+        // values of static fields that contain inline templates, so that we can dynamically pick up these
+        // changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
+        // Full hot code swap / dynamic class reloading is problematic, see 
+        // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
+        HashSet<String> staticFieldNames =
+                GribbitServer.siteResources == null ? null : GribbitServer.siteResources.templateLoader
+                        .getInlineTemplateStaticFieldNames();
         if (staticFieldNames != null) {
-            classpathScanner.matchStaticFinalFieldNames(staticFieldNames,
-                    (String className, String fieldName, Object fieldConstantValue) -> templateLoader.gotTemplateStaticFieldValue(className, (String) fieldConstantValue));
+            classpathScanner.matchStaticFinalFieldNames(staticFieldNames, (String className,
+                    String fieldName, Object fieldConstantValue) -> templateLoader
+                    .gotTemplateStaticFieldValue(className, (String) fieldConstantValue));
         }
-        
+
         // Scan classpath for handlers, models and templates
         classpathScanner.scan();
 
         templateLoader.initializeTemplates();
 
-        // Make sure that all DataModel classes that are bound by POST requests or that are subclasses of DBModel can be initialized with a zero-argument constructor
-        HashSet<Class<? extends DataModel>> classesThatNeedZeroArgConstructor = new HashSet<>(restHandlerLoader.getAllFormDataModels());
+        // Make sure that all DataModel classes that are bound by POST requests or that are subclasses of
+        // DBModel can be initialized with a zero-argument constructor
+        HashSet<Class<? extends DataModel>> classesThatNeedZeroArgConstructor =
+                new HashSet<>(restHandlerLoader.getAllFormDataModels());
         classesThatNeedZeroArgConstructor.addAll(db.getAllDBModelClasses());
         for (Class<? extends DataModel> classThatNeedsZeroArgConstructor : classesThatNeedZeroArgConstructor) {
-            // Try instantiating DataModel with default constructor to make sure there will be no problems instantiating it later 
+            // Try instantiating DataModel with default constructor to make sure there will be no problems
+            // instantiating it later 
             try {
                 Reflection.instantiateWithDefaultConstructor(classThatNeedsZeroArgConstructor);
             } catch (Exception e) {
-                throw new RuntimeException("Could not instantiate " + DataModel.class.getSimpleName() + " subclass " + classThatNeedsZeroArgConstructor.getName()
-                        + " -- it needs to have a default (zero-argument) constructor if there is any other non-default "
-                        + "constructor defined, and the class must be static if it is an inner class");
+                throw new RuntimeException("Could not instantiate " + DataModel.class.getSimpleName()
+                        + " subclass " + classThatNeedsZeroArgConstructor.getName()
+                        + " -- it needs to have a default (zero-argument) constructor if there "
+                        + "is any other non-default constructor defined, and the class must be "
+                        + "static if it is an inner class");
             }
         }
 
         resourcesLoadedEpochSecond = ZonedDateTime.now().toEpochSecond();
     }
 
-    /** Return true if a file or directory on the classpath has been modified since the classpath scanner was run. */
+    /**
+     * Return true if a file or directory on the classpath has been modified since the classpath scanner was
+     * run.
+     */
     public boolean classpathContentsModifiedSinceScan() {
         return classpathScanner.classpathContentsModifiedSinceScan();
     }

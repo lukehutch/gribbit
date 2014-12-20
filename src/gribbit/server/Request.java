@@ -77,22 +77,26 @@ public class Request {
     private String origin;
 
     /**
-     * Header for CSRF protection of AJAX requests (regular GETs and POSTs don't allow for header manipulation.)
+     * Header for CSRF protection of AJAX requests (regular GETs and POSTs don't allow for header
+     * manipulation.)
      * 
      * See https://nealpoole.com/blog/2010/11/preventing-csrf-attacks-with-ajax-and-http-headers/
      */
     private String xRequestedWith;
 
     /**
-     * Cookies to delete later in the response (used when a method has access to only the request, not the response). Will not be deleted if a cookie of the same name is set in the
-     * response.
+     * Cookies to delete later in the response (used when a method has access to only the request, not the
+     * response). Will not be deleted if a cookie of the same name is set in the response.
      */
     private HashSet<String> cookiesToDelete = new HashSet<>();
-    
-    /** If set to true by appending "?_getmodel=1" to the URL, then return the data model backing an HTML page, not the rendered page itself. */
+
+    /**
+     * If set to true by appending "?_getmodel=1" to the URL, then return the data model backing an HTML
+     * page, not the rendered page itself.
+     */
     private boolean isGetModelRequest;
 
-    // ----------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public Request(HttpRequest httpReq) {
         this.reqReceivedTimeMillis = System.currentTimeMillis();
@@ -122,14 +126,16 @@ public class Request {
 
         String cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
         if (cacheDateHeader != null && !cacheDateHeader.isEmpty()) {
-            this.ifModifiedSinceEpochSecond = ZonedDateTime.parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
+            this.ifModifiedSinceEpochSecond =
+                    ZonedDateTime.parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME)
+                            .toEpochSecond();
         }
 
         // Decode the path.
         QueryStringDecoder decoder = new QueryStringDecoder(httpReq.getUri());
         this.path = decoder.path();
         this.queryParamToVals = decoder.parameters();
-        
+
         // Look for _getmodel=1 query parameter setting
         String getModel = this.getQueryParam("_getmodel");
         if (getModel != null) {
@@ -142,7 +148,7 @@ public class Request {
     public long getReqReceivedTimeMillis() {
         return reqReceivedTimeMillis;
     }
-    
+
     void setPostParams(HashMap<String, String> postParamToValue) {
         this.postParamToValue = postParamToValue;
     }
@@ -192,7 +198,8 @@ public class Request {
         }
         FileUpload old = postParamToFileUpload.put(name, fileUpload);
         if (old != null) {
-            // Shouldn't happen, but just in case there are two file upload params with the same param name, free the first, since we're overwriting it
+            // Shouldn't happen, but just in case there are two file upload params with the same
+            // param name, free the first, since we're overwriting it
             old.release();
         }
     }
@@ -232,11 +239,14 @@ public class Request {
         }
     }
 
-    /** True if the request URL contained the query parameter "?_getmodel=1", in which case return the DataModel backing an HTML page, and not the rendered page itself. */
+    /**
+     * True if the request URL contained the query parameter "?_getmodel=1", in which case return the
+     * DataModel backing an HTML page, and not the rendered page itself.
+     */
     public boolean isGetModelRequest() {
         return isGetModelRequest;
     }
-    
+
     public Collection<Cookie> getCookies() {
         if (cookieNameToCookie == null) {
             return null;
@@ -317,8 +327,8 @@ public class Request {
     }
 
     /**
-     * Add a cookie to delete later in the response (used when a method has access to only the request, not the response). Will not be deleted if a cookie of the same name is set
-     * in the response.
+     * Add a cookie to delete later in the response (used when a method has access to only the request, not
+     * the response). Will not be deleted if a cookie of the same name is set in the response.
      */
     public void addCookieToDeleteInResponse(String cookieName) {
         cookiesToDelete.add(cookieName);
@@ -328,7 +338,10 @@ public class Request {
         return cookiesToDelete;
     }
 
-    /** Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see if the resource is newer than any cached version. */
+    /**
+     * Compare timestamp in the If-Modified-Since request header, if present, to the given resource
+     * timestamp to see if the resource is newer than any cached version.
+     */
     public boolean cachedVersionIsOlderThan(long resourceTimestampEpochSecond) {
         return resourceTimestampEpochSecond > ifModifiedSinceEpochSecond;
     }

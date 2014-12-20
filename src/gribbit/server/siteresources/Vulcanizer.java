@@ -26,8 +26,8 @@
 package gribbit.server.siteresources;
 
 import gribbit.handler.vulcanized.VulcanizedJSHandler;
+import gribbit.thirdparty.UTF8;
 import gribbit.util.StringUtils;
-import gribbit.util.UTF8;
 import gribbit.util.WebUtils;
 
 import java.io.File;
@@ -58,7 +58,8 @@ import org.jsoup.select.Elements;
  * 
  * (This is basically a re-implementation of https://github.com/Polymer/vulcanize/ )
  * 
- * Concatenates a set of Web resources into two files: one HTML file and one JS file. (The JS file is separate for CSP compliance.)
+ * Concatenates a set of Web resources into two files: one HTML file and one JS file. (The JS file is
+ * separate for CSP compliance.)
  */
 public class Vulcanizer {
 
@@ -68,7 +69,7 @@ public class Vulcanizer {
 
     public HashMap<String, Document> templateNameToDocument = new HashMap<>();
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static final String POLYMER_PREFIX = "/polymer/";
 
@@ -80,11 +81,13 @@ public class Vulcanizer {
     // Polymer('y',{x}) -> "Polymer('y',{", "'y'", "{"
     // Polymer('y') -> "Polymer('y')", "'y'", ")"
     // See also https://github.com/Polymer/vulcanize/blob/master/lib/vulcan.js
-    private static final Pattern POLYMER_INVOCATION = Pattern.compile("Polymer\\(([^,{]+)?(?:,\\s*)?(\\{|\\))");
+    private static final Pattern POLYMER_INVOCATION = Pattern
+            .compile("Polymer\\(([^,{]+)?(?:,\\s*)?(\\{|\\))");
     private static final Pattern CSS_URL = Pattern.compile("url\\(([^)]*)\\)");
     private static final Pattern CSS_IMPORT = Pattern.compile("@import\\s*url\\(([^)]*)\\)[;]?");
 
-    private static final Pattern SOURCE_MAPPING_URL_COMMENT = Pattern.compile("//#[\\s]*sourceMappingURL=[^\\n]*");
+    private static final Pattern SOURCE_MAPPING_URL_COMMENT = Pattern
+            .compile("//#[\\s]*sourceMappingURL=[^\\n]*");
 
     private HashSet<String> polymerTagnames = new HashSet<>();
 
@@ -100,14 +103,14 @@ public class Vulcanizer {
 
     final HashSet<String> customInlineElements = new HashSet<>();
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public Vulcanizer(SiteResources siteResources, File polymerModuleRootDir) {
         this.siteResources = siteResources;
         this.polymerModuleRootDir = polymerModuleRootDir;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
      * Resolve a relative path in an URI attribute to an absolute path.
@@ -119,11 +122,16 @@ public class Vulcanizer {
      * @return the absolute path of the URI, e.g. "/site/css/main.css"
      */
     private static String resolveHREF(String hrefURI, String baseURI) {
-        // Return original URI if it is empty, starts with "#", is a template param,  or starts with a Polymer param (starts with "{{")
-        if (hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#") && !WebUtils.EXTERNAL_URI.matcher(hrefURI).matches()
-                && !TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(hrefURI).find() && !hrefURI.startsWith("{{")) {
+        // Return original URI if it is empty, starts with "#", is a template param, or starts with
+        // a Polymer param (i.e. starts with "{{")
+        if (hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#")
+                && !WebUtils.EXTERNAL_URI.matcher(hrefURI).matches()
+                && !TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(hrefURI).find()
+                && !hrefURI.startsWith("{{")) {
             // Build new path for the linked resource
-            StringBuilder hrefURIResolved = new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/" : baseURI);
+            StringBuilder hrefURIResolved =
+                    new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/"
+                            : baseURI);
             for (CharSequence part : StringUtils.splitAsList(hrefURI, "/")) {
                 if (part.length() == 0 || part.equals(".")) {
                     // Ignore
@@ -132,7 +140,8 @@ public class Vulcanizer {
                     int lastIdx = hrefURIResolved.lastIndexOf("/");
                     hrefURIResolved.setLength(lastIdx < 0 ? 0 : lastIdx);
                 } else {
-                    if (hrefURIResolved.length() > 0 && hrefURIResolved.charAt(hrefURIResolved.length() - 1) != '/') {
+                    if (hrefURIResolved.length() > 0
+                            && hrefURIResolved.charAt(hrefURIResolved.length() - 1) != '/') {
                         hrefURIResolved.append('/');
                     }
                     hrefURIResolved.append(part);
@@ -143,7 +152,7 @@ public class Vulcanizer {
         return hrefURI;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static class DepsAfter {
         public String originURI;
@@ -164,13 +173,13 @@ public class Vulcanizer {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static class Dep {
         public String id;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static class HTMLDep extends Dep {
         public Document doc;
@@ -193,9 +202,11 @@ public class Vulcanizer {
             for (Node n : childNodes) {
                 if (n instanceof Comment) {
                     String commentStr = ((Comment) n).getData();
-                    // Remove all comments that do not start with "[if " or " [if " (which test for IE versions),
-                    // and which do not contain "@license" (since we shouldn't be stripping away license information)
-                    if (!commentStr.startsWith("[if ") && !commentStr.startsWith(" [if ") && !commentStr.contains("@license")) {
+                    // Remove all comments that do not start with "[if " or " [if "
+                    // (which test for IE versions), and which do not contain "@license"
+                    // (since we shouldn't be stripping away license information)
+                    if (!commentStr.startsWith("[if ") && !commentStr.startsWith(" [if ")
+                            && !commentStr.contains("@license")) {
                         n.remove();
                     }
                 }
@@ -218,9 +229,9 @@ public class Vulcanizer {
                     if (rel.equalsIgnoreCase("stylesheet")) {
                         String href = e.attr("href");
                         if (href != null && !href.isEmpty()) {
-                            // FIXME: if we vulcanize linked stylesheets, then the styles will be moved out of the scope of the element.
-                            // FIXME: I think Polymer does the opposite: it inlines the stylesheet into the custom element.
-                            // FIXME: for now, leave the link in place.
+                            // FIXME: if we vulcanize linked stylesheets, then the styles will be moved out
+                            // of the scope of the element. I think Polymer does the opposite: it inlines
+                            // the stylesheet into the custom element. for now, leave the link in place.
 
                             //    // Not currently vulcanizing absolute URIs
                             //    if (!EXTERNAL_URI.matcher(href).matches()) {
@@ -248,7 +259,8 @@ public class Vulcanizer {
             // Get script element's src attribute and/or content 
             DataNode scriptContentNode = e.childNodeSize() > 0 ? (DataNode) e.childNode(0) : null;
             String scriptContent = scriptContentNode == null ? null : scriptContentNode.getWholeData();
-            String scriptContentTrimmed = scriptContent == null ? null : StringUtils.unicodeTrim(scriptContent);
+            String scriptContentTrimmed =
+                    scriptContent == null ? null : StringUtils.unicodeTrim(scriptContent);
             if (scriptContentTrimmed != null && scriptContentTrimmed.isEmpty()) {
                 scriptContent = scriptContentTrimmed = null;
             }
@@ -257,7 +269,8 @@ public class Vulcanizer {
                 src = null;
             }
             if (src != null && scriptContent != null) {
-                throw new RuntimeException("Script element in template " + id + " has both a src attribute and script content");
+                throw new RuntimeException("Script element in template " + id
+                        + " has both a src attribute and script content");
             }
 
             // Handle scripts inside polymer-elements
@@ -266,18 +279,23 @@ public class Vulcanizer {
                 // Script is included as the child of a polymer-element
                 String polymerElementName = e.parent().attr("name");
                 if (polymerElementName == null) {
-                    throw new RuntimeException("Polymer element in template " + id + " is missing the required attribute \"name\"");
+                    throw new RuntimeException("Polymer element in template " + id
+                            + " is missing the required attribute \"name\"");
                 }
                 polymerElementName = polymerElementName.toLowerCase();
-                // Schedule scripts extracted from this polymer-element as dependencies of the polymer-element, not the parent
+                // Schedule scripts extracted from this polymer-element as dependencies of the
+                // polymer-element, not the parent
                 scriptDependency = id + ":" + polymerElementName;
 
                 if (e.parent().hasAttr("noscript")) {
-                    throw new RuntimeException("Polymer element in template " + id + " has \"noscript\" attribute, but contains a script");
+                    throw new RuntimeException("Polymer element in template " + id
+                            + " has \"noscript\" attribute, but contains a script");
 
                 } else {
-                    // Adjust Polymer() invocation to explicitly include the tag name as the first parameter if it's not present.
-                    // Ported from https://github.com/Polymer/vulcanize/blob/master/lib/vulcan.js , function handleMainDocument()
+                    // Adjust Polymer() invocation to explicitly include the tag name as the first
+                    // parameter if it's not present. Ported from
+                    // https://github.com/Polymer/vulcanize/blob/master/lib/vulcan.js , 
+                    // from the function handleMainDocument()
                     boolean hasMatch = false;
                     if (scriptContent != null) {
                         Matcher matcher = POLYMER_INVOCATION.matcher(scriptContent);
@@ -286,19 +304,23 @@ public class Vulcanizer {
                             // Skip Polymer() calls that already have the tag name
                             if (matcher.group(1) == null) {
                                 // build the named Polymer invocation
-                                String namedInvocation = "Polymer('" + polymerElementName + "'" + (matcher.group(2).equals("{") ? ",{" : ")");
+                                String namedInvocation =
+                                        "Polymer('" + polymerElementName + "'"
+                                                + (matcher.group(2).equals("{") ? ",{" : ")");
                                 scriptContent = scriptContent.replace(matcher.group(0), namedInvocation);
                             }
                         }
                     }
                     if (!hasMatch) {
-                        throw new RuntimeException("Polymer element " + polymerElementName + " includes a script tag that does not call Polymer()");
+                        throw new RuntimeException("Polymer element " + polymerElementName
+                                + " includes a script tag that does not call Polymer()");
                     }
                 }
             }
 
             if (scriptContent != null) {
-                // Remove the script tag, and add a dependency between this HTML file and the extracted script
+                // Remove the script tag, and add a dependency between this HTML file and the 
+                // extracted script
                 String extractedJSId = id + ":js" + jsIdCounter++;
                 addJS(extractedJSId, scriptContent);
                 addDepOrder(id, scriptDependency, extractedJSId);
@@ -307,7 +329,8 @@ public class Vulcanizer {
             } else if (src != null) {
                 // Not currently vulcanizing absolute URIs
                 if (!WebUtils.EXTERNAL_URI.matcher(src).matches()) {
-                    // This script tag has a site-local src attribute, schedule the JS to be included after this HTML
+                    // This script tag has a site-local src attribute, schedule the JS to be included
+                    // after this HTML
                     addDepOrder(id, id, src);
                     // Remove this script tag from doc
                     e.remove();
@@ -317,14 +340,16 @@ public class Vulcanizer {
             }
         }
 
-        // Extract style elements that are not part of a polymer-element and do not have an HTML "scoped" attribute
+        // Extract style elements that are not part of a polymer-element and do not have an HTML
+        // "scoped" attribute
         int cssIdCounter = 0;
         for (Element e : dep.doc.getElementsByTag("style")) {
             DataNode styleContentNode = e.childNodeSize() > 0 ? (DataNode) e.childNode(0) : null;
             String styleContent = styleContentNode == null ? null : styleContentNode.getWholeData();
             if (styleContent != null) {
                 String parentTag = e.parent().tagName().toLowerCase();
-                if (!parentTag.equals("polymer-element") && !e.hasAttr("scoped") && (!e.hasAttr("type") || e.attr("type").equalsIgnoreCase("text/css"))) {
+                if (!parentTag.equals("polymer-element") && !e.hasAttr("scoped")
+                        && (!e.hasAttr("type") || e.attr("type").equalsIgnoreCase("text/css"))) {
                     String cssId = id + ":css" + cssIdCounter++;
                     if (e.hasAttr("no-shim")) {
                         cssShimType.put(cssId, "no-shim");
@@ -354,19 +379,24 @@ public class Vulcanizer {
                 // Check validity of polymer-element tag name
                 String polymerElementName = n.attr("name");
                 if (polymerElementName == null) {
-                    throw new RuntimeException("Polymer element in template " + id + " is missing the required attribute \"name\"");
+                    throw new RuntimeException("Polymer element in template " + id
+                            + " is missing the required attribute \"name\"");
                 }
                 polymerElementName = polymerElementName.toLowerCase();
                 if (polymerElementName.indexOf('-') < 0) {
-                    throw new RuntimeException("The Polymer tag name \"" + polymerElementName + "\" in template " + id + " does not include a hyphen character");
+                    throw new RuntimeException("The Polymer tag name \"" + polymerElementName
+                            + "\" in template " + id + " does not include a hyphen character");
                 } else if (!WebUtils.VALID_HTML_NAME_OR_ID.matcher(polymerElementName).matches()) {
-                    throw new RuntimeException("Polymer element name \"" + polymerElementName + "\" in template " + id + " is invalid");
+                    throw new RuntimeException("Polymer element name \"" + polymerElementName
+                            + "\" in template " + id + " is invalid");
                 }
                 if (!polymerTagnames.add(polymerElementName)) {
-                    throw new RuntimeException("Multiple Polymer elements define the same tag name \"" + polymerElementName + "\"");
+                    throw new RuntimeException("Multiple Polymer elements define the same tag name \""
+                            + polymerElementName + "\"");
                 }
 
-                // Handle Polymer "noscript" elements by injecting an explicit initializer in the JS to preserve initialization order
+                // Handle Polymer "noscript" elements by injecting an explicit initializer in the JS to
+                // preserve the initialization order
                 String polymerEltId = id + ":" + polymerElementName;
                 if (n.hasAttr("noscript")) {
                     String injectedJSId = id + ":js" + cssIdCounter++;
@@ -413,14 +443,16 @@ public class Vulcanizer {
 
             } else {
                 // Element is not a polymer-element and not an HTML import.
-                // Concatenate all such elements into a new template document. This will later be paired with a sub-class
-                // of the DataModel class that has the same name as the leaf name of this HTML doc without the .html suffix.
+                // Concatenate all such elements into a new template document. This will later be paired
+                // with a sub-class of the DataModel class that has the same name as the leaf name of this
+                // HTML doc without the .html suffix.
 
                 // Move this HTML element into the template
                 n.remove();
                 templateDoc.body().appendChild(n);
 
-                if (!(n instanceof TextNode) || StringUtils.unicodeTrimCharSequence(((TextNode) n).text()).length() > 0) {
+                if (!(n instanceof TextNode)
+                        || StringUtils.unicodeTrimCharSequence(((TextNode) n).text()).length() > 0) {
                     templateHasOnlyEmptyNodes = false;
                 }
             }
@@ -429,14 +461,16 @@ public class Vulcanizer {
             // Don't add template if there are only empty text nodes
             Document oldDoc = templateNameToDocument.put(uriLeafBaseName, templateDoc);
             if (oldDoc != null) {
-                // We only match template names and DataModel names on the leafname currently, so html files in classpath have to have unique names
+                // We only match template names and DataModel names on the leafname currently, so html
+                // files in classpath have to have unique names
                 String leaf = StringUtils.leafName(baseURI);
-                throw new RuntimeException("Two HTML template files found in classpath with same name \"" + leaf + "\"");
+                throw new RuntimeException("Two HTML template files found in classpath with same name \""
+                        + leaf + "\"");
             }
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static class CSSDep extends Dep {
         public String css;
@@ -480,7 +514,7 @@ public class Vulcanizer {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static class JSDep extends Dep {
         public String script;
@@ -496,12 +530,14 @@ public class Vulcanizer {
         idToDep.put(id, dep);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
-    private void topologicalSort(Dep currDep, LinkedList<Dep> topoOrder, HashSet<String> path, HashSet<String> visited) {
+    private void topologicalSort(Dep currDep, LinkedList<Dep> topoOrder, HashSet<String> path,
+            HashSet<String> visited) {
         if (visited.add(currDep.id)) {
             if (!path.add(currDep.id)) {
-                throw new RuntimeException("Circular dependency in HTML imports, involving the nodes: " + path);
+                throw new RuntimeException("Circular dependency in HTML imports, involving the nodes: "
+                        + path);
             }
             DepsAfter depsAfter = idToDepsAfter.get(currDep.id);
             if (depsAfter != null) {
@@ -529,18 +565,21 @@ public class Vulcanizer {
             String idBefore = ent.getKey();
             rootIds.add(idBefore);
             if (!idToDep.containsKey(idBefore)) {
-                throw new RuntimeException("Resource " + idBefore + " does not exist, referenced in " + ent.getValue().originURI);
+                throw new RuntimeException("Resource " + idBefore + " does not exist, referenced in "
+                        + ent.getValue().originURI);
             }
             for (String idAfter : ent.getValue().idsAfter) {
                 nonRootIds.add(idAfter);
                 if (!idToDep.containsKey(idAfter)) {
-                    throw new RuntimeException("Resource " + idAfter + " does not exist, cited in " + ent.getValue().originURI);
+                    throw new RuntimeException("Resource " + idAfter + " does not exist, cited in "
+                            + ent.getValue().originURI);
                 }
             }
         }
         rootIds.removeAll(nonRootIds);
 
-        // Sort root nodes, putting Polymer resources first then the rest in alphabetical order by id for consistency
+        // Sort root nodes, putting Polymer resources first then the rest in alphabetical order by id
+        // for consistency
         ArrayList<String> rootIdsSorted = new ArrayList<>(rootIds);
         Collections.sort(rootIdsSorted, new Comparator<String>() {
             @Override
@@ -566,7 +605,7 @@ public class Vulcanizer {
         return topoOrder;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private HashMap<String, String> uriToContent = new HashMap<>();
 
@@ -602,19 +641,21 @@ public class Vulcanizer {
             try {
                 content = FileUtils.readFileToString(file, Charset.forName("UTF-8"));
             } catch (IOException e) {
-                throw new RuntimeException("Could not read linked web resource " + uri + ": " + e.getMessage());
+                throw new RuntimeException("Could not read linked web resource " + uri + ": "
+                        + e.getMessage());
             }
             // Enqueue the resource
             enqueue(uri, content);
 
         } else {
             // Ignore resources not in the Polymer component or static resource root.
-            // These resources should also be on the classpath, so should be loaded during classpath scanning.
-            // If they don't exist, an exception will be thrown during dependency resolution.
+            // These resources should also be on the classpath, so should be loaded during
+            // classpath scanning. If they don't exist, an exception will be thrown during
+            // dependency resolution.
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
      * Vulcanize HTML/CSS/JS resources.
@@ -622,7 +663,8 @@ public class Vulcanizer {
     void vulcanize() {
         String vulcanizedJSHandlerURI = siteResources.routeURIForHandler(VulcanizedJSHandler.class);
 
-        // Always enqueue the main Polymer files. TODO: these are added as two separate dependencies right now, replacing the single import of polymer.html. Should probably just import polymer.html.
+        // Always enqueue the main Polymer files. TODO: these are added as two separate dependencies right
+        // now, replacing the single import of polymer.html. Should probably just import polymer.html.
         String webcomponentsJS = POLYMER_PREFIX + "polymer/polymer.min.js";
         String polymerHTML = POLYMER_PREFIX + "polymer/layout.html";
         enqueue(webcomponentsJS);
@@ -658,14 +700,15 @@ public class Vulcanizer {
         // Perform a topological sort of the dependency graph
         LinkedList<Dep> depOrder = topologicalSort();
 
-        // Produce a single HTML, CSS and JS file out of segments in the topological sort order of the dependency graph.
-        // Vulcanized HTML content is added within a <div hidden> element.
+        // Produce a single HTML, CSS and JS file out of segments in the topological sort order of
+        // the dependency graph. Vulcanized HTML content is added within a <div hidden> element.
         Document htmlCombined = Jsoup.parseBodyFragment("<div hidden></div>");
         Element htmlDiv = htmlCombined.getElementsByTag("div").get(0);
         StringBuilder cssCombined = new StringBuilder(65536);
         StringBuilder cssCombinedNoShim = new StringBuilder(65536);
         StringBuilder cssCombinedShimShadowDom = new StringBuilder(65536);
-        int cssCombinedOrder = -1, cssCombinedNoShimOrder = -1, cssCombinedShimShadowDomOrder = -1, numCSSShimTypes = 0;
+        int cssCombinedOrder = -1, cssCombinedNoShimOrder = -1, cssCombinedShimShadowDomOrder = -1;
+        int numCSSShimTypes = 0;
         StringBuilder jsCombined = new StringBuilder(1000000);
         for (Dep dep : depOrder) {
             if (dep instanceof HTMLDep) {
@@ -681,30 +724,36 @@ public class Vulcanizer {
                 // Vulcanize CSS in dependency order
 
                 CSSDep cssDep = (CSSDep) dep;
-                // Group together CSS content by shim type, see http://www.polymer-project.org/docs/polymer/styling.html#stylingattrs
-                // Also figure out what order to include different shim types in, to preserve relative ordering of the first instance
-                // of each shim type (CSS includes are the only way to add a dependency between two CSS files, and the shim type defined
-                // by the HTML style element that included the first CSS file is sticky, so CSS files can be grouped by shim type)
+                // Group together CSS content by shim type, see 
+                // http://www.polymer-project.org/docs/polymer/styling.html#stylingattrs
+                // Also figure out what order to include different shim types in, to preserve relative
+                // ordering of the first instance of each shim type (CSS includes are the only way to
+                // add a dependency between two CSS files, and the shim type defined by the HTML style
+                // element that included the first CSS file is sticky, so CSS files can be grouped by
+                // shim type)
                 String shimType = cssShimType.get(dep.id);
                 if (shimType != null && shimType.equals("no-shim")) {
                     cssCombinedNoShim.append(cssDep.css);
                     cssCombinedNoShim.append('\n');
                     if (cssCombinedNoShimOrder == -1) {
-                        cssCombinedNoShimOrder = Math.max(cssCombinedOrder, cssCombinedShimShadowDomOrder) + 1;
+                        cssCombinedNoShimOrder =
+                                Math.max(cssCombinedOrder, cssCombinedShimShadowDomOrder) + 1;
                         numCSSShimTypes++;
                     }
                 } else if (shimType != null && shimType.equals("shim-shadowdom")) {
                     cssCombinedShimShadowDom.append(cssDep.css);
                     cssCombinedShimShadowDom.append('\n');
                     if (cssCombinedShimShadowDomOrder == -1) {
-                        cssCombinedShimShadowDomOrder = Math.max(cssCombinedOrder, cssCombinedNoShimOrder) + 1;
+                        cssCombinedShimShadowDomOrder =
+                                Math.max(cssCombinedOrder, cssCombinedNoShimOrder) + 1;
                         numCSSShimTypes++;
                     }
                 } else {
                     cssCombined.append(cssDep.css);
                     cssCombined.append('\n');
                     if (cssCombinedOrder == -1) {
-                        cssCombinedOrder = Math.max(cssCombinedNoShimOrder, cssCombinedShimShadowDomOrder) + 1;
+                        cssCombinedOrder =
+                                Math.max(cssCombinedNoShimOrder, cssCombinedShimShadowDomOrder) + 1;
                         numCSSShimTypes++;
                     }
                 }
@@ -757,9 +806,11 @@ public class Vulcanizer {
         // JS is served on a different URI for CSP compliance.
         String jsCombinedStr = "";
         if (jsCombined.length() > 0) {
-            htmlCombined.body().prependElement("script").attr("type", "application/javascript").attr("src", vulcanizedJSHandlerURI);
+            htmlCombined.body().prependElement("script").attr("type", "application/javascript")
+                    .attr("src", vulcanizedJSHandlerURI);
 
-            // Remove source mapping URLs from vulcanized content because they will no longer work and just give 404 errors if they're not available 
+            // Remove source mapping URLs from vulcanized content because they will no longer work and
+            // just give 404 errors if they're not available 
             jsCombinedStr = SOURCE_MAPPING_URL_COMMENT.matcher(jsCombined).replaceAll("");
         }
         String htmlCombinedStr = "<!DOCTYPE html>\n" + htmlCombined.body().html();
@@ -774,32 +825,40 @@ public class Vulcanizer {
                 if (!blockElementTagNames.contains(tagName)) {
                     // Polymer element is not yet known to be a block element.
                     boolean isBlock = false;
-                    // Check if any element inside the Polymer element's template is known to be a block element
+                    // Check if any element inside the Polymer element's template is known to be
+                    // a block element
                     for (Element templateElt : ent.getValue()) {
                         String templateEltTagName = templateElt.tagName();
-                        // If this Polymer element contains a block Polymer element in its template, or
+                        // If this Polymer element contains a block Polymer element in its template,..
                         if (blockElementTagNames.contains(templateEltTagName) || //
-                                // ..if this is a non-custom tag and it's not an inline element or Polymer's special "content" element, then 
-                                (!templateEltTagName.contains("-") && !WebUtils.INLINE_ELEMENTS.contains(templateEltTagName) && !templateEltTagName.equals("content"))) {
-                            // This element in the template is a block element, so the custom tag should be treated as a block element
+                                // ..or if this is a non-custom tag and it's not an inline element or
+                                // Polymer's special "content" element, then 
+                                (!templateEltTagName.contains("-")
+                                        && !WebUtils.INLINE_ELEMENTS.contains(templateEltTagName) && // 
+                                !templateEltTagName.equals("content"))) {
+                            // This element in the template is a block element, so the custom tag
+                            // should be treated as a block element
                             isBlock = true;
                             break;
                         }
                     }
                     if (isBlock) {
-                        // Element was not known to be a block element before, but now it is; add it to the set of known block elements
+                        // Element was not known to be a block element before, but now it is; add it to
+                        // the set of known block elements
                         // Log.info("Found a Polymer block element: " + tagName);
                         blockElementTagNames.add(tagName);
                         somethingChanged = true;
                     }
                 }
             }
-            // Polymer elements' templates can contain other polymer element tags, but initially we don't know if those other elements are block elements or not,
+            // Polymer elements' templates can contain other polymer element tags, but initially we don't
+            // know if those other elements are block elements or not,
             // so we need to iterate until we have discovered all block elements.
         } while (somethingChanged);
         for (String tagName : polymerTagnameToTemplateElements.keySet()) {
             if (!blockElementTagNames.contains(tagName)) {
-                // Add tagnames of custom Polymer elements to the list of known inline elements if they do not contain block elements
+                // Add tagnames of custom Polymer elements to the list of known inline elements if they
+                // do not contain block elements
                 customInlineElements.add(tagName);
             }
         }
@@ -809,7 +868,7 @@ public class Vulcanizer {
         vulcanizedHTMLBytes = UTF8.stringToUTF8(htmlCombinedStr);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Load a template from an InputStream. */
     void addResource(String uri, String contents) {

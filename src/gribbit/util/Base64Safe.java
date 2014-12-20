@@ -25,16 +25,19 @@
  */
 package gribbit.util;
 
-import gribbit.util.UTF8.UTF8Exception;
+import gribbit.thirdparty.Base64;
+import gribbit.thirdparty.UTF8;
+import gribbit.thirdparty.UTF8.UTF8Exception;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * Perform base 64 encoding that is compatible with URL and cookie encoding: replaces '+' with '-' and '/' with '_', removes trailing '=' padding characters and prefixes the base
- * 64 encoding with a single digit that gives the number of padding characters removed. N.B. for "data:" URIs, regular Base64 encoding can be used unmodified, this class is not
- * needed.
+ * Perform base 64 encoding that is compatible with URL and cookie encoding: replaces '+' with '-' and '/'
+ * with '_', removes trailing '=' padding characters and prefixes the base 64 encoding with a single digit
+ * that gives the number of padding characters removed. N.B. for "data:" URIs, regular Base64 encoding can
+ * be used unmodified, this class is not needed.
  */
 public class Base64Safe {
 
@@ -44,7 +47,7 @@ public class Base64Safe {
     public static String base64EncodeFromString(String src) {
         return base64Encode(UTF8.stringToUTF8(src));
     }
-    
+
     /**
      * Convert a byte array to URL/cookie-compatible base 64 encoding.
      */
@@ -63,7 +66,8 @@ public class Base64Safe {
                 base64Safe.append('_');
                 break;
             case '=':
-                // These should only be at the very end (assume valid since we got the output straight from Base64.encodeToByte())
+                // These should only be at the very end (assume valid since we got the output straight
+                // from Base64.encodeToByte())
                 numEq++;
                 break;
             default:
@@ -85,7 +89,7 @@ public class Base64Safe {
             System.exit(1);
         }
     }
-    
+
     /** Base64-encode the MD5 digest of a string. */
     public static String base64EncodeMD5Digest(String src) {
         byte[] bytes;
@@ -97,9 +101,10 @@ public class Base64Safe {
         byte[] digest = md5.digest(bytes);
         return base64Encode(digest);
     }
-    
+
     /**
-     * Convert a URL/cookie-compatible base 64 encoded UTF8 string into a UTF8 byte array, then back into a Java UTF16 String.
+     * Convert a URL/cookie-compatible base 64 encoded UTF8 string into a UTF8 byte array, then back into a
+     * Java UTF16 String.
      */
     public static String base64DecodeToString(String base64Safe) throws IllegalArgumentException {
         try {

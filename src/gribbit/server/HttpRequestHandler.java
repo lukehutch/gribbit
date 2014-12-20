@@ -44,9 +44,9 @@ import gribbit.auth.User;
 import gribbit.handler.error.MethodNotAllowed;
 import gribbit.handler.error.NotModified;
 import gribbit.server.config.GribbitProperties;
+import gribbit.thirdparty.UTF8;
 import gribbit.util.Log;
 import gribbit.util.StringUtils;
-import gribbit.util.UTF8;
 import gribbit.util.WebUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -97,10 +97,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
     private boolean closeAfterWrite = false;
     private boolean addKeepAliveHeader = false;
 
-    // ----------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     // Use disk for HTTP data if size >16kB 
-    private static final HttpDataFactory factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE);
+    private static final HttpDataFactory factory = new DefaultHttpDataFactory(
+            DefaultHttpDataFactory.MINSIZE);
 
     static {
         // Delete temporary files on exit
@@ -111,7 +112,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         DiskAttribute.baseDirectory = null;
     }
 
-    // ----------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private HttpPostRequestDecoder decoder;
 
@@ -133,7 +134,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         }
     }
 
-    // ----------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Decode an HTTP message. */
     @Override
@@ -161,14 +162,18 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 }
             }
             if (expect100Continue) {
-                ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE));
+                ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                        HttpResponseStatus.CONTINUE));
                 // TODO: is it correct to return here and wait for another message?
                 return;
             }
 
-            closeAfterWrite = httpReq.headers().contains(CONNECTION, CLOSE, true) || //
-                    (httpReq.getProtocolVersion().equals(HttpVersion.HTTP_1_0) && !httpReq.headers().contains(CONNECTION, KEEP_ALIVE, true));
-            addKeepAliveHeader = !closeAfterWrite && httpReq.getProtocolVersion().equals(HttpVersion.HTTP_1_0);
+            closeAfterWrite =
+                    httpReq.headers().contains(CONNECTION, CLOSE, true) || //
+                            (httpReq.getProtocolVersion().equals(HttpVersion.HTTP_1_0) && !httpReq
+                                    .headers().contains(CONNECTION, KEEP_ALIVE, true));
+            addKeepAliveHeader =
+                    !closeAfterWrite && httpReq.getProtocolVersion().equals(HttpVersion.HTTP_1_0);
 
             if (httpReq.getMethod() == HttpMethod.POST) {
                 // Start decoding HttpContent chunks
@@ -198,7 +203,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             if (httpDataType == HttpDataType.Attribute) {
                                 try {
                                     Attribute attribute = (Attribute) data;
-                                    req.setPostParam(attribute.getName(), attribute.getString(attribute.getCharset() == null ? Charset.forName("UTF-8") : attribute.getCharset()));
+                                    req.setPostParam(attribute.getName(), attribute.getString(attribute
+                                            .getCharset() == null ? Charset.forName("UTF-8") : attribute
+                                            .getCharset()));
                                 } finally {
                                     // Decrease refcount, freeing data
                                     data.release();
@@ -206,7 +213,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
                             } else if (httpDataType == HttpDataType.FileUpload) {
                                 FileUpload fileUpload = (FileUpload) data;
-                                // TODO consider imposing size limit and returning 413 (Request Entity Too Large) once the amount of data that has been sent hits the limit
+                                // TODO consider imposing size limit and returning 413 (Request Entity Too
+                                // Large) once the amount of data that has been sent hits the limit
                                 if (fileUpload.isCompleted()) {
                                     // Save the FileUpload object (which wraps a DiskFileUpload in /tmp).
                                     // Need to release this resource later.
@@ -253,7 +261,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // Default to 404 handler if we can't find a route to handle this URI
                 Route routeToUse = null;
 
-                // Call route handlers until one is able to handle the route, or until we run out of handlers
+                // Call route handlers until one is able to handle the route,
+                // or until we run out of handlers
                 User user = null;
                 for (Route route : GribbitServer.siteResources.getAllRoutes()) {
 
@@ -265,14 +274,18 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
                             // We only support GET and POST at this point
                             Log.error("Unsupported HTTP method " + reqMethod.name() + " for path " + reqURI);
-                            routeToUse = GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class);
+                            routeToUse =
+                                    GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class);
                             reqMethod = HttpMethod.GET;
 
-                        } else if ((reqMethod == HttpMethod.GET && !route.hasGetMethod()) || (reqMethod == HttpMethod.POST && !route.hasPostMethod())) {
+                        } else if ((reqMethod == HttpMethod.GET && !route.hasGetMethod())
+                                || (reqMethod == HttpMethod.POST && !route.hasPostMethod())) {
 
                             // Tried to call an HTTP method that is not defined for this route
-                            Log.error("HTTP method " + reqMethod.name() + " not implemented in handler " + handler.getName());
-                            routeToUse = GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class);
+                            Log.error("HTTP method " + reqMethod.name() + " not implemented in handler "
+                                    + handler.getName());
+                            routeToUse =
+                                    GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class);
                             reqMethod = HttpMethod.GET;
 
                         } else if (RestHandler.AuthRequired.class.isAssignableFrom(handler)) {
@@ -281,19 +294,22 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             user = User.getLoggedInUser(req);
                             if (user == null) {
 
-                                // User is not logged in -- handle request with OnUnauthorized handler instead
+                                // User is not logged in: handle request with OnUnauthorized handler instead
                                 routeToUse = GribbitServer.siteResources.getUnauthorizedRoute();
                                 reqMethod = HttpMethod.GET;
 
-                            } else if (RestHandler.AuthAndValidatedEmailRequired.class.isAssignableFrom(handler) && !user.emailIsValidated()) {
+                            } else if (RestHandler.AuthAndValidatedEmailRequired.class
+                                    .isAssignableFrom(handler) && !user.emailIsValidated()) {
 
-                                // User is logged in, but their email address has not been validated -- handle request with EmailNotValidated handler instead
+                                // User is logged in, but their email address has not been validated:
+                                // handle request with EmailNotValidated handler instead
                                 routeToUse = GribbitServer.siteResources.getEmailNotValidatedRoute();
                                 reqMethod = HttpMethod.GET;
 
                             } else {
 
-                                // Authorization required and user logged in -- OK to handle request with this route
+                                // Authorization required and user logged in: OK to handle request
+                                // with this route
                                 routeToUse = route;
                             }
                         } else {
@@ -307,7 +323,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     }
                 }
 
-                // If no route handler matched the request URI, and this is a GET request, see if the URI points to a static resource
+                // If no route handler matched the request URI, and this is a GET request, see if the URI
+                // points to a static resource
                 RandomAccessFile fileToServe = null;
                 long lastModifiedEpochSecond = 0;
                 String filePath = "";
@@ -316,13 +333,14 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     if (staticResourceFile == null) {
 
                         // Neither a route handler nor a static resource matched the request URI --
-                        // return 404 via the regular HTTP request handler below, rather than serving a file. 
+                        // return 404 via the regular HTTP request handler below, rather than serving a file
                         routeToUse = GribbitServer.siteResources.getNotFoundRoute();
                         reqMethod = HttpMethod.GET;
 
                     } else {
 
-                        // A static resource matched the request URI, check last-modified timestamp against If-Modified-Since header timestamp in request
+                        // A static resource matched the request URI, check last-modified timestamp
+                        // against the If-Modified-Since header timestamp in the request
                         lastModifiedEpochSecond = staticResourceFile.lastModified() / 1000;
                         filePath = staticResourceFile.getPath();
                         if (!req.cachedVersionIsOlderThan(lastModifiedEpochSecond)) {
@@ -339,8 +357,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 fileToServe = new RandomAccessFile(staticResourceFile, "r");
 
                             } catch (FileNotFoundException e) {
-                                // Should not happen, file was just barely found to exist by the getStaticResource()
-                                // call above, but if it disappeared between then and now, return 404
+                                // Should not happen, file was just barely found to exist by the
+                                // getStaticResource() call above, but if it disappeared between
+                                // then and now, return 404
                                 routeToUse = GribbitServer.siteResources.getNotFoundRoute();
                                 reqMethod = HttpMethod.GET;
                             }
@@ -354,17 +373,21 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     // Handle static file requests (these are not authenticated)
                     // ------------------------------------------------------------------------------
 
-                    Log.fine(req.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://" + filePath + "\t" + HttpResponseStatus.OK);
+                    Log.fine(req.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
+                            + filePath + "\t" + HttpResponseStatus.OK);
 
-                    DefaultHttpResponse httpRes = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+                    DefaultHttpResponse httpRes =
+                            new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
                     httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
-                    httpRes.headers().set(DATE, ZonedDateTime.now().format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                    httpRes.headers().set(DATE,
+                            ZonedDateTime.now().format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
                     long fileLength = fileToServe.length();
                     httpRes.headers().set(CONTENT_LENGTH, fileLength);
 
                     String contentType = "application/octet-stream";
-                    int dotIdx = filePath.lastIndexOf('.'), slashIdx = filePath.lastIndexOf(File.separatorChar);
+                    int dotIdx = filePath.lastIndexOf('.'), slashIdx =
+                            filePath.lastIndexOf(File.separatorChar);
                     if (dotIdx > 0 && slashIdx < dotIdx) {
                         String ext = filePath.substring(dotIdx + 1).toLowerCase();
                         String mimeType = WebUtils.EXTENSION_TO_MIMETYPE.get(ext);
@@ -374,11 +397,15 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     }
                     httpRes.headers().set(CONTENT_TYPE, contentType);
 
-                    // TODO: Are there other headers that should be set to ensure the file is cached forever as long as the last modified date doesn't change?
-                    // TODO: Should I serve static files on a path that includes an MD5 hash of file contents?
+                    // TODO: Are there other headers that should be set to ensure the file is cached
+                    // TODO: forever as long as the last modified date doesn't change?
+                    // TODO: Should I serve static files on a path that includes an MD5 hash of file
+                    // TODO: contents, as GWT does?
                     // FIXME: currently static CSS files are cached indefinitely
-                    httpRes.headers().set(LAST_MODIFIED,
-                            ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSecond), ZoneId.of("UTC")).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                    httpRes.headers().set(
+                            LAST_MODIFIED,
+                            ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSecond),
+                                    ZoneId.of("UTC")).format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
                     if (addKeepAliveHeader) {
                         httpRes.headers().add(CONNECTION, KEEP_ALIVE);
@@ -391,17 +418,22 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     @SuppressWarnings("unused")
                     ChannelFuture sendFileFuture;
                     if (ctx.pipeline().get(SslHandler.class) == null) {
-                        sendFileFuture = ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength), ctx.newProgressivePromise());
+                        sendFileFuture =
+                                ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
+                                        ctx.newProgressivePromise());
                     } else {
                         // Can't use FileRegions / zero-copy with SSL
-                        sendFileFuture = ctx.write(new HttpChunkedInputTEMP(new ChunkedFile(fileToServe, 0, fileLength, 8192)), ctx.newProgressivePromise());
+                        sendFileFuture =
+                                ctx.write(new HttpChunkedInputTEMP(new ChunkedFile(fileToServe, 0,
+                                        fileLength, 8192)), ctx.newProgressivePromise());
                     }
 
                     // Flush write, write the end marker, and close channel if needed
                     ChannelFuture lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
                     if (closeAfterWrite) {
-                        // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track progress (e.g. to update user's UI
-                        // over a web socket to show download progress?) but for now, just close connection after flush 
+                        // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
+                        // progress (e.g. to update user's UI over a web socket to show download progress?),
+                        // but for now, just close connection after flush 
                         lastContentFuture.addListener(ChannelFutureListener.CLOSE);
                     }
 
@@ -411,18 +443,21 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     // Handle a GET or POST request
                     // ------------------------------------------------------------------------------
 
-                    // Set the request method, in case it was overridden above (i.e. in case it was set to GET by an error handler)
+                    // Set the request method, in case it was overridden above (i.e. in case it was set
+                    // to GET by an error handler)
                     req.setMethod(reqMethod);
 
                     Response res = new Response();
 
-                    // Set the last modified time, in case we are serving a Not Modified response for a static file
-                    // (have to set this header even on Not Modified, or the resource will no longer be cached)
+                    // Set the last modified time, in case we are serving a Not Modified response for a
+                    // static file (have to set this header even on Not Modified, or the resource will
+                    // no longer be cached)
                     if (lastModifiedEpochSecond > 0) {
                         res.setLastModifiedEpochSecond(lastModifiedEpochSecond);
                     }
 
-                    // Copy flash messages across from request to response, so that they persist until they are read and displayed
+                    // Copy flash messages across from request to response, so that they persist until
+                    // they are read and displayed
                     res.setFlashMessages(req.getCookieValue(Cookie.FLASH_COOKIE_NAME));
 
                     try {
@@ -437,9 +472,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                         Log.exception("Exception while handling URI " + reqURI, e);
                         try {
                             req.setMethod(HttpMethod.GET);
-                            GribbitServer.siteResources.getInternalServerErrorRoute().callHandler(req, res, user);
+                            GribbitServer.siteResources.getInternalServerErrorRoute().callHandler(req, res,
+                                    user);
                         } catch (Exception e1) {
-                            String errMsg = "Error in internal server error handler while handling URI " + reqURI;
+                            String errMsg =
+                                    "Error in internal server error handler while handling URI " + reqURI;
                             Log.exception(errMsg, e1);
                             res.setContent(errMsg);
                             res.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
@@ -447,14 +484,19 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     }
 
                     // Log OK result status at log level FINE, error status at level WARNING. 
-                    // Don't construct log message if we're not logging anything (to save on object creation).
-                    boolean statusOK = res.getStatus() == HttpResponseStatus.OK || res.getStatus() == HttpResponseStatus.NOT_MODIFIED
-                            || res.getStatus() == HttpResponseStatus.FOUND
-                            // Don't log 404 for favicon
-                            || (res.getStatus() == HttpResponseStatus.NOT_FOUND && StringUtils.leafName(reqURI).equals("favicon.ico"));
+                    // Don't construct log message if we're not logging, to save on object creation.
+                    boolean statusOK =
+                            res.getStatus() == HttpResponseStatus.OK
+                                    || res.getStatus() == HttpResponseStatus.NOT_MODIFIED
+                                    || res.getStatus() == HttpResponseStatus.FOUND
+                                    // Don't log 404 for favicon
+                                    || (res.getStatus() == HttpResponseStatus.NOT_FOUND && StringUtils
+                                            .leafName(reqURI).equals("favicon.ico"));
                     if (Log.getLevelNum() <= Log.getLevelNum(statusOK ? Level.FINE : Level.WARNING)) {
-                        String logMsg = req.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + (req.getMethod() == origReqMethod ? "" : "\t" + req.getMethod()) + "\t"
-                                + res.getStatus() + "\t";
+                        String logMsg =
+                                req.getRequestor() + "\t" + origReqMethod + "\t" + reqURI
+                                        + (req.getMethod() == origReqMethod ? "" : "\t" + req.getMethod())
+                                        + "\t" + res.getStatus() + "\t";
                         if (statusOK) {
                             Log.fine(logMsg);
                         } else {
@@ -469,14 +511,19 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                         }
                     }
 
-                    // Get the content of the response as a byte buffer. If the content is HTML, JSON or text, this will be in the form of UTF8 bytes.
-                    // If "?_getmodel=1" is appended to the request URL of a non-JSON request, the data model backing the response will be returned as
-                    // a JSON response, rather than the rendered HTML or raw text.  
-                    ByteBuf content = res.getContent(GribbitProperties.ALLOW_GET_MODEL && req.isGetModelRequest());
+                    // Get the content of the response as a byte buffer. If the content is HTML, JSON or
+                    // text, this will be in the form of UTF8 bytes.
+                    //
+                    // If "?_getmodel=1" is appended to the request URL of a non-JSON request, then the
+                    // data model backing the response will be returned as a JSON response, rather than
+                    // the rendered HTML or raw text.  
+                    ByteBuf content =
+                            res.getContent(GribbitProperties.ALLOW_GET_MODEL && req.isGetModelRequest());
 
-                    // Replace placeholder instances of the CSRF input value in forms with the user's CSRF value if the user
-                    // is logged in. This is a bit of a hack, but the CSRF token placeholder should be highly unique, and
-                    // therefore should not collide with unintended content.
+                    // Replace placeholder instances of the CSRF input value in forms with the user's
+                    // CSRF token if the user is logged in. This is a bit of a hack, but the CSRF token
+                    // placeholder should be highly unique, and therefore should not collide with
+                    // unintended content.
                     if (res.getContentType().contains("html")) {
                         byte[] contentArray = content.array();
                         byte[] csrfBytes = CSRF.CSRF_TOKEN_PLACEHOLDER_BYTES;
@@ -497,18 +544,23 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     }
 
                     // Create a FullHttpResponse object that wraps the response status and content
-                    DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, res.getStatus(), content);
+                    DefaultFullHttpResponse httpRes =
+                            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, res.getStatus(), content);
                     httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
-                    httpRes.headers().set(DATE, ZonedDateTime.now().format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                    httpRes.headers().set(DATE,
+                            ZonedDateTime.now().format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
                     long lastModified = res.getLastModifiedEpochSecond();
                     if (lastModified > 0) {
                         // Cache resources that don't change (e.g. the vulcanized Polymer resources)
-                        // TODO: Are there other headers that should be set to ensure the file is cached as long as the last modified date doesn't change?
-                        httpRes.headers().set(LAST_MODIFIED,
-                                ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModified), ZoneId.of("UTC")).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                        // TODO: Are there other headers that should be set to ensure the file is cached
+                        // as long as the last modified date doesn't change?
+                        httpRes.headers().set(
+                                LAST_MODIFIED,
+                                ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModified),
+                                        ZoneId.of("UTC")).format(DateTimeFormatter.RFC_1123_DATE_TIME));
                     } else {
-                        // Disable caching -- see http://stackoverflow.com/questions/49547/making-sure-a-web-page-is-not-cached-across-all-browsers
+                        // Disable caching -- see http://goo.gl/yXGd2x
                         httpRes.headers().add(CACHE_CONTROL, "no-cache, no-store, must-revalidate");
                         httpRes.headers().add(PRAGMA, "no-cache");
                         httpRes.headers().add(EXPIRES, 0);
@@ -517,7 +569,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     httpRes.headers().set(CONTENT_LENGTH, res.getContentLength());
                     httpRes.headers().set(CONTENT_TYPE, res.getContentType());
                     if (isHEAD) {
-                        // Don't return a body for HEAD requests (but still return the content length, set in the header above)
+                        // Don't return a body for HEAD requests (but still return the content length,
+                        // set in the header above)
                         httpRes.content().clear();
                     }
 
@@ -532,8 +585,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                         // If there are no flash messages, delete the flash message cookie
                         res.deleteCookie(Cookie.FLASH_COOKIE_NAME);
                     } else {
-                        // There were flash messages that were not displayed by this response, i.e. it is a POST handler or something that
-                        // did not generate content. Expire flash messages after 1 minute. Flash messages will be displayed on next page load.
+                        // There were flash messages that were not displayed by this response, i.e. it is
+                        // a POST handler or something that did not generate content. Expire flash messages
+                        // after 1 minute. Flash messages will be displayed on next page load.
                         res.setCookie(Cookie.FLASH_COOKIE_NAME, flashMessages, "/", 60, EncodingType.PLAIN);
                     }
 
@@ -549,7 +603,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     if (res.getCookies() != null) {
                         for (Cookie cookie : res.getCookies().values()) {
                             // System.out.println(routePath + " " + cookie.toString());
-                            httpRes.headers().add(SET_COOKIE, ServerCookieEncoder.encode(cookie.getNettyCookie()));
+                            httpRes.headers().add(SET_COOKIE,
+                                    ServerCookieEncoder.encode(cookie.getNettyCookie()));
                         }
                     }
 
@@ -562,8 +617,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                         // Check Channel.isWritable() to prevent OutOfMemoryError,
                         // see http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#10.0
                         long startTime = System.currentTimeMillis();
-                        while (!ctx.channel().isWritable() && (System.currentTimeMillis() - startTime < 5000)) {
-                            // TODO: replace this spinlock (usually channel is immediately writeable; is this even needed?)
+                        while (!ctx.channel().isWritable()
+                                && (System.currentTimeMillis() - startTime < 5000)) {
+                            // TODO: replace this spinlock (usually channel is immediately writeable;
+                            // is this even needed?)
                         }
                         if (ctx.channel().isWritable()) {
                             // Write the ByteBuffer returned by httpRes.content() back into the pipeline
@@ -571,7 +628,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             ChannelFuture future = ctx.channel().writeAndFlush(httpRes);
 
                             // Close the connection after the write operation is done if necessary.
-                            // TODO: Apache closes KeepAlive connections after a few seconds, see http://en.wikipedia.org/wiki/HTTP_persistent_connection -- implement a stale connection tracker
+                            // TODO: Apache closes KeepAlive connections after a few seconds,
+                            // see http://en.wikipedia.org/wiki/HTTP_persistent_connection
+                            // TODO: implement a stale connection tracker
                             if (closeAfterWrite || httpRes.getStatus() != HttpResponseStatus.OK) {
                                 future.addListener(ChannelFutureListener.CLOSE);
                             }
@@ -585,21 +644,23 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                         // Client already closed the connection, nothing can be sent
                         // Log.info("Channel closed by client before response sent");
                     }
-                    
-                    // Log.info("Took " + (System.currentTimeMillis() - req.getReqReceivedTimeMillis()) + " msec to serve URI " + req.getURI());
+
+                    // Log.info("Took " + (System.currentTimeMillis() - req.getReqReceivedTimeMillis())
+                    //    + " msec to serve URI " + req.getURI());
                 }
                 // Finished request
                 destroyDecoder();
             }
 
         } catch (Exception e) {
-            // Release HTTP decoder resources, including any file uploads that were received in a POST request and stored in /tmp
+            // Release HTTP decoder resources, including any file uploads that were received in a POST
+            // request and stored in /tmp
             destroyDecoder();
             throw new RuntimeException(e);
         }
     }
 
-    // ---------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
@@ -613,7 +674,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         if (ctx.channel().isActive()) {
             String message = "Internal server error";
             ByteBuf contentByteBuf = Unpooled.wrappedBuffer(UTF8.stringToUTF8(message));
-            DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, contentByteBuf);
+            DefaultFullHttpResponse httpRes =
+                    new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.INTERNAL_SERVER_ERROR, contentByteBuf);
             httpRes.headers().set(CONTENT_LENGTH, contentByteBuf.readableBytes());
             httpRes.headers().set(CONTENT_TYPE, "text/plain;charset=utf-8");
             ctx.writeAndFlush(httpRes);

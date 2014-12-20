@@ -52,14 +52,15 @@ public class Reflection {
                 if (constructor == null) {
                     throw new InstantiationException("No default (zero-argument) constructor");
                 }
-                
+
                 // Try calling default constructor
                 @SuppressWarnings("unchecked")
                 T instance = (T) constructor.newInstance();
                 return instance;
 
             } catch (Exception e2) {
-                throw new InstantiationException("Could not instantiate class of type " + klass.getName() + " with default (zero-argument) constructor");
+                throw new InstantiationException("Could not instantiate class of type " + klass.getName()
+                        + " with default (zero-argument) constructor");
             }
         }
     }

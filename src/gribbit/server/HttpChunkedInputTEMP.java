@@ -24,6 +24,7 @@
  * limitations under the License.
  */
 package gribbit.server;
+
 /*
  * Copyright 2014 The Netty Project
  *
@@ -50,19 +51,19 @@ import io.netty.handler.stream.ChunkedInput;
 /**
  * A {@link ChunkedInput} that fetches data chunk by chunk for use with HTTP chunked transfers.
  * <p>
- * Each chunk from the input data will be wrapped within a {@link HttpContent}. At the end of the input data,
- * {@link LastHttpContent} will be written.
+ * Each chunk from the input data will be wrapped within a {@link HttpContent}. At the end of the input
+ * data, {@link LastHttpContent} will be written.
  * <p>
  * Ensure that your HTTP response header contains {@code Transfer-Encoding: chunked}.
  * <p>
+ * 
  * <pre>
  * public void messageReceived(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
  *     HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
  *     response.headers().set(TRANSFER_ENCODING, CHUNKED);
  *     ctx.write(response);
- *
- *     HttpContentChunkedInput httpChunkWriter = new HttpChunkedInput(
- *         new ChunkedFile(&quot;/tmp/myfile.txt&quot;));
+ * 
+ *     HttpContentChunkedInput httpChunkWriter = new HttpChunkedInput(new ChunkedFile(&quot;/tmp/myfile.txt&quot;));
  *     ChannelFuture sendFileFuture = ctx.write(httpChunkWriter);
  * }
  * </pre>
@@ -75,7 +76,9 @@ public class HttpChunkedInputTEMP implements ChunkedInput<HttpContent> {
 
     /**
      * Creates a new instance using the specified input.
-     * @param input {@link ChunkedInput} containing data to write
+     * 
+     * @param input
+     *            {@link ChunkedInput} containing data to write
      */
     public HttpChunkedInputTEMP(ChunkedInput<ByteBuf> input) {
         this.input = input;
@@ -83,10 +86,13 @@ public class HttpChunkedInputTEMP implements ChunkedInput<HttpContent> {
     }
 
     /**
-     * Creates a new instance using the specified input. {@code lastHttpContent} will be written as the terminating
-     * chunk.
-     * @param input {@link ChunkedInput} containing data to write
-     * @param lastHttpContent {@link LastHttpContent} that will be written as the terminating chunk. Use this for
+     * Creates a new instance using the specified input. {@code lastHttpContent} will be written as the
+     * terminating chunk.
+     * 
+     * @param input
+     *            {@link ChunkedInput} containing data to write
+     * @param lastHttpContent
+     *            {@link LastHttpContent} that will be written as the terminating chunk. Use this for
      *            training headers.
      */
     public HttpChunkedInputTEMP(ChunkedInput<ByteBuf> input, LastHttpContent lastHttpContent) {

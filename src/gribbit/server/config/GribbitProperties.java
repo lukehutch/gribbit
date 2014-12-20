@@ -39,7 +39,8 @@ public class GribbitProperties {
     public static Properties properties = new Properties();
     static {
         // Read properties file
-        try (InputStream inputStream = GribbitServer.class.getClassLoader().getResourceAsStream(propFilename)) {
+        try (InputStream inputStream =
+                GribbitServer.class.getClassLoader().getResourceAsStream(propFilename)) {
             if (inputStream == null) {
                 System.err.println(propFilename + " not found on the classpath");
                 System.exit(1);
@@ -51,7 +52,7 @@ public class GribbitProperties {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static final boolean getPropertyBoolean(String propName, boolean defaultValue) {
         String opt = properties.getProperty(propName);
@@ -59,12 +60,15 @@ public class GribbitProperties {
             return defaultValue;
         } else {
             opt = opt.toLowerCase().trim();
-            if (opt.equals("1") || opt.equals("true") || opt.equals("t") || opt.equals("yes") || opt.equals("y")) {
+            if (opt.equals("1") || opt.equals("true") || opt.equals("t") || opt.equals("yes")
+                    || opt.equals("y")) {
                 return true;
-            } else if (opt.equals("0") || opt.equals("false") || opt.equals("f") || opt.equals("no") || opt.equals("n")) {
+            } else if (opt.equals("0") || opt.equals("false") || opt.equals("f") || opt.equals("no")
+                    || opt.equals("n")) {
                 return false;
             } else {
-                Log.warning("Unrecognized property value: " + propName + "=" + properties.getProperty(propName));
+                Log.warning("Unrecognized property value: " + propName + "="
+                        + properties.getProperty(propName));
                 return defaultValue;
             }
         }
@@ -84,7 +88,7 @@ public class GribbitProperties {
         }
     }
 
-    // ---------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public static Level LOG_LEVEL = Level.INFO;
     static {
@@ -115,6 +119,7 @@ public class GribbitProperties {
 
     public static boolean ALLOW_GET_MODEL = getPropertyBoolean("_getmodel.allow", true);
 
-    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = getPropertyInt("classpath.poll.ms", 5000);
+    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = getPropertyInt("classpath.poll.ms",
+            5000);
 
 }

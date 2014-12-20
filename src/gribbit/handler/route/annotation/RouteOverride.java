@@ -30,7 +30,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Route override. Without this, the class' path and name are converted into the route, e.g. app.handler.action.HandleEmailValidationLink -> /app/handler/action/handle-email-validation-link */
+/**
+ * Route override. Without this, the class' path and name are converted into the route, e.g.
+ * app.handler.action.HandleEmailValidationLink -> /app/handler/action/handle-email-validation-link
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface RouteOverride {

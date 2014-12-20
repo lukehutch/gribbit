@@ -41,7 +41,8 @@ public class StringUtils {
     private static final BitSet IS_UNICODE_WHITESPACE = new BitSet(1 << 16);
 
     static {
-        // Valid unicode whitespace chars, from http://stackoverflow.com/questions/4731055/whitespace-matching-regex-java
+        // Valid unicode whitespace chars, see:
+        // http://stackoverflow.com/questions/4731055/whitespace-matching-regex-java
         String wsChars = ""//
                 + (char) 0x0009 // CHARACTER TABULATION
                 + (char) 0x000A // LINE FEED (LF)
@@ -126,8 +127,8 @@ public class StringUtils {
     }
 
     /**
-     * Turn runs of one or more Unicode whitespace characters into a single space, with the exception of non-breaking spaces, which are left alone (i.e. they are not absorbed into
-     * runs of whitespace).
+     * Turn runs of one or more Unicode whitespace characters into a single space, with the exception of
+     * non-breaking spaces, which are left alone (i.e. they are not absorbed into runs of whitespace).
      */
     public static final String normalizeSpacing(String val) {
         boolean prevWasWS = false, needToNormalize = false;
@@ -165,11 +166,12 @@ public class StringUtils {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * String splitter, this fixes the problem that String.split() has of losing the last token if it's empty. It also uses CharSequences rather than allocating new String objects.
-     * Also faster than String.split() because it doesn't support regular expressions.
+     * String splitter, this fixes the problem that String.split() has of losing the last token if it's
+     * empty. It also uses CharSequences rather than allocating new String objects. Also faster than
+     * String.split() because it doesn't support regular expressions.
      */
     public static ArrayList<CharSequence> splitAsList(String str, String sep) {
         int strLen = str.length();
@@ -233,7 +235,10 @@ public class StringUtils {
         public String map(String str);
     }
 
-    /** Stringify elements of an Iterable, inserting a delimiter between adjacent elements after first applying a given map function to each element. */
+    /**
+     * Stringify elements of an Iterable, inserting a delimiter between adjacent elements after first
+     * applying a given map function to each element.
+     */
     public static <T> String join(Iterable<T> iterable, String delim, StringToStringMapper mapper) {
         if (iterable == null) {
             return null;
@@ -280,14 +285,14 @@ public class StringUtils {
         return buf.toString();
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Return leaf name of a path or URI (part after last '/') */
     public static String leafName(String filePath) {
         return filePath.substring(filePath.lastIndexOf('/') + 1);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     public static String spaces(int n) {
         StringBuilder buf = new StringBuilder(n);
@@ -335,7 +340,7 @@ public class StringUtils {
         buf.append(str);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Read all input from an InputStream and return it as a String. */
     public static String readWholeFile(InputStream inputStream) throws IOException {

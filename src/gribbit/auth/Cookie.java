@@ -26,11 +26,11 @@
 package gribbit.auth;
 
 import gribbit.server.config.GribbitProperties;
+import gribbit.thirdparty.UTF8;
+import gribbit.thirdparty.UTF8.UTF8Exception;
 import gribbit.util.Base64Safe;
 import gribbit.util.Log;
 import gribbit.util.RandomTokenGenerator;
-import gribbit.util.UTF8;
-import gribbit.util.UTF8.UTF8Exception;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.ServerCookieEncoder;
@@ -42,11 +42,15 @@ public class Cookie {
 
     private final String name;
 
+    /** The encoding type for the cookie value. */
     public enum EncodingType {
-        PLAIN, BASE64_ENCODED;
+        /** UTF-8 bytes, %-encoded except for alphanum characters, '-' and '_'. */
+        PLAIN,
+        /** Base64-encoded UTF-8 bytes. */
+        BASE64_ENCODED;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** The name of the session cookie. */
     public static final String SESSION_COOKIE_NAME = "_session";
@@ -57,7 +61,7 @@ public class Cookie {
     /** Session cookie length (number of random bytes generated before base 64 encoding) */
     public static final int SESSION_COOKIE_LENGTH = 20;
 
-    /** The name of the email address cookie. Used to notify the Persona client code as to who is logged in. */
+    /** The name of the email address cookie. Used to notify the Persona client as to who is logged in. */
     public static final String EMAIL_COOKIE_NAME = "_email";
 
     /** The name of the flash cookie. */
@@ -66,13 +70,17 @@ public class Cookie {
     /** Cookie that records the origin of a redirect. */
     public static final String REDIRECT_ORIGIN_COOKIE_NAME = "_redir";
 
-    // ------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Private class for encapsulating access to cookie values so that we can lazily handle encoding / decoding of values (to save time if a cookie is not used in a given request).
+     * Private class for encapsulating access to cookie values so that we can lazily handle encoding /
+     * decoding of values (to save time if a cookie is not used in a given request).
      */
     private class CookieJar {
-        /** The Netty cookie containing the possibly-base64-encoded UTF8 bytes representing the cookie's string value */
+        /**
+         * The Netty cookie containing the possibly-base64-encoded UTF8 bytes representing the cookie's
+         * string value
+         */
         private io.netty.handler.codec.http.Cookie encodedNettyCookie;
 
         /** The unencoded cookie value. */
@@ -89,10 +97,13 @@ public class Cookie {
             hasEncodedValue = true;
             this.encodedNettyCookie = nettyCookie;
             String value = nettyCookie.getValue();
-            encodingType = value.startsWith(BASE64_ENCODED_PREFIX) ? EncodingType.BASE64_ENCODED : EncodingType.PLAIN;
+            encodingType =
+                    value.startsWith(BASE64_ENCODED_PREFIX) ? EncodingType.BASE64_ENCODED
+                            : EncodingType.PLAIN;
         }
 
-        public CookieJar(String name, String unencodedValue, String path, long maxAgeInSeconds, EncodingType encodingType, boolean discardAtEndOfBrowserSession) {
+        public CookieJar(String name, String unencodedValue, String path, long maxAgeInSeconds,
+                EncodingType encodingType, boolean discardAtEndOfBrowserSession) {
             hasUnencodedValue = true;
             this.unencodedValue = unencodedValue;
             this.encodingType = encodingType;
@@ -137,10 +148,13 @@ public class Cookie {
                     try {
                         if (encodedValue.startsWith(BASE64_ENCODED_PREFIX)) {
                             // Base64-encoded UTF8 bytes
-                            byte[] base64UTF8Bytes = Base64Safe.base64Decode(encodedValue.substring(BASE64_ENCODED_PREFIX.length()));
+                            byte[] base64UTF8Bytes =
+                                    Base64Safe.base64Decode(encodedValue.substring(BASE64_ENCODED_PREFIX
+                                            .length()));
                             unencodedValue = UTF8.utf8ToString(base64UTF8Bytes);
 
                         } else /* PLAIN */{
+                            // Reverse any %-encoding applied to cookie string to get back its Unicode value
                             unencodedValue = WebUtils.unescapeCookieValue(encodedValue);
                         }
                     } catch (UTF8Exception e) {
@@ -157,6 +171,7 @@ public class Cookie {
             if (!hasEncodedValue) {
                 String encodedValue;
                 if (encodingType == EncodingType.PLAIN) {
+                    // Do minimal encoding of cookie string
                     encodedValue = WebUtils.escapeCookieValue(unencodedValue);
 
                 } else {
@@ -166,7 +181,8 @@ public class Cookie {
                 }
                 if (encodedValue.length() > 3700) {
                     // > 4000 bytes total kills performance and/or doesn't work in many browsers
-                    Log.warning("Cookie value too long once base64-encoded: " + encodedValue.length() + " characters");
+                    Log.warning("Cookie value too long once base64-encoded: " + encodedValue.length()
+                            + " characters");
                 }
                 encodedNettyCookie.setValue(encodedValue);
                 hasEncodedValue = true;
@@ -186,39 +202,47 @@ public class Cookie {
 
     private final CookieJar cookieJar;
 
-    // ------------------------------------------------------------------------------------------------------------------------
+    // ------------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie and possibly base64-encode its value. If maxAgeInSeconds is Long.MIN_VALUE, then cookie will expire at end of browser session.
+     * Create a cookie and possibly base64-encode its value. If maxAgeInSeconds is Long.MIN_VALUE, then
+     * cookie will expire at end of browser session.
      */
-    public Cookie(String name, String unencodedValue, String path, long maxAgeInSeconds, EncodingType encodingType, boolean discardAtEndOfBrowserSession) throws Exception {
+    public Cookie(String name, String unencodedValue, String path, long maxAgeInSeconds,
+            EncodingType encodingType, boolean discardAtEndOfBrowserSession) throws Exception {
         this.name = name;
-        this.cookieJar = new CookieJar(name, unencodedValue, path, maxAgeInSeconds, encodingType, discardAtEndOfBrowserSession);
+        this.cookieJar =
+                new CookieJar(name, unencodedValue, path, maxAgeInSeconds, encodingType,
+                        discardAtEndOfBrowserSession);
     }
 
     /**
-     * Create a possibly-base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser session closes).
+     * Create a possibly-base64-encoded cookie with the discard flag set to false (cookie is not discarded
+     * when browser session closes).
      */
-    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds, EncodingType encodingType) throws Exception {
+    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds,
+            EncodingType encodingType) throws Exception {
         this(name, valueCleartext, path, maxAgeInSeconds, encodingType, false);
     }
 
     /**
-     * Create a base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser session closes).
+     * Create a base64-encoded cookie with the discard flag set to false (cookie is not discarded when
+     * browser session closes).
      */
     public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds) throws Exception {
         this(name, valueCleartext, path, maxAgeInSeconds, EncodingType.BASE64_ENCODED, false);
     }
 
     /**
-     * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in this case, ignore the cookie).
+     * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason
+     * (in this case, ignore the cookie).
      */
     public Cookie(io.netty.handler.codec.http.Cookie nettyCookie) {
         this.name = nettyCookie.getName();
         this.cookieJar = new CookieJar(nettyCookie);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     // Valid characters for cookie fields and values
     private static final boolean[] VALID_CHAR = new boolean[256];
@@ -241,18 +265,22 @@ public class Cookie {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is set to zero)
+     * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is
+     * set to zero)
      */
     public static Cookie deleteCookie(String name) throws Exception {
         return new Cookie(name, "", "/", 0, EncodingType.PLAIN, false);
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
-    /** Get the cookie as an HTTP header string, including all cookie headers, with the value encoded in base64 */
+    /**
+     * Get the cookie as an HTTP header string, including all cookie headers, with the value encoded in
+     * base64
+     */
     @Override
     public String toString() {
         return ServerCookieEncoder.encode(cookieJar.getEncodedCookie());

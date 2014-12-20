@@ -64,7 +64,7 @@ public class GribbitServer {
 
     public static String SERVER_IDENTIFIER = "Gribbit/1.0";
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Return true if a user is allowed to log in (whitelisted), based on their email address. */
     @FunctionalInterface
@@ -76,17 +76,18 @@ public class GribbitServer {
     public static LoginWhitelistChecker loginWhitelistChecker = null;
 
     /**
-     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise, they are able to log in if they can be authorized with OAuth2 or any
-     * other enabled login method.
+     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise,
+     * they are able to log in if they can be authorized with OAuth2 or any other enabled login method.
      */
     public static void setLoginWhitelistChecker(LoginWhitelistChecker checker) {
         loginWhitelistChecker = checker;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Checks to see if a specific port is available. See http://stackoverflow.com/questions/434718/sockets-discover-port-availability-using-java
+     * Checks to see if a specific port is available. See
+     * http://stackoverflow.com/questions/434718/sockets-discover-port-availability-using-java
      */
     private static boolean portAvailable(int port) {
         try (ServerSocket ss = new ServerSocket(port); DatagramSocket ds = new DatagramSocket(port)) {
@@ -102,39 +103,47 @@ public class GribbitServer {
         try {
             long startTime = System.currentTimeMillis();
             GribbitServer.siteResources = new SiteResources(appPackageName, staticResourceRoot);
-            Log.info("Site resource loading took " + String.format("%.3f", (System.currentTimeMillis() - startTime) * 0.001f) + " sec");
+            Log.info("Site resource loading took "
+                    + String.format("%.3f", (System.currentTimeMillis() - startTime) * 0.001f) + " sec");
 
         } catch (Exception e) {
             // Failed to load site resources
             if (GribbitServer.siteResources == null) {
                 // This is the first time site resources have tried to load, can't start up web server
-                Log.exception("Exception during initial attempt to load site resources -- cannot start web server", e);
+                Log.exception(
+                        "Exception during initial attempt to load site resources -- cannot start web server",
+                        e);
                 Log.error("EXITING");
                 System.exit(1);
             } else {
-                // Something changed on the classpath and we were trying to reload site resources -- keep using old site resources so the server doesn't shut down  
-                Log.exception("Exception while loading site resources -- continuing to use old site resources without shutting down server", e);
+                // Something changed on the classpath and we were trying to reload site resources -- 
+                // keep using old site resources so the server doesn't shut down  
+                Log.exception("Exception while loading site resources -- "
+                        + "continuing to use old site resources without shutting down server", e);
             }
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
+     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web
+     * server after all routes and handlers have been added.
      */
     public static void config(String appPackageName, String staticResourceRoot) {
         config("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
     }
 
     /**
-     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server after all routes and handlers have been added.
+     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web
+     * server after all routes and handlers have been added.
      */
     public static void config(String domain, int port, String appPackageName, String staticResourceRoot) {
         GribbitServer.domain = domain;
 
         if (!portAvailable(port)) {
-            System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
+            System.err.println("Port " + port
+                    + " is not available -- is server already running?\n\nExiting.");
             System.exit(1);
         }
         GribbitServer.port = port;
@@ -150,10 +159,14 @@ public class GribbitServer {
             // Scan classpath for handlers, templates etc.
             loadSiteResources(appPackageName, staticResourceRoot);
 
-            // Poll for classpath changes, and provide limited hot-reload of changed classes and templates.
-            // (Only RestHandler, DataModel and DBModel subclasses are currently reloaded and re-registered.)
-            // FIXME: need to implement my own class loader to get this working: http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
-            // (although class reloading works now when running in Eclipse, because Eclipse does hot code swap, and template reloading should already work)
+            // Poll for classpath changes, and provide hot-reload of changed HTML/JS/CSS/image resources.
+            // We also support hot-reload of inline HTML templates in static final "_template" fields of
+            // DataModel classes by means of FastClasspathScanner's support of reading constants directly
+            // from the constant pool of a classfile.
+            // If running in the Eclipse debugger, hot reload of RestHandler classes also works in the
+            // usual way. Full hot-reloading of classes is difficult to perform outside the Eclipse
+            // debugger, see: 
+            // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
             if (GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS > 0) {
                 Runnable classpathChangeDetector = new Runnable() {
                     @Override
@@ -161,13 +174,17 @@ public class GribbitServer {
                         if (siteResources.classpathContentsModifiedSinceScan()) {
                             Log.info("Classpath contents changed -- reloading site resources");
 
-                            // Reload site resources from classpath if something changed, and atomically replace GribbitServer.siteResources
+                            // Reload site resources from classpath if something changed, and atomically
+                            // replace GribbitServer.siteResources
                             loadSiteResources(appPackageName, staticResourceRoot);
                         }
-                        GribbitServer.scheduledTaskGroup.schedule(this, GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
+                        GribbitServer.scheduledTaskGroup.schedule(this,
+                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS,
+                                TimeUnit.SECONDS);
                     }
                 };
-                GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector, GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
+                GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector,
+                        GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
             }
 
         } catch (Exception e) {
@@ -183,7 +200,8 @@ public class GribbitServer {
         Log.info("Starting Gribbit server");
         try {
             // TODO: These SSL classes seem to be absent in Java 8.
-            // TODO: Also need to listen on both SSL and non-SSL ports. Don't allow auth-required RestHandler classes to be served on non-https paths, or forms to be submitted to them.
+            // TODO: Also need to listen on both SSL and non-SSL ports. Don't allow auth-required
+            // TODO: RestHandler classes to be served on non-https paths, or forms to be submitted to them
             //            final SslContext sslCtx;
             //            if (SSL) {
             //                SelfSignedCertificate ssc = new SelfSignedCertificate();
@@ -191,7 +209,8 @@ public class GribbitServer {
             //            } else {
             //                sslCtx = null;
             //            }
-            // TODO: add SslHandler to pipeline to support SSL, its presence is tested for by HttpRequestHandler
+            // TODO: Add SslHandler to pipeline to support SSL, its presence is tested for by 
+            // TODO: HttpRequestHandler
 
             EventLoopGroup bossGroup = new NioEventLoopGroup(1);
             EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -218,17 +237,18 @@ public class GribbitServer {
                                 p.addLast(new HttpRequestDecoder());
                                 p.addLast(new HttpResponseEncoder());
 
-                                // TODO: I get a 330 error in the browser on static file requests if this is enabled -- see http://stackoverflow.com/questions/14039804/error-330-neterr-content-decoding-failed
+                                // TODO: I get a 330 error in the browser on static file requests if this is
+                                // enabled -- see http://goo.gl/lPAzQC
                                 // p.addLast(new HttpContentCompressor());
 
-                                // TODO can client HTTP reqs be compressed too, and do I just drop this in here?
+                                // TODO can client HTTP reqs be compressed too, and do I just add this here?
                                 //            p.addLast(new HttpContentDecompressor());
 
                                 p.addLast(routeHandlerGroup, new HttpRequestHandler());
                             }
                         });
 
-                // TODO: test these options suggested in http://stackoverflow.com/questions/8655973/latency-in-netty-due-to-passing-requests-from-boss-thread-to-worker-thread
+                // TODO: test these options suggested in http://goo.gl/AHvjmq
                 // See also http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#11.0
                 b.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
                 b.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 64 * 1024);
@@ -250,15 +270,19 @@ public class GribbitServer {
                 workerGroup.shutdownGracefully();
             }
 
-            // TODO: final StaleConnectionTrackingHandler staleConnectionTrackingHandler = new StaleConnectionTrackingHandler(STALE_CONNECTION_TIMEOUT, executor);
-            //            ScheduledExecutorService staleCheckExecutor = Executors.newSingleThreadScheduledExecutor(new NamingThreadFactory(Gribbit.class.getSimpleName()
+            // TODO: final StaleConnectionTrackingHandler staleConnectionTrackingHandler = 
+            //          new StaleConnectionTrackingHandler(STALE_CONNECTION_TIMEOUT, executor);
+            //            ScheduledExecutorService staleCheckExecutor = 
+            //               Executors.newSingleThreadScheduledExecutor(
+            //                 new NamingThreadFactory(Gribbit.class.getSimpleName()
             //                    + "-stale-connection-check"));
             //            staleCheckExecutor.scheduleWithFixedDelay(new Runnable() {
             //                @Override
             //                public void run() {
             //                    staleConnectionTrackingHandler.closeStaleConnections();
             //                }
-            //            }, STALE_CONNECTION_TIMEOUT / 2, STALE_CONNECTION_TIMEOUT / 2, TimeUnit.MILLISECONDS);
+            //            }, STALE_CONNECTION_TIMEOUT / 2, STALE_CONNECTION_TIMEOUT / 2,
+            //                TimeUnit.MILLISECONDS);
             //            executorServices.add(staleCheckExecutor);
             // connectionTrackingHandler = new ConnectionTrackingHandler();
 

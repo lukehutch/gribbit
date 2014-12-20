@@ -35,7 +35,9 @@ public class KeyGenerator {
     /** Generate a cookie encryption key, based on the passphrase provided on the commandline. */
     public static void main(String[] args) {
         if (args.length != 1) {
-            throw new RuntimeException("Please provide a passphrase on the commandline as a single parameter (i.e. put quotes around the phrase if you want to include spaces).");
+            throw new RuntimeException(
+                    "Please provide a passphrase on the commandline as a single parameter "
+                            + "(i.e. put quotes around the phrase if you want to include spaces).");
         }
         String seedStr = args[0];
 
@@ -68,7 +70,7 @@ public class KeyGenerator {
         }
         return result.toString();
     }
-    
+
     public static byte[] hexToBytes(String hexString) {
         int len = hexString.length() / 2;
         byte[] result = new byte[len];

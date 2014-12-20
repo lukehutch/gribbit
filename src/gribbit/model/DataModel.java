@@ -83,10 +83,12 @@ import org.jsoup.nodes.XmlDeclaration;
 import org.jsoup.select.Elements;
 
 /**
- * A model that can be bound from the parameters in a POST request, and/or that can be used to populate an HTML template.
+ * A model that can be bound from the parameters in a POST request, and/or that can be used to populate an
+ * HTML template.
  * 
- * You can apply data constraint annotations to the fields of subclasses of DataModel, such @MaxLength or @Email, and these constraints will be applied when submitted form data is
- * bound to the model.
+ * You can apply data constraint annotations to the fields of subclasses of DataModel, such @MaxLength or
+ * 
+ * @Email, and these constraints will be applied when submitted form data is bound to the model.
  */
 public abstract class DataModel {
 
@@ -96,7 +98,8 @@ public abstract class DataModel {
      * @throws RuntimeException
      *             if constraints don't match field types.
      */
-    public static void checkFieldTypesAgainstAnnotations(Class<? extends DataModel> klass) throws RuntimeException {
+    public static void checkFieldTypesAgainstAnnotations(Class<? extends DataModel> klass)
+            throws RuntimeException {
         for (Field field : klass.getFields()) {
             Annotation[] fieldAnnotations = field.getAnnotations();
             Class<?> fieldType = field.getType();
@@ -106,17 +109,21 @@ public abstract class DataModel {
             boolean hasConstraintAnnotations = false;
             for (Annotation annotation : fieldAnnotations) {
                 Class<? extends Annotation> type = annotation.annotationType();
-                if (type == Email.class || type == MaxIntegerValue.class || type == MaxLength.class || type == MinIntegerValue.class || type == MinLength.class
-                        || type == NormalizeSpacing.class || type == NoTrim.class || type == Regex.class || type == Required.class) {
+                if (type == Email.class || type == MaxIntegerValue.class || type == MaxLength.class
+                        || type == MinIntegerValue.class || type == MinLength.class
+                        || type == NormalizeSpacing.class || type == NoTrim.class || type == Regex.class
+                        || type == Required.class) {
                     hasConstraintAnnotations = true;
                 }
             }
             boolean isPrivate = fieldIsPrivate(klass, field);
             if (isPrivate && hasConstraintAnnotations) {
-                // Private fields cannot be bound from forms, so shouldn't have data constraint annotations, because data constraints are only checked 
-                // when binding from a POST request.
-                throw new RuntimeException("Field " + fieldName + " in class " + klass.getName() + " is annotated with @" + Private.class.getSimpleName()
-                        + " or is a DBModel id field, so it cannot have other data constraint annotations, because it cannot be bound from a POST request");
+                // Private fields cannot be bound from forms, so shouldn't have data constraint annotations,
+                // because data constraints are only checked when binding from a POST request.
+                throw new RuntimeException("Field " + fieldName + " in class " + klass.getName()
+                        + " is annotated with @" + Private.class.getSimpleName()
+                        + " or is a DBModel id field, so it cannot have other data constraint "
+                        + "annotations, because it cannot be bound from a POST request");
             }
 
             // Ignore fields annotated with @Private
@@ -124,12 +131,17 @@ public abstract class DataModel {
                 // Go through constraint annotations on this field
                 for (Annotation annotation : fieldAnnotations) {
                     Class<? extends Annotation> annotationType = annotation.annotationType();
-                    if ((annotationType == Email.class || annotationType == MinLength.class || annotationType == MaxLength.class || annotationType == Regex.class)
+                    if ((annotationType == Email.class || annotationType == MinLength.class
+                            || annotationType == MaxLength.class || annotationType == Regex.class)
                             && fieldType != String.class) {
-                        throw new RuntimeException("Field " + fieldName + " in class " + klass.getName() + " must be of type String");
+                        throw new RuntimeException("Field " + fieldName + " in class " + klass.getName()
+                                + " must be of type String");
 
-                    } else if ((annotationType == MinIntegerValue.class || annotationType == MaxIntegerValue.class) && !(fieldType == Integer.class || fieldType == Integer.TYPE)) {
-                        throw new RuntimeException("Field " + fieldName + " in class " + klass.getName() + " must be of type int or Integer");
+                    } else if ((annotationType == MinIntegerValue.class || //
+                            annotationType == MaxIntegerValue.class)
+                            && !(fieldType == Integer.class || fieldType == Integer.TYPE)) {
+                        throw new RuntimeException("Field " + fieldName + " in class " + klass.getName()
+                                + " must be of type int or Integer");
 
                     }
 
@@ -137,7 +149,8 @@ public abstract class DataModel {
                         try {
                             Pattern.compile(((Regex) annotation).regex());
                         } catch (PatternSyntaxException e) {
-                            throw new RuntimeException("@" + annotation.annotationType().getName() + "(\"" + ((Regex) annotation).regex() + "\") annotation on field " + fieldName
+                            throw new RuntimeException("@" + annotation.annotationType().getName() + "(\""
+                                    + ((Regex) annotation).regex() + "\") annotation on field " + fieldName
                                     + " in class " + klass.getName() + " is not a valid regular expression");
                         }
                     }
@@ -146,17 +159,20 @@ public abstract class DataModel {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     private static boolean isRequired(Field f) {
-        return f.getAnnotation(Required.class) != null || f.getAnnotation(DBIndex.class) != null || f.getAnnotation(MinLength.class) != null
-                || f.getAnnotation(MaxLength.class) != null || f.getAnnotation(MinIntegerValue.class) != null || f.getAnnotation(MaxIntegerValue.class) != null;
+        return f.getAnnotation(Required.class) != null || f.getAnnotation(DBIndex.class) != null
+                || f.getAnnotation(MinLength.class) != null || f.getAnnotation(MaxLength.class) != null
+                || f.getAnnotation(MinIntegerValue.class) != null
+                || f.getAnnotation(MaxIntegerValue.class) != null;
     }
 
     /**
      * Check the values of fields against the constraint annotations.
      *
-     * Side-effects: forces fields marked with Email annotation to lowercase; trims String fields not marked with NoTrim; normalizes spacing in fields marked with NormalizeSpacing.
+     * Side-effects: forces fields marked with Email annotation to lowercase; trims String fields not marked
+     * with NoTrim; normalizes spacing in fields marked with NormalizeSpacing.
      * 
      * @throws RuntimeException
      *             if one or more constraints are violated.
@@ -164,7 +180,8 @@ public abstract class DataModel {
     protected void checkFieldValuesAgainstConstraints() throws RuntimeException {
         try {
             for (Field field : getClass().getFields()) {
-                // Skip fields marked with @Private and DBModel id fields, they can't have constraint annotations
+                // Skip fields marked with @Private and DBModel id fields, they can't have
+                // data constraint annotations
                 if (!fieldIsPrivate(getClass(), field)) {
                     Annotation[] fieldAnnotations = field.getAnnotations();
                     Object fieldVal;
@@ -172,7 +189,9 @@ public abstract class DataModel {
                     String fieldName = field.getName();
 
                     boolean required = isRequired(field);
-                    if (required && (fieldVal == null || (fieldVal instanceof String && ((String) fieldVal).isEmpty()))) {
+                    if (required
+                            && (fieldVal == null || (fieldVal instanceof String && ((String) fieldVal)
+                                    .isEmpty()))) {
                         throw new RuntimeException("Required field " + fieldName + " is null or empty");
                     }
 
@@ -198,7 +217,8 @@ public abstract class DataModel {
                             val = val.toLowerCase();
                         }
                         if (needToTrim || isEmail) {
-                            // Trim all String fields by default, unless marked with @NoTrim, and always trim @Email fields
+                            // Trim all String fields by default, unless marked with @NoTrim, 
+                            // and always trim @Email fields
                             val = StringUtils.unicodeTrim(val);
                         }
                         if (normalizeSpacing) {
@@ -216,37 +236,54 @@ public abstract class DataModel {
 
                         Class<? extends Annotation> annotationType = annotation.annotationType();
 
-                        // N.B. we trimmed and normalized spaces above before checking against @MinLength constraint value.
-                        if (annotationType == MinLength.class && fieldVal instanceof String && ((String) fieldVal).length() < ((MinLength) annotation).value()) {
-                            throw new RuntimeException("Parameter " + fieldName + " must have minimum length " + (needToTrim ? "(after trimming) " : "") + "of "
+                        // N.B. we trimmed and normalized spaces above before checking against the
+                        // @MinLength constraint value.
+                        if (annotationType == MinLength.class && fieldVal instanceof String
+                                && ((String) fieldVal).length() < ((MinLength) annotation).value()) {
+                            throw new RuntimeException("Parameter " + fieldName
+                                    + " must have minimum length "
+                                    + (needToTrim ? "(after trimming) " : "") + "of "
                                     + ((MinLength) annotation).value());
 
-                        } else if (annotationType == MaxLength.class && fieldVal instanceof String && ((String) fieldVal).length() > ((MaxLength) annotation).value()) {
-                            throw new RuntimeException("Parameter " + fieldName + " must have maximum length " + (needToTrim ? "(after trimming) " : "") + "of "
+                        } else if (annotationType == MaxLength.class && fieldVal instanceof String
+                                && ((String) fieldVal).length() > ((MaxLength) annotation).value()) {
+                            throw new RuntimeException("Parameter " + fieldName
+                                    + " must have maximum length "
+                                    + (needToTrim ? "(after trimming) " : "") + "of "
                                     + ((MaxLength) annotation).value());
 
                         } else if (annotationType == MinIntegerValue.class && //
-                                (fieldVal instanceof Integer && ((Integer) fieldVal).intValue() < ((MinIntegerValue) annotation).value())) {
-                            throw new RuntimeException("Parameter " + fieldName + " must have minimum value " + ((MinIntegerValue) annotation).value());
+                                (fieldVal instanceof Integer && //
+                                ((Integer) fieldVal).intValue() < ((MinIntegerValue) annotation).value())) {
+                            throw new RuntimeException("Parameter " + fieldName
+                                    + " must have minimum value " + ((MinIntegerValue) annotation).value());
 
                         } else if (annotationType == MaxIntegerValue.class && //
-                                (fieldVal instanceof Integer && ((Integer) fieldVal).intValue() > ((MaxIntegerValue) annotation).value())) {
-                            throw new RuntimeException("Parameter " + fieldName + " must have maximum value " + ((MinIntegerValue) annotation).value());
+                                (fieldVal instanceof Integer && //
+                                ((Integer) fieldVal).intValue() > ((MaxIntegerValue) annotation).value())) {
+                            throw new RuntimeException("Parameter " + fieldName
+                                    + " must have maximum value " + ((MinIntegerValue) annotation).value());
 
                         } else if (annotationType == Email.class && fieldVal instanceof String) {
-                            if (fieldVal != null && fieldVal instanceof String && !WebUtils.isValidEmailAddr((String) fieldVal)) {
-                                throw new RuntimeException("Parameter " + fieldName + " must be a valid email address");
+                            if (fieldVal != null && fieldVal instanceof String
+                                    && !WebUtils.isValidEmailAddr((String) fieldVal)) {
+                                throw new RuntimeException("Parameter " + fieldName
+                                        + " must be a valid email address");
                             }
 
                         } else if (annotationType == Regex.class && fieldVal instanceof String) {
                             try {
                                 // TODO: should pre-compile these regexes and cache them somewhere
-                                if (fieldVal != null || !Pattern.compile(((Regex) annotation).regex()).matcher((String) fieldVal).matches()) {
+                                if (fieldVal != null
+                                        || !Pattern.compile(((Regex) annotation).regex())
+                                                .matcher((String) fieldVal).matches()) {
                                     // Value submitted in form does not match regex
-                                    throw new RuntimeException("Parameter " + fieldName + " is not in the correct format");
+                                    throw new RuntimeException("Parameter " + fieldName
+                                            + " is not in the correct format");
                                 }
                             } catch (PatternSyntaxException e) {
-                                // Should never happen, we have already successfully compiled this pattern in checkFields()
+                                // Should never happen, we have already successfully compiled
+                                // this pattern in checkFields()
                                 throw new RuntimeException(e.getMessage());
                             }
                         }
@@ -258,13 +295,16 @@ public abstract class DataModel {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Bind formModelInstance data object from an HTTP request. The name of each field in formModelInstance object is looked up in the POST parameters. If the named value is found,
-     * it is trimmed (unless annotated with NoTrim), and integers etc. are parsed as needed before the value is stored in the field. Fields marked with Required constraint have to
-     * not only not be null, but also not be empty after trimming. Note that any constraint such as MinLength also implies Required. (NormalizeSpacing is a data transformation
-     * annotation, not a constraint, so it will only be applied if a value is provided.)
+     * Bind formModelInstance data object from an HTTP request. The name of each field in formModelInstance
+     * object is looked up in the POST parameters. If the named value is found, it is trimmed (unless
+     * annotated with NoTrim), and integers etc. are parsed as needed before the value is stored in the
+     * field. Fields marked with Required constraint have to not only not be null, but also not be empty
+     * after trimming. Note that any constraint such as MinLength also implies Required. (NormalizeSpacing
+     * is a data transformation annotation, not a constraint, so it will only be applied if a value is
+     * provided.)
      * 
      * @param req
      *            The HTTP request
@@ -282,15 +322,19 @@ public abstract class DataModel {
             unusedPostParams.remove(fieldName);
 
             if (fieldIsPrivate(getClass(), field) || field.getAnnotation(OnlySend.class) != null) {
-                // Ignore attempts to set fields annotated with @Private or @OnlySend, or where the field is a DBModel id field
-                //                Log.warning("Attempt to bind POST param \"" + field.getName() + "\" to field marked @" + Private.class.getName() + " or @" + OnlySend.class.getName()
-                //                        + " (or an id field of a subclass of " + DBModel.class.getName() + ") in class " + this.getClass().getName() + "; ignoring");
+                // Ignore attempts to set fields annotated with @Private or @OnlySend,
+                // or where the field is a DBModel id field
+                // Log.warning("Attempt to bind POST param \"" + field.getName() + "\" to field marked @"
+                //         + Private.class.getName() + " or @" + OnlySend.class.getName()
+                //         + " (or an id field of a subclass of " + DBModel.class.getName() + ") in class "
+                //         + this.getClass().getName() + "; ignoring");
 
             } else {
                 Class<?> fieldType = field.getType();
 
                 try {
-                    // For each field in class, look up field name in POST parameters and then URL query parameters
+                    // For each field in class, look up field name in POST parameters and then
+                    // URL query parameters
                     String postParamValForField = req.getPostParam(fieldName);
                     if (postParamValForField == null) {
 
@@ -299,23 +343,27 @@ public abstract class DataModel {
 
                             // There was a file uploaded
                             if (fieldType == FileUpload.class) {
-                                // Save the FileUpload object in the field. This doesn't actually read the file contents
-                                // (loading the file into RAM could kill the server). The request handler must read the file
-                                // before responding, or increment the reference count if they want to keep the file after
-                                // the request has been sent, because the file will otherwise be released.
+                                // Save the FileUpload object in the field. This doesn't actually read the
+                                // file contents (loading the file into RAM could kill the server). The
+                                // request handler must read the file before responding, or increment the
+                                // reference count if they want to keep the file after the request has been
+                                // sent, because the file will otherwise be released.
                                 field.set(this, postFileUploadForField);
                             }
 
                         } else {
 
-                            // There is a field in formModelInstance DataModel that is not in the POST request
+                            // There is a field in formModelInstance DataModel that is not in the
+                            // POST request
                             if (isRequired(field)) {
-                                throw new AppException("Field " + fieldName + " required, but not sent in POST request");
+                                throw new AppException("Field " + fieldName
+                                        + " required, but not sent in POST request");
                             }
                         }
 
                     } else {
-                        // Try binding POST request param to correspondingly-named field in formModelInstance DataModel
+                        // Try binding POST request param to correspondingly-named field in
+                        // the formModelInstance DataModel
 
                         if (fieldType == String.class) {
                             field.set(this, postParamValForField);
@@ -354,7 +402,9 @@ public abstract class DataModel {
                             // Boolean fields are bound from checkbox form inputs
 
                             String lower = postParamValForField.toLowerCase();
-                            boolean checkboxVal = lower.equals("yes") || lower.equals("on") || lower.equals("1") || lower.equals("true");
+                            boolean checkboxVal =
+                                    lower.equals("yes") || lower.equals("on") || lower.equals("1")
+                                            || lower.equals("true");
                             if (fieldType == Boolean.class) {
                                 field.set(this, new Boolean(checkboxVal));
                             } else if (fieldType == Boolean.TYPE) {
@@ -365,7 +415,9 @@ public abstract class DataModel {
                             // Character fields are bound from text, but limited to a length of 1
 
                             if (postParamValForField.length() > 1) {
-                                throw new AppException("Field " + fieldName + " requires a single character, got " + postParamValForField.length() + " characters");
+                                throw new AppException("Field " + fieldName
+                                        + " requires a single character, got "
+                                        + postParamValForField.length() + " characters");
                             } else if (postParamValForField.length() == 1) {
                                 char c = postParamValForField.charAt(0);
                                 if (fieldType == Character.class) {
@@ -382,17 +434,21 @@ public abstract class DataModel {
                         } else if (fieldType.isEnum()) {
                             // Enum-typed fields are bound from radio button inputs
 
-                            // If the field is an enum, try looking up the submitted form value as one of the enum constants.
+                            // If the field is an enum, try looking up the submitted form value as
+                            // one of the enum constants.
                             try {
                                 @SuppressWarnings({ "unchecked", "rawtypes" })
-                                Enum<?> enumVal = Enum.valueOf((Class<Enum>) fieldType, postParamValForField);
+                                Enum<?> enumVal =
+                                        Enum.valueOf((Class<Enum>) fieldType, postParamValForField);
                                 field.set(this, enumVal);
                             } catch (IllegalArgumentException e) {
-                                throw new AppException("Illegal value " + postParamValForField + " for field " + fieldName);
+                                throw new AppException("Illegal value " + postParamValForField
+                                        + " for field " + fieldName);
                             }
 
                         } else {
-                            throw new RuntimeException("Unsupported field type " + fieldType.getSimpleName());
+                            throw new RuntimeException("Unsupported field type "
+                                    + fieldType.getSimpleName());
                         }
                     }
 
@@ -400,7 +456,8 @@ public abstract class DataModel {
                     throw new AppException("Could not parse value " + fieldName + " from the request", e);
 
                 } catch (IllegalArgumentException | IllegalAccessException e) {
-                    throw new RuntimeException("Could not set field " + fieldName + " to the value passed in the request", e);
+                    throw new RuntimeException("Could not set field " + fieldName
+                            + " to the value passed in the request", e);
                 }
             }
         }
@@ -414,24 +471,29 @@ public abstract class DataModel {
 
         for (String unusedParam : unusedPostParams) {
             if (!unusedParam.equals(CSRF.CSRF_PARAM_NAME)) {
-                Log.warning("POST param \"" + unusedParam + "\" is not a public field in DataModel " + this.getClass().getName() + ", ignoring");
+                Log.warning("POST param \"" + unusedParam + "\" is not a public field in DataModel "
+                        + this.getClass().getName() + ", ignoring");
             }
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Add constraints to an HTML form given the constraint annotations on the fields of the given DataModel object. Also checks the fields of the DataModel to make sure that there
-     * is an input in the form with the appropriate name.
+     * Add constraints to an HTML form given the constraint annotations on the fields of the given DataModel
+     * object. Also checks the fields of the DataModel to make sure that there is an input in the form with
+     * the appropriate name.
      */
-    private static void addConstraintsToForm(String templateName, Element formElement, Class<? extends DataModel> formModel) {
-        // Get all input elements in this form, grouped by matching name (radio buttons have multiple inputs with the same name)
+    private static void addConstraintsToForm(String templateName, Element formElement,
+            Class<? extends DataModel> formModel) {
+        // Get all input elements in this form, grouped by matching name (radio buttons have
+        // multiple input fields with the same value in the "name" attribute)
         HashMap<String, ArrayList<Element>> nameToInputs = new HashMap<>();
         for (Element elt : formElement.getAllElements()) {
             String name;
             if (elt.tagName().equals("select")) {
-                // Ignore name on <select> elements, instead read parent name when <option> elements are encountered
+                // Ignore name on <select> elements, instead read parent name when <option> elements
+                // are encountered
                 name = "";
             } else if (elt.tagName().equals("option")) {
                 // Option elements are named in their parent select element
@@ -457,22 +519,29 @@ public abstract class DataModel {
                 Class<?> fieldType = field.getType();
                 boolean required = isRequired(field);
 
-                // Check if there is an input element with a name attribute that matches the DataModel field name
+                // Check if there is an input element with a name attribute that matches the
+                // DataModel field name
                 ArrayList<Element> eltsWithNameMatchingField = nameToInputs.get(field.getName());
                 if (eltsWithNameMatchingField == null) {
                     // DataModel has an extra field that the form doesn't have
                     if (required) {
-                        throw new RuntimeException("Template \"" + templateName + "\" contains a form with id=\"" + formElement.attr("id") + "\" that is bound to the model "
-                                + formModel.getName() + ", but the model contains a required field named \"" + field.getName()
+                        throw new RuntimeException("Template \"" + templateName
+                                + "\" contains a form with id=\"" + formElement.attr("id")
+                                + "\" that is bound to the model " + formModel.getName()
+                                + ", but the model contains a required field named \"" + field.getName()
                                 + "\", and there is no input with that name in the form");
                     } else {
                         // Warn about extra field in form model that is not in form template
-                        Log.warning("Template \"" + templateName + "\" contains a form with id=\"" + formElement.attr("id") + "\" that is bound to the model "
-                                + formModel.getName() + ", but the model contains an extra field named \"" + field.getName() + "\" that is not in the form");
+                        Log.warning("Template \"" + templateName + "\" contains a form with id=\""
+                                + formElement.attr("id") + "\" that is bound to the model "
+                                + formModel.getName() + ", but the model contains an extra field named \""
+                                + field.getName() + "\" that is not in the form");
                     }
 
                 } else {
-                    // Go through all input elements that have the same name as this DataModel field, and update the element to have constraint attributes matching the DataModel constraint annotations
+                    // Go through all input elements that have the same name as this DataModel field,
+                    // and update the element to have constraint attributes matching the DataModel
+                    // constraint annotations
                     for (Element matchingElt : eltsWithNameMatchingField) {
                         String matchingEltTagName = matchingElt.tagName();
                         String matchingEltType = matchingElt.attr("type");
@@ -509,7 +578,8 @@ public abstract class DataModel {
                             } else if (annotationType == Email.class) {
                                 isEmail = true;
                             } else if (annotationType == Regex.class) {
-                                //TODO: make sure that Java regexes are compatible with JS regexes. See also http://html5pattern.com/
+                                //TODO: make sure that Java regexes are compatible with JS regexes.
+                                // See also http://html5pattern.com/
                                 matchingElt.attr("pattern", ((Regex) annotation).regex());
                             } else if (annotationType == NormalizeSpacing.class) {
                                 needsSpaceNormalization = true;
@@ -518,14 +588,18 @@ public abstract class DataModel {
                             }
                         }
 
-                        // Add type constraints to form inputs based on the Java type of fields in the DataModel
+                        // Add type constraints to form inputs based on the type of fields in the DataModel
                         if (fieldType == LocalDate.class) {
                             matchingElt.attr("type", "date");
-                            // TODO: also add regex pattern to constrain date to the isoDate format? (This doesn't seem to work currently.)
+                            // TODO: also add regex pattern to constrain date to the isoDate format?
+                            // TODO: (This doesn't seem to work currently.)
                             // TODO: add date picker popup.
 
-                        } else if (fieldType == Integer.class || fieldType == Integer.TYPE || fieldType == Long.class || fieldType == Long.TYPE || fieldType == Short.class
-                                || fieldType == Short.TYPE || fieldType == Float.class || fieldType == Float.TYPE || fieldType == Double.class || fieldType == Double.TYPE) {
+                        } else if (fieldType == Integer.class || fieldType == Integer.TYPE
+                                || fieldType == Long.class || fieldType == Long.TYPE
+                                || fieldType == Short.class || fieldType == Short.TYPE
+                                || fieldType == Float.class || fieldType == Float.TYPE
+                                || fieldType == Double.class || fieldType == Double.TYPE) {
                             // TODO: does "type='number'" work for float/double?
                             matchingElt.attr("type", "number");
 
@@ -540,24 +614,31 @@ public abstract class DataModel {
                             // Boolean fields are bound to checkboxes
 
                             if (!matchingEltType.isEmpty() && !matchingEltType.equals("checkbox"))
-                                throw new RuntimeException("Field \"" + fieldName + "\" in form \"" + formElement.attr("id") + "\" in template \"" + templateName
-                                        + "\" needs to be of type \"checkbox\", since it is bound to a Boolean field");
+                                throw new RuntimeException("Field \"" + fieldName + "\" in form \""
+                                        + formElement.attr("id") + "\" in template \"" + templateName
+                                        + "\" needs to be of type \"checkbox\", since "
+                                        + "it is bound to a Boolean field");
 
                             matchingElt.attr("type", "checkbox");
 
                         } else if (fieldType.isEnum()) {
                             // Enum-typed fields are bound to radio buttons
 
-                            if (!matchingEltType.isEmpty() && !(matchingEltType.equals("radio") || matchingEltType.equals("select"))) {
-                                throw new RuntimeException("Field \"" + fieldName + "\" in form \"" + formElement.attr("id") + "\" in template \"" + templateName
-                                        + "\" needs to be of type \"radio\", since it is bound to an enum-typed field");
+                            if (!matchingEltType.isEmpty()
+                                    && !(matchingEltType.equals("radio") || matchingEltType
+                                            .equals("select"))) {
+                                throw new RuntimeException("Field \"" + fieldName + "\" in form \""
+                                        + formElement.attr("id") + "\" in template \"" + templateName
+                                        + "\" needs to be of type \"radio\", "
+                                        + "since it is bound to an enum-typed field");
                             }
 
                             // Make sure all radio or option values map to a valid enum value
                             String radioVal = matchingElt.attr("value");
                             if (radioVal == null) {
-                                throw new RuntimeException("Missing attribute \"value\" for field \"" + fieldName + "\" in form \"" + formElement.attr("id") + "\" of template \""
-                                        + templateName + "\"");
+                                throw new RuntimeException("Missing attribute \"value\" for field \""
+                                        + fieldName + "\" in form \"" + formElement.attr("id")
+                                        + "\" of template \"" + templateName + "\"");
                             }
                             boolean enumOK = false;
                             try {
@@ -567,12 +648,15 @@ public abstract class DataModel {
                             } catch (IllegalArgumentException e) {
                             }
                             if (!enumOK) {
-                                throw new RuntimeException("Illegal value \"" + radioVal + "\" for radio or option field \"" + fieldName + "\" in form \"" + formElement.attr("id")
-                                        + "\" of template \"" + templateName + "\"");
+                                throw new RuntimeException("Illegal value \"" + radioVal
+                                        + "\" for radio or option field \"" + fieldName + "\" in form \""
+                                        + formElement.attr("id") + "\" of template \"" + templateName
+                                        + "\"");
                             }
 
                         } else if (fieldType == String.class) {
-                            // Password fields get marked as type="password", everything else that is bound to a String gets marked as type="text"
+                            // Password fields get marked as type="password", everything else that is 
+                            // bound to a String gets marked as type="text"
 
                             if (fieldName.equals("password")) {
                                 matchingElt.attr("type", "password");
@@ -583,8 +667,10 @@ public abstract class DataModel {
                                     matchingElt.attr("type", "text");
                                 }
 
-                                //FIXME: need to validate minlength and maxlength using JS, and reflect validity in Bootstrap. For all forms:
-                                // -- load the following jQuery plugin if there are forms on the page: http://docs.jquery.com/Plugins/Validation
+                                //FIXME: need to validate minlength and maxlength using JS, and reflect 
+                                // validity in Bootstrap. For all forms:
+                                // -- load the following jQuery plugin if there are forms on the page:
+                                //    http://docs.jquery.com/Plugins/Validation
                                 // -- add in head: $("#commentForm").validate();
                                 if (minLength != null) {
                                     matchingElt.attr("minlength", "" + minLength);
@@ -594,10 +680,12 @@ public abstract class DataModel {
                                 }
 
                                 if (needsTrimming) {
-                                    //TODO: Add JS that trims spacing in form fields upon focus loss unless @NoTrim annotation is present
+                                    //TODO: Add JS that trims spacing in form fields upon focus loss
+                                    // unless @NoTrim annotation is present
                                 }
                                 if (needsSpaceNormalization) {
-                                    //TODO: Add JS that auto-normalizes spacing in form fields if @NormalizeSpacing annotation is present
+                                    //TODO: Add JS that auto-normalizes spacing in form fields if
+                                    // @NormalizeSpacing annotation is present
                                 }
                             }
 
@@ -605,12 +693,15 @@ public abstract class DataModel {
                             matchingElt.attr("type", "text").attr("maxlength", "1");
 
                         } else if (fieldType == FileUpload.class) {
-                            // Force form type to multipart/form-data if one of the DataModel fields is of type FileUpload
+                            // Force form type to multipart/form-data if one of the DataModel fields
+                            // is of type FileUpload
                             matchingElt.attr("type", "file");
                             formElement.attr("enctype", "multipart/form-data");
 
                         } else {
-                            throw new RuntimeException("Illegal type " + fieldType.getName() + " for field " + fieldName + " in " + DataModel.class.getSimpleName() + " subclass");
+                            throw new RuntimeException("Illegal type " + fieldType.getName()
+                                    + " for field " + fieldName + " in " + DataModel.class.getSimpleName()
+                                    + " subclass");
                         }
                     }
                 }
@@ -618,39 +709,45 @@ public abstract class DataModel {
         }
 
         for (String name : unmappedInputNames) {
-            Log.warning("Template \"" + templateName + "\" but has an extra input element named \"" + name + "\" that is not present as a public field of " + formModel.getName());
+            Log.warning("Template \"" + templateName + "\" but has an extra input element named \"" + name
+                    + "\" that is not present as a public field of " + formModel.getName());
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Fields annotated with @Private in a DataModel instance, or id fields of a DBModel instance, cannot be rendered into a template, served as JSON or bound from a POST request,
-     * to ensure the value is never revealed to the user and cannot be set by the user.
+     * Fields annotated with @Private in a DataModel instance, or id fields of a DBModel instance, cannot be
+     * rendered into a template, served as JSON or bound from a POST request, to ensure the value is never
+     * revealed to the user and cannot be set by the user.
      */
     @SuppressWarnings("unchecked")
     private static boolean fieldIsPrivate(Class<? extends DataModel> enclosingType, Field field) {
         if (field == null || //
                 field.getAnnotation(Private.class) != null || //
-                (DBModel.class.isAssignableFrom(enclosingType) && field.equals(Database.getIdFieldForDBModel((Class<? extends DBModel>) enclosingType)))) {
+                (DBModel.class.isAssignableFrom(enclosingType) && field.equals(Database
+                        .getIdFieldForDBModel((Class<? extends DBModel>) enclosingType)))) {
             // Has @Private annotation or is the id field of a DBModel => treat as private
             return true;
         } else {
             // Check field is accessible
             int modifiers = field.getModifiers();
-            if (!Modifier.isPublic(modifiers) || Modifier.isAbstract(modifiers) || Modifier.isStatic(modifiers) || Modifier.isFinal(modifiers)) {
+            if (!Modifier.isPublic(modifiers) || Modifier.isAbstract(modifiers)
+                    || Modifier.isStatic(modifiers) || Modifier.isFinal(modifiers)) {
                 // Non-public, abstract, static or final => treat as private
                 return true;
             }
         }
-        // Public, non-abstract, non-static, non-final => the field is fair game to be sent to the user, and/or to be bound from a value sent by the user 
+        // Public, non-abstract, non-static, non-final => the field is fair game to be sent to the user,
+        // and/or to be bound from a value sent by the user 
         return false;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /** Check if a field of the same name as the param exists and is accessible. */
-    private static void checkFieldAccessible(String templateName, Class<? extends DataModel> templateClass, String fieldName, String attrName) {
+    private static void checkFieldAccessible(String templateName, Class<? extends DataModel> templateClass,
+            String fieldName, String attrName) {
         try {
             // Check field exists (will throw NoSuchFieldException if not)
             Field field = templateClass.getField(fieldName);
@@ -661,32 +758,40 @@ public abstract class DataModel {
             // Check field is readable (will throw SecurityException or IllegalAccessException if not)
             int modifiers = field.getModifiers();
             if (!Modifier.isPublic(modifiers) || Modifier.isAbstract(modifiers)) {
-                throw new RuntimeException("Field \"" + fieldName + "\" in " + DataModel.class.getSimpleName() + " subclass " + templateClass.getName()
+                throw new RuntimeException("Field \"" + fieldName + "\" in "
+                        + DataModel.class.getSimpleName() + " subclass " + templateClass.getName()
                         + " is not public or is abstract");
             }
 
-            // If this field is to be used in an HTML attribute value, need to also make sure that the field is not of DataModel, List or array type,
-            // since those are rendered into HTML, not escaped string form
+            // If this field is to be used in an HTML attribute value, need to also make sure that the
+            // field is not of DataModel, List or array type, since those are rendered into HTML, not
+            // escaped string form
             boolean isAttr = attrName != null;
             if (isAttr) {
                 Class<?> fieldType = field.getType();
-                if (DataModel.class.isAssignableFrom(fieldType) || List.class.isAssignableFrom(fieldType) || Array.class.isAssignableFrom(fieldType)) {
-                    throw new RuntimeException("Template \"" + templateName + "\" contains param \"" + fieldName + "\" of type " + fieldType.getName() + " in attribute \""
-                            + attrName + "\", but you can't insert HTML content into an HTML attribute, only String content");
+                if (DataModel.class.isAssignableFrom(fieldType) || List.class.isAssignableFrom(fieldType)
+                        || Array.class.isAssignableFrom(fieldType)) {
+                    throw new RuntimeException("Template \"" + templateName + "\" contains param \""
+                            + fieldName + "\" of type " + fieldType.getName() + " in attribute \""
+                            + attrName + "\", but you can't insert HTML content into an HTML attribute, "
+                            + "only String content");
                 }
             }
 
         } catch (NoSuchFieldException e) {
             try {
                 templateClass.getDeclaredField(fieldName);
-                throw new RuntimeException("Template \"" + templateName + "\" contains param \"" + fieldName + "\" but the field of that name in the class "
+                throw new RuntimeException("Template \"" + templateName + "\" contains param \""
+                        + fieldName + "\" but the field of that name in the class "
                         + templateClass.getName() + " is not public");
             } catch (NoSuchFieldException e1) {
-                throw new RuntimeException("Template \"" + templateName + "\" contains param \"" + fieldName + "\" but there is no public field of that name in the class "
+                throw new RuntimeException("Template \"" + templateName + "\" contains param \""
+                        + fieldName + "\" but there is no public field of that name in the class "
                         + templateClass.getName());
             }
         } catch (SecurityException e) {
-            throw new RuntimeException("Template \"" + templateName + "\" contains param \"" + fieldName + "\" but the field of that name in the class " + templateClass.getName()
+            throw new RuntimeException("Template \"" + templateName + "\" contains param \"" + fieldName
+                    + "\" but the field of that name in the class " + templateClass.getName()
                     + " is not public");
         } catch (IllegalArgumentException e) {
             // Should not happen if templateInstance is not null
@@ -694,13 +799,16 @@ public abstract class DataModel {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Cross-check HTML template names against DataModel subclass names, and HTML template parameter names against names of fields in the correspondingly-named DataModel subclass.
+     * Cross-check HTML template names against DataModel subclass names, and HTML template parameter names
+     * against names of fields in the correspondingly-named DataModel subclass.
      */
-    public static void crossCheckDataModelAndView(SiteResources siteResources, String templateName, Class<? extends DataModel> templateDataModel, Document templateDoc) {
-        // Compare template HTML files against DataModel class fields so that these checks don't have to be performed during template rendering
+    public static void crossCheckDataModelAndView(SiteResources siteResources, String templateName,
+            Class<? extends DataModel> templateDataModel, Document templateDoc) {
+        // Compare template HTML files against DataModel class fields so that these checks don't have
+        // to be performed during template rendering
         HashSet<String> paramNamesUsedInHTML = new HashSet<>();
         for (Element e : templateDoc.getAllElements()) {
 
@@ -710,10 +818,12 @@ public abstract class DataModel {
                 if (n instanceof TextNode) {
                     String text = ((TextNode) n).text();
 
-                    // Check for attempt to put param in the element name, e.g. <${elt}>, or malformed HTML like <>
-                    // in these cases, Jsoup just inserts a text node with unescaped text 
+                    // Check for attempt to put param in the element name, e.g. <${elt}>,
+                    // or malformed HTML like <>. In these cases, Jsoup just inserts a text node with
+                    // unescaped text. 
                     if (text.indexOf('<') > 0 || text.indexOf('>') > 0) {
-                        throw new RuntimeException("The template \"" + templateName + "\" contains invalid HTML: " + text);
+                        throw new RuntimeException("The template \"" + templateName
+                                + "\" contains invalid HTML: " + text);
                     }
 
                     Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(text);
@@ -727,22 +837,37 @@ public abstract class DataModel {
                     if (containsParam) {
                         if (tagName.equals("#comment")) {
                             // Ignore params in comments
+                            // TODO: these could be supported by escaping "<!--" and "-->"
                         } else {
-                            // OWASP Rule #3: JavaScript Escape Before Inserting Untrusted Data into JavaScript Data Values.
-                            // OWASP Rule #4: CSS Escape And Strictly Validate Before Inserting Untrusted Data into HTML Style Property Values.
-
-                            // We currently completely disallow inserting params into style and script attributes for safety reasons. 
-                            // All parameter insertion into JS contexts or sub-contexts is disabled right now.
-
+                            // OWASP Rule #3:
+                            //     JavaScript Escape Before Inserting Untrusted Data into JavaScript
+                            //     Data Values
+                            // OWASP Rule #4:
+                            //     CSS Escape And Strictly Validate Before Inserting Untrusted Data into
+                            //     HTML Style Property Values.
+                            //
+                            // We currently completely disallow inserting params into style and script
+                            // attributes for safety reasons. All parameter insertion into JS contexts or
+                            // sub-contexts is disabled right now.
+                            //
                             // See https://www.owasp.org/index.php/DOM_based_XSS_Prevention_Cheat_Sheet :
-                            // "DOM based XSS is extremely difficult to mitigate against because of its large attack surface and lack of standardization across browsers."
-
-                            // CSS parsing is not supported by jsoup, so we can't do context-sensitive escaping in CSS. Therefore, parameters are not supported in style tags or attributes at this time.
-                            // CSS parsers: http://cssparser.sourceforge.net/ ; https://code.google.com/p/phloc-css/ ; http://www.w3.org/Style/CSS/SAC/ ; https://github.com/corgrath/osbcp-css-parser
-                            // Note: see http://owasp-java-html-sanitizer.googlecode.com/svn/trunk/distrib/javadoc/org/owasp/html/Sanitizers.html -- sanitizers can be used to let through only sanitized CSS.
-
-                            if (tagName.equals("script") || tagName.equals("style") || tagName.equals("applet") || tagName.equals("object")) {
-                                throw new RuntimeException("The template \"" + templateName + "\" contains a template param inside the unsafe element <" + tagName + ">");
+                            // "DOM based XSS is extremely difficult to mitigate against because of its
+                            // large attack surface and lack of standardization across browsers."
+                            //
+                            // TODO: CSS parsing is not supported by jsoup, so we can't do context-sensitive
+                            // escaping in CSS. Therefore, parameters are not supported in style tags or
+                            // attributes at this time. CSS parsers:
+                            // -- http://cssparser.sourceforge.net/
+                            // -- https://code.google.com/p/phloc-css/
+                            // -- http://www.w3.org/Style/CSS/SAC/
+                            // -- https://github.com/corgrath/osbcp-css-parser
+                            // Note: see http://goo.gl/n0sWup -- sanitizers can be used to let through
+                            // only sanitized CSS.
+                            if (tagName.equals("script") || tagName.equals("style")
+                                    || tagName.equals("applet") || tagName.equals("object")) {
+                                throw new RuntimeException("The template \"" + templateName
+                                        + "\" contains a template param inside the unsafe element <"
+                                        + tagName + ">");
                             }
                         }
                     }
@@ -765,7 +890,8 @@ public abstract class DataModel {
                     attrValueWithoutParams.append(attrValue.subSequence(lastMatchEnd, matcher.start()));
                     lastMatchEnd = matcher.end();
 
-                    // Check that the field in the DataModel class with the same name as the parameter is publicly accessible
+                    // Check that the field in the DataModel class with the same name as the parameter
+                    // is publicly accessible
                     String paramName = matcher.group(1);
                     checkFieldAccessible(templateName, templateDataModel, paramName, attrName);
                     paramNamesUsedInHTML.add(paramName);
@@ -775,55 +901,86 @@ public abstract class DataModel {
                 // Check non-parameter content of id, name and class attributes
                 if (attrValueWithoutParams.length() > 0) {
                     if (attrName.equals("id") || attrName.equals("name") || attrName.equals("class")) {
-                        // OWASP Rule #1 under XSS Prevention Rules Summary: "Strictly validate unsafe attributes such as background, id and name."
-                        // (We don't worry about background here, it is simply blocked by not being listed in XSS_SAFE_ATTRS, as checked below.)
-                        // See also http://stackoverflow.com/questions/70579/what-are-valid-values-for-the-id-attribute-in-html
-                        // -- we disallow '.' and ':' because they cause problems with jQuery.
-                        if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID : WebUtils.VALID_HTML_NAME_OR_ID).matcher(attrValueWithoutParams).matches()) {
-                            throw new RuntimeException("The template \"" + templateName + "\" contains bad characters in id, name or class attribute value: " + attrName + "=\""
-                                    + attrValue + "\"");
+                        // OWASP Rule #1:
+                        //     Strictly validate unsafe attributes such as background, id and name.
+                        //
+                        // (We don't worry about the unsafe "background" attribute here, it is simply
+                        // blocked by not being listed in XSS_SAFE_ATTRS, as checked below.)
+                        // 
+                        // See also http://goo.gl/fKZhFA -- we disallow '.' and ':' because they cause
+                        // problems with jQuery.
+                        if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID
+                                : WebUtils.VALID_HTML_NAME_OR_ID).matcher(attrValueWithoutParams).matches()) {
+                            throw new RuntimeException("The template \"" + templateName
+                                    + "\" contains bad characters in id, name or class attribute value: "
+                                    + attrName + "=\"" + attrValue + "\"");
                         }
                         if (StringUtils.containsUppercaseChar(attrValueWithoutParams)) {
-                            throw new RuntimeException("The template \"" + templateName + "\" contains uppercase characters in attribute value: " + attrName + "=\"" + attrValue
-                                    + "\", but browsers implement case sensitivity differently. Identifiers for id, name and class should all be lowercase.");
+                            throw new RuntimeException("The template \"" + templateName
+                                    + "\" contains uppercase characters in attribute value: " + attrName
+                                    + "=\"" + attrValue + "\", but browsers implement "
+                                    + "case sensitivity differently. Identifiers for id, "
+                                    + "name and class should all be lowercase.");
                         }
                     }
                 }
 
                 if (attrValueContainsParam) {
-                    // OWASP Rule #2: "Only place untrusted data into a whitelist of safe attributes."
+                    // OWASP Rule #2:
+                    //     Only place untrusted data into a whitelist of safe attributes.
                     if (WebUtils.isURLAttr(tagName, attrName)) {
                         // URLs will be tested for validity later
                     } else if (attrName.equals("id") || attrName.equals("name")) {
-                        // name and id are XSS-unsafe, because injected text can be made to refer to any element on the page.
-                        // Mitigate the effect by requiring that the attr value have a non-parameterized prefix.
+                        // name and id are XSS-unsafe, because injected text can be made to 
+                        // refer to any element on the page. Mitigate the effect by requiring
+                        // that the attr value have a non-parameterized prefix.
                         if (firstMatchStart == 0) {
-                            throw new RuntimeException("The template \"" + templateName + "\" contains a template parameter in the value of an XSS-unsafe attribute \"" + attrName
-                                    + "\". To parameterize id and name attributes in particular, the parameter must be prefixed with some non-parameter value "
-                                    + "to mitigate the impact of an injection attack, e.g. <div id=\"widget${widgetNum}\"> is OK, but <div id=\"${widgetName}\"> is not.");
+                            throw new RuntimeException("The template \"" + templateName
+                                    + "\" contains a template parameter in the value "
+                                    + "of an XSS-unsafe attribute \"" + attrName
+                                    + "\". To parameterize id and name attributes in particular, "
+                                    + "the parameter must be prefixed with some non-parameter value "
+                                    + "to mitigate the impact of an injection attack, e.g. "
+                                    + "<div id=\"widget${widgetNum}\"> is OK, but "
+                                    + "<div id=\"${widgetName}\"> is not.");
                         }
                     } else if (!WebUtils.XSS_SAFE_ATTRS.contains(attrName)) {
-                        // Disable check for custom elements -- Polymer allows the user to define their own attributes.
-                        // Note that these are an attack vector if the programmer is not careful.
+                        // Disable XSS safety check for custom Polymer element attributes -- it is the
+                        // user's responsibility to ensure that a given attribute is XSS-safe with Polymer
+                        // elements. If attributes are not provably XSS-safe, they should not be set using
+                        // a template parameter value.
+                        //
+                        // Note that custom elemnets are an attack vector if the programmer is not
+                        // careful, because custom elements' attribute values can be used to insert content
+                        // anywhere into the shadow DOM, so we can't contextually escape these values.
                         if (!tagName.contains("-")) {
                             // Throw exception for non-whitelisted attrs.
-                            throw new RuntimeException("Template \"" + templateName + "\" contains a template parameter in the value of an XSS-unsafe attribute \"" + attrName
-                                    + "\"");
+                            throw new RuntimeException("Template \"" + templateName
+                                    + "\" contains a template parameter "
+                                    + "in the value of an XSS-unsafe attribute \"" + attrName + "\"");
                         }
                     }
-                    // OWASP Rule #3: JavaScript Escape Before Inserting Untrusted Data into JavaScript Data Values.
-                    // OWASP Rule #4: CSS Escape And Strictly Validate Before Inserting Untrusted Data into HTML Style Property Values.
-                    // We currently completely disallow inserting params into style and script attributes for safety reasons. 
+                    // OWASP Rule #3:
+                    //     JavaScript Escape Before Inserting Untrusted Data into JavaScript Data Values.
+                    // OWASP Rule #4:
+                    //     CSS Escape And Strictly Validate Before Inserting Untrusted Data into HTML
+                    //     Style Property Values.
+                    // We currently completely disallow inserting params into style and script
+                    // attributes for these safety reasons. 
                     if (tagName.equals("applet") || tagName.equals("object")) {
-                        throw new RuntimeException("Tried to use a template param inside <" + tagName + "> in template \"" + templateName + "\" -- this is unsafe");
+                        throw new RuntimeException("Tried to use a template param inside <" + tagName
+                                + "> in template \"" + templateName + "\" -- this is unsafe");
                     }
-                    if (attrName.equals("style") || attrName.equals("data") || attrName.equals("action") || attrName.startsWith("on")) {
-                        throw new RuntimeException("Tried to use a template param in attribute \"" + attrName + "\" in template \"" + templateName + "\" -- this is unsafe");
+                    if (attrName.equals("style") || attrName.equals("data") || attrName.equals("action")
+                            || attrName.startsWith("on")) {
+                        throw new RuntimeException("Tried to use a template param in attribute \""
+                                + attrName + "\" in template \"" + templateName + "\" -- this is unsafe");
                     }
 
                     if (attrName.equals("id") || attrName.equals("name") || attrName.equals("class")) {
                         if (attrValue.contains(".") || attrValue.contains(":")) {
-                            throw new RuntimeException("Value of attribute " + attrName + " in template \"" + templateName
+                            throw new RuntimeException("Value of attribute " + attrName + " in template \""
+                                    + templateName
                                     + "\" contains '.' or ':', which can cause problems with jQuery");
                         }
                         a.setValue(StringUtils.unicodeTrim(StringUtils.normalizeSpacing(attrValue)));
@@ -831,34 +988,41 @@ public abstract class DataModel {
                 }
             }
 
-            // Cross-check DataModel fields that have type DataModel against form inputs where the form's id attribute matches the name of the DataModel 
+            // Cross-check DataModel fields that have type DataModel against form inputs where the form's
+            // id attribute matches the name of the DataModel 
             if (tagName.equals("form")) {
 
-                // Add CSRF input to form with placeholder value that will be replaced with the real CSRF value when the page is served
+                // Add CSRF input to form with placeholder value that will be replaced with the real CSRF
+                // value when the page is served
                 Elements csrfElts = e.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME);
                 if (csrfElts.size() > 0) {
-                    throw new RuntimeException("Form in template " + templateName + " should not include its own elements with name " + CSRF.CSRF_PARAM_NAME);
+                    throw new RuntimeException("Form in template " + templateName
+                            + " should not include its own elements with name " + CSRF.CSRF_PARAM_NAME);
                 }
                 Element csrfElt = e.appendElement("input");
                 csrfElt.attr("name", CSRF.CSRF_PARAM_NAME);
                 csrfElt.attr("type", "hidden");
                 csrfElt.attr("value", CSRF.CSRF_TOKEN_PLACEHOLDER);
 
-                // Check if the id attribute of the form matches a DataModel-typed field in the template class associated with the form.
-                // If so, this field's own fields are cross-checked against the input values in the form, as a special case of template parameter matching. 
+                // Check if the id attribute of the form matches a DataModel-typed field in the template 
+                // class associated with the form. If so, this field's own fields are cross-checked against
+                // the input values in the form, as a special case of template parameter matching. 
                 String id = e.attr("id");
                 if (id != null && !id.isEmpty()) {
                     Field field = null;
                     try {
                         field = templateDataModel.getField(id);
                     } catch (NoSuchFieldException e1) {
-                        // This from doesn't match a field in the DataModel object, so it must be used for some other purpose
+                        // This from doesn't match a field in the DataModel object, so it must be used for
+                        // some other purpose
                     } catch (SecurityException e1) {
-                        throw new RuntimeException("Form with id \"" + id + "\" in template \"" + templateName + "\" matches name of field in class " + templateDataModel.getName()
-                                + " but that field is not accessible");
+                        throw new RuntimeException("Form with id \"" + id + "\" in template \""
+                                + templateName + "\" matches name of field in class "
+                                + templateDataModel.getName() + " but that field is not accessible");
                     }
                     if (field != null) {
-                        // This form's id attribute matches the name of a DataModel-typed field in templateClass
+                        // This form's id attribute matches the name of a DataModel-typed field
+                        // in templateClass
 
                         // Make sure field is accessible, and that it's a DataModel subclass
                         checkFieldAccessible(templateName, templateDataModel, id, null);
@@ -866,29 +1030,34 @@ public abstract class DataModel {
                         // Check that the field that matches the form id is a DataModel subclass
                         if (DataModel.class.isAssignableFrom(field.getType())) {
                             @SuppressWarnings("unchecked")
-                            Class<? extends DataModel> formModel = (Class<? extends DataModel>) field.getType();
+                            Class<? extends DataModel> formModel =
+                                    (Class<? extends DataModel>) field.getType();
 
                             // The form id is a special case of template parameter name
                             paramNamesUsedInHTML.add(id);
 
-                            // Cross-check the names of inputs in the form with fields in the DataModel, and copy any
-                            // constraint annotations in this DataModel across to the elements in the form
+                            // Cross-check the names of inputs in the form with fields in the DataModel,
+                            // and copy any constraint annotations in this DataModel across to the elements
+                            // in the form.
                             addConstraintsToForm(templateName, e, formModel);
 
-                            // If form is to be submitted via POST, try substituting the route URL for the RestHandler that handles the POST into the action attribute
+                            // If form is to be submitted via POST, try substituting the route URL for the
+                            // RestHandler that handles the POST into the action attribute
                             String submitURI = siteResources.routeURIForDataModel(formModel);
                             String method = e.attr("method");
                             if (method.isEmpty()) {
                                 // Method was not specified
                                 if (submitURI == null) {
-                                    // Fill in missing (default) GET action if there is no POST handler that accepts this form
+                                    // Fill in missing (default) GET action if there is no POST handler
+                                    // that accepts this form
                                     method = "GET";
                                     e.attr("method", method);
                                 } else {
-                                    // Fill in missing POST action if there is a POST handler that accepts this form.
-                                    // This overrides the HTML default action of GET, but it is more likely what was intended,
-                                    // and it is safer since any constraint annotations will be checked on POST requests,
-                                    // whereas for GET requests the user has to do binding and param checking themselves.
+                                    // Fill in missing POST action if there is a POST handler that accepts
+                                    // this form. This overrides the HTML default action of GET, but it is
+                                    // more likely what was intended, and it is safer since any constraint
+                                    // annotations will be checked on POST requests, whereas for GET
+                                    // requests the user has to do binding and param checking themselves.
                                     method = "POST";
                                     e.attr("method", method);
                                 }
@@ -896,38 +1065,59 @@ public abstract class DataModel {
                                 // Method was specified
                                 if (method.equalsIgnoreCase("GET")) {
                                     if (submitURI != null) {
-                                        Log.warning("Form in template \"" + templateName + "\" has id \"" + id + "\" which matches a param of type " + formModel.getName()
-                                                + ", and that class is accepted as a POST param on the route " + submitURI
-                                                + " , but this form is submitted with GET, not POST. This means the post() method on "
-                                                + "that route will not receive, bind or validate the submitted form values, they will "
-                                                + "have to be manually parsed by the user in the get() method.");
+                                        Log.warning("Form in template \"" + templateName + "\" has id \""
+                                                + id + "\" which matches a param of type "
+                                                + formModel.getName()
+                                                + ", and that class is accepted as a "
+                                                + "POST param on the route " + submitURI
+                                                + " , but this form is submitted with GET, "
+                                                + "not POST. This means the post() method on "
+                                                + "that route will not receive, bind or "
+                                                + "validate the submitted form values, they "
+                                                + "will have to be manually parsed by the "
+                                                + "user in the get() method.");
                                     }
                                 } else if (method.equalsIgnoreCase("POST")) {
-                                    // Form is submitted via POST, and field type that matches form id is accepted by the post() method of a RestHandler
+                                    // Form is submitted via POST, and field type that matches form id is
+                                    // accepted by the post() method of a RestHandler
 
                                     String action = e.attr("action");
                                     if (action.isEmpty()) {
-                                        // Fill in missing action attribute value with route path of the RestHandler that has a post() method that takes
-                                        // a parameter of the type bound to this form
+                                        // Fill in missing action attribute value with route path of the
+                                        // RestHandler that has a post() method that takes a parameter of
+                                        // the type bound to this form
                                         e.attr("action", submitURI);
                                     } else if (!action.equals(submitURI)) {
-                                        // Maybe this is heavy-handed (probably the user should be able to override with a different URI), but they can manually construct
-                                        // a form that takes regular HTML params if they want to submit to a URI on say a different server, they don't need to fill in
-                                        // the form using the DataModel-to-form binding.
-                                        Log.warning("Form in template \"" + templateName + "\" has id \"" + id + "\" which matches a param of type " + formModel.getName()
-                                                + ", and that class is accepted as a POST param on the route " + submitURI + " , but this form is submitted to the route " + action
-                                                + " , not " + submitURI + " . Overriding " + action + " with " + submitURI);
+                                        // Maybe this is heavy-handed (probably the user should be able to
+                                        // override with a different URI), but they can manually construct
+                                        // a form that takes regular HTML params if they want to submit to
+                                        // a URI on say a different server, they don't need to fill in the
+                                        // form using the DataModel-to-form binding.
+                                        Log.warning("Form in template \""
+                                                + templateName
+                                                + "\" has id \""
+                                                + id
+                                                + "\" which matches a param of type "
+                                                + formModel.getName()
+                                                + ", and that class is accepted as a POST param on the route "
+                                                + submitURI + " , but this form is submitted to the route "
+                                                + action + " , not " + submitURI + " . Overriding "
+                                                + action + " with " + submitURI);
                                         e.attr("action", submitURI);
                                     }
 
                                 } else {
-                                    throw new RuntimeException("Invalid form submission method \"" + method + "\" in template \"" + templateName + "\"");
+                                    throw new RuntimeException("Invalid form submission method \"" + method
+                                            + "\" in template \"" + templateName + "\"");
                                 }
                             }
 
                         } else {
-                            throw new RuntimeException("Template \"" + templateName + "\" contains a form with id \"" + id + "\" that matches a field in class "
-                                    + templateDataModel.getName() + ", however that field is not a subclass of " + DataModel.class.getName());
+                            throw new RuntimeException("Template \"" + templateName
+                                    + "\" contains a form with id \"" + id
+                                    + "\" that matches a field in class " + templateDataModel.getName()
+                                    + ", however that field is not a subclass of "
+                                    + DataModel.class.getName());
                         }
                     }
                 }
@@ -943,29 +1133,36 @@ public abstract class DataModel {
             }
         }
 
-        // Make sure there's a 1-to-1 correspondence between param names used in this HTML template and field names in the associated DataModel subclass
+        // Make sure there's a 1-to-1 correspondence between param names used in this HTML template
+        // and field names in the associated DataModel subclass
         HashSet<String> paramNamesOnlyInHTML = new HashSet<>(paramNamesUsedInHTML);
         paramNamesOnlyInHTML.removeAll(fieldNamesInClass);
         HashSet<String> fieldNamesOnlyInClass = new HashSet<>(fieldNamesInClass);
         fieldNamesOnlyInClass.removeAll(paramNamesUsedInHTML);
         if (!paramNamesOnlyInHTML.isEmpty()) {
-            throw new RuntimeException("There is no correspondingly-named public field in class " + templateDataModel.getName() + " for the HTML parameter name"
-                    + (paramNamesOnlyInHTML.size() > 1 ? "s" : "") + " " + StringUtils.join(paramNamesOnlyInHTML, ", ", s -> "\"" + s + "\"") + " in template \"" + templateName
-                    + "\"");
+            throw new RuntimeException("There is no correspondingly-named public field in class "
+                    + templateDataModel.getName() + " for the HTML parameter name"
+                    + (paramNamesOnlyInHTML.size() > 1 ? "s" : "") + " "
+                    + StringUtils.join(paramNamesOnlyInHTML, ", ", s -> "\"" + s + "\"")
+                    + " in template \"" + templateName + "\"");
         }
 
         if (!fieldNamesOnlyInClass.isEmpty()) {
-            throw new RuntimeException("There is no correspondingly-named parameter or form field name in the HTML template \"" + templateName + "\" for the public field"
-                    + (fieldNamesOnlyInClass.size() > 1 ? "s" : "") + " " + StringUtils.join(fieldNamesOnlyInClass, ", ", s -> "\"" + s + "\"") + " in class "
-                    + templateDataModel.getName());
+            throw new RuntimeException(
+                    "There is no correspondingly-named parameter or form field name in the HTML template \""
+                            + templateName + "\" for the public field"
+                            + (fieldNamesOnlyInClass.size() > 1 ? "s" : "") + " "
+                            + StringUtils.join(fieldNamesOnlyInClass, ", ", s -> "\"" + s + "\"")
+                            + " in class " + templateDataModel.getName());
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Recursively render JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be served over a Web
-     * connection without exposing internal server state.
+     * Recursively render JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of
+     * DBModel objects. This produces a JSON rendering that may be served over a Web connection without
+     * exposing internal server state.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void toJSONRec(Object obj, boolean prettyPrint, int depth, StringBuilder buf) {
@@ -980,7 +1177,8 @@ public abstract class DataModel {
                     WebUtils.escapeJSONString((String) obj, buf);
                     buf.append('"');
 
-                } else if (klass == Integer.class || klass == Boolean.class || klass == Long.class || klass == Float.class || klass == Double.class || klass == Short.class) {
+                } else if (klass == Integer.class || klass == Boolean.class || klass == Long.class
+                        || klass == Float.class || klass == Double.class || klass == Short.class) {
                     buf.append(obj.toString());
 
                 } else if (klass == Byte.class) {
@@ -1010,11 +1208,6 @@ public abstract class DataModel {
                         buf.append(prettyPrint ? " ]" : "]");
                     }
 
-                } else if (Set.class.isAssignableFrom(klass)) {
-                    // JSON can't enforce uniqueness of items, so sets are by definition not renderable.
-                    // TODO: I think MongoDB precedes values in a set with a tab character, to denote their uniqueness in a syntax-compatible way?
-                    throw new RuntimeException("Sets cannot be rendered into JSON");
-
                 } else if (Map.class.isAssignableFrom(klass) || Set.class.isAssignableFrom(klass)) {
                     // Render a Map or Set as a JSON associative array.
                     // Sets are rendered as a map from set element to the Boolean value true
@@ -1028,7 +1221,8 @@ public abstract class DataModel {
                     } else {
                         buf.append(prettyPrint ? "{\n" : "{");
                         if (prettyPrint) {
-                            // If prettyprinting, get first non-null key and see if it implements Comparable, and if so, sort map keys
+                            // If prettyprinting, get first non-null key and see if it
+                            // implements Comparable, and if so, sort the keys into order
                             Object key = keys.get(0);
                             if (key == null && n > 1) {
                                 key = keys.get(1);
@@ -1040,19 +1234,19 @@ public abstract class DataModel {
                             }
                         }
                         for (int i = 0; i < n; i++) {
-                            Object k = keys.get(i);
-                            Object v = isSet ? Boolean.TRUE : map.get(k);
+                            Object key = keys.get(i);
+                            Object val = isSet ? Boolean.TRUE : map.get(key);
 
                             // Render key 
                             if (prettyPrint) {
                                 buf.append(StringUtils.spaces(depth + 1));
                             }
                             buf.append('"');
-                            WebUtils.escapeJSONString(k.toString(), buf);
+                            WebUtils.escapeJSONString(key.toString(), buf);
                             buf.append(prettyPrint ? "\" : " : "\":");
-                            
+
                             // Recursively render value
-                            toJSONRec(v, prettyPrint, depth + 1, buf);
+                            toJSONRec(val, prettyPrint, depth + 1, buf);
                             if (i < n - 1) {
                                 buf.append(prettyPrint ? ",\n" : ",");
                             } else if (prettyPrint) {
@@ -1066,15 +1260,21 @@ public abstract class DataModel {
                     }
 
                 } else {
-                    // DataModel, DBModel, or some other class -- render fields as a JSON associative array using introspection
+                    // DataModel, DBModel, or some other class -- render fields as a JSON
+                    // associative array using introspection
                     ArrayList<Field> fieldsToInclude = new ArrayList<>();
                     Field[] fields = klass.getFields();
                     for (int i = 0; i < fields.length; i++) {
                         Field field = fields[i];
-                        // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields cannot be sent to the user
-                        if (!(obj instanceof DataModel) || !DataModel.fieldIsPrivate(((DataModel) obj).getClass(), field) && field.getAnnotation(OnlyReceive.class) == null) {
+                        // DataModel fields annotated with @Private or @OnlyReceive and
+                        // DBModel id fields cannot be sent to the user
+                        if (!(obj instanceof DataModel)
+                                || !DataModel.fieldIsPrivate(((DataModel) obj).getClass(), field)
+                                && field.getAnnotation(OnlyReceive.class) == null) {
                             // In case class is not itself public, need to call setAccessible(true)
-                            // FIXME: Need to do the same everywhere else we get fields, or alternatively catch IllegalAccessException and tell the user that the class needs to be public.
+                            // FIXME: Need to do the same everywhere else we get fields, or
+                            // FIXME: alternatively catch IllegalAccessException and tell the user
+                            // FIXME: that the class needs to be public.
                             field.setAccessible(true);
                             fieldsToInclude.add(field);
                         }
@@ -1139,8 +1339,9 @@ public abstract class DataModel {
     }
 
     /**
-     * Render this DataModel as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be served over
-     * a Web connection without exposing internal server state.
+     * Render this DataModel as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of
+     * DBModel objects. This produces a JSON rendering that may be served over a Web connection without
+     * exposing internal server state.
      */
     public String toJSON(boolean prettyPrint) {
         StringBuilder buf = new StringBuilder(1024);
@@ -1149,8 +1350,9 @@ public abstract class DataModel {
     }
 
     /**
-     * Render a list of objects as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be served
-     * over a Web connection without exposing internal server state.
+     * Render a list of objects as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields
+     * of DBModel objects. This produces a JSON rendering that may be served over a Web connection without
+     * exposing internal server state.
      */
     public static String toJSON(List<?> list, boolean prettyPrint) {
         StringBuilder buf = new StringBuilder(1024);
@@ -1159,8 +1361,9 @@ public abstract class DataModel {
     }
 
     /**
-     * Render an array of objects as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be served
-     * over a Web connection without exposing internal server state.
+     * Render an array of objects as JSON, skipping fields marked with @Private or @OnlyReceive, and id
+     * fields of DBModel objects. This produces a JSON rendering that may be served over a Web connection
+     * without exposing internal server state.
      */
     public static String toJSON(Object[] arr, boolean prettyPrint) {
         StringBuilder buf = new StringBuilder(1024);
@@ -1169,8 +1372,9 @@ public abstract class DataModel {
     }
 
     /**
-     * Recursively render an Object as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be
-     * served over a Web connection without exposing internal server state.
+     * Recursively render an Object as JSON, skipping fields marked with @Private or @OnlyReceive, and id
+     * fields of DBModel objects. This produces a JSON rendering that may be served over a Web connection
+     * without exposing internal server state.
      */
     public static String toJSON(Object obj, boolean prettyPrint) {
         StringBuilder buf = new StringBuilder(1024);
@@ -1178,10 +1382,11 @@ public abstract class DataModel {
         return buf.toString();
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Templates with context-aware escaping for near-complete protection against stored and reflected XSS attacks.
+     * Templates with context-aware escaping for near-complete protection against stored and reflected XSS
+     * attacks.
      * 
      * See:
      * 
@@ -1193,7 +1398,8 @@ public abstract class DataModel {
      * 
      * https://www.owasp.org/index.php/DOM_based_XSS_Prevention_Cheat_Sheet
      * 
-     * Extends DataModel so that it can be used for both filling in a form template based on previous values, and being bound to the submission results of the form.
+     * Extends DataModel so that it can be used for both filling in a form template based on previous
+     * values, and being bound to the submission results of the form.
      */
 
     /** Escape text for an HTML attribute value or for an HTML text node. */
@@ -1201,22 +1407,26 @@ public abstract class DataModel {
         boolean isAttrVal = attrName != null;
         if (isAttrVal) {
             if (WebUtils.isURLAttr(tagName, attrName)) {
-                // This parameter may be just part of a URI, so we need to check the whole string for validity
-                // after all params have been substituted -- just insert param string directly for now. 
+                // This parameter may be just part of a URI, so we need to check the whole string
+                // for validity after all params have been substituted -- just insert param string
+                // directly for now. 
                 return unsafeStr;
             } else {
-                // OWASP Rule #2: Attribute Escape Before Inserting Untrusted Data into HTML Common Attributes
+                // OWASP Rule #2:
+                //     Attribute Escape Before Inserting Untrusted Data into HTML Common Attributes.
                 return WebUtils.encodeForHTMLAttribute(unsafeStr);
             }
         } else {
-            // OWASP Rule #1: HTML Escape Before Inserting Untrusted Data into HTML Element Content
+            // OWASP Rule #1:
+            //     HTML Escape Before Inserting Untrusted Data into HTML Element Content
             if (unsafeStr.indexOf("\n") >= 0) {
                 // Turn "\n" within text params into <br> for convenience
                 ArrayList<CharSequence> parts = StringUtils.splitAsList(unsafeStr, "\n");
                 StringBuilder buf = new StringBuilder(unsafeStr.length() + parts.size() * 3);
                 for (int i = 0; i < parts.size(); i++) {
                     if (i > 0) {
-                        // Can insert a raw <br> here because this text is not an attribute val, it is part of a text node.
+                        // Can insert a raw <br> here because this text is not an attribute val,
+                        // it is part of a text node.
                         buf.append("<br>");
                     }
                     // Separately escape each part split by a newline character
@@ -1232,14 +1442,16 @@ public abstract class DataModel {
     }
 
     /** Escape and render a field value (recursively rendering any lists or arrays). */
-    private void recursivelyRender(String tagName, String attrName, boolean isAttrVal, Object fieldValue, boolean prettyPrint, int indentLevel, StringBuilder buf) {
+    private void recursivelyRender(String tagName, String attrName, boolean isAttrVal, Object fieldValue,
+            boolean prettyPrint, int indentLevel, StringBuilder buf) {
         Class<?> type = fieldValue.getClass();
         if (type == String.class) {
             // Expand a string parameter
 
             String unsafeStr = (String) fieldValue;
             if (unsafeStr != null) {
-                // Parameter is being expanded in non-URI attribute, or in a text node -- use regular HTML escaping
+                // Parameter is being expanded in non-URI attribute, or in a text node --
+                // use regular HTML escaping
                 buf.append(encodeParamText(tagName, attrName, unsafeStr));
             }
 
@@ -1276,13 +1488,17 @@ public abstract class DataModel {
                             ((DataModel) elt).renderTemplate(prettyPrint, indentLevel, buf);
 
                         } else {
-                            // For any other list or array element type, recursively render list/array elements
-                            recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel, buf);
+                            // For any other list or array element type, recursively render
+                            // list/array elements
+                            recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel,
+                                    buf);
 
                             if (!prettyPrint && i > 0) {
-                                // Insert a space between adjacent values stringified from a list or array to ensure they are separated.
-                                // (Hopefully this is the most useful behavior; if you need {"a", "b", "c"} -> "abc" without spaces,
-                                // you need to do the join of the parameters manually before inserting into the template.)
+                                // Insert a space between adjacent values stringified from a list or array
+                                // to ensure they are separated. (Hopefully this is the most useful
+                                // behavior; if you need {"a", "b", "c"} -> "abc" without spaces, you need
+                                // to do the join of the parameters manually before inserting into the
+                                // template.)
                                 buf.append(' ');
                             }
                         }
@@ -1291,21 +1507,24 @@ public abstract class DataModel {
             }
 
         } else if (Class.class.isAssignableFrom(type)) {
-            // Special case: if a field type is a Class<? extends RestHandler>, then insert the URL of the RestHandler's route as a string,
-            // so that routes can be inserted into href attributes
+            // Special case: if a field type is a Class<? extends RestHandler>, then insert the URL of the
+            // RestHandler's route as a string, so that routes can be inserted into href attributes
             Class<?> concreteClass = (Class<?>) fieldValue;
             if (concreteClass != null) {
                 if (RestHandler.class.isAssignableFrom(concreteClass)) {
-                    // Put URI for RestHandler into buf -- this is not escaped, since the RestHandler URIs should all be valid without escaping
-                    // (they are either safely derived from the class name, or from the RouteOverride annotation, which is checked for validity)
+                    // Put URI for RestHandler into buf -- this is not escaped, since the RestHandler URIs
+                    // should all be valid without escaping (they are either safely derived from the class
+                    // name, or from the RouteOverride annotation, which is checked for validity)
                     @SuppressWarnings("unchecked")
                     Class<? extends RestHandler> restHandler = (Class<? extends RestHandler>) concreteClass;
-                    String uriForClass = GribbitServer.siteResources.routeForHandler(restHandler).getRoutePath();
+                    String uriForClass =
+                            GribbitServer.siteResources.routeForHandler(restHandler).getRoutePath();
                     buf.append(uriForClass);
 
                 } else {
                     // Due to type erasure, can't check until runtime if the right class type is passed in.
-                    throw new RuntimeException("Got template parameter of type Class<" + concreteClass.getName() + ">, but should be of type Class<? extends "
+                    throw new RuntimeException("Got template parameter of type Class<"
+                            + concreteClass.getName() + ">, but should be of type Class<? extends "
                             + RestHandler.class.getName() + ">");
                 }
             }
@@ -1320,9 +1539,11 @@ public abstract class DataModel {
     }
 
     /**
-     * Substitute params from this DataModel object into the text, performing proper HTML escaping as needed.
+     * Substitute params from this DataModel object into the text, performing proper HTML escaping as
+     * needed.
      */
-    private void substituteTemplateParamsAndEscapeText(String tagName, String attrName, String textWithParams, boolean prettyPrint, int indentLevel, StringBuilder buf) {
+    private void substituteTemplateParamsAndEscapeText(String tagName, String attrName,
+            String textWithParams, boolean prettyPrint, int indentLevel, StringBuilder buf) {
         boolean isAttrVal = attrName != null;
 
         Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(textWithParams);
@@ -1331,19 +1552,23 @@ public abstract class DataModel {
         while (matcher.find()) {
             // Append content before the match to the buffer
             CharSequence beforeMatch = textWithParams.subSequence(prevMatchIdx, matcher.start());
-            buf.append(isAttrVal ? WebUtils.encodeForHTMLAttribute(beforeMatch) : WebUtils.encodeForHTML(beforeMatch));
+            buf.append(isAttrVal ? WebUtils.encodeForHTMLAttribute(beforeMatch) : WebUtils
+                    .encodeForHTML(beforeMatch));
             prevMatchIdx = matcher.end();
 
-            // Render the content of the Template field with the same name as the HTML parameter into String format, then
-            // HTML-escape it unless it's already HTML (i.e. unless the parameter is a Template field inside a Template
-            // object). Null field values are ignored, i.e. they result in a parameter substitution of "".  
+            // Render the content of the Template field with the same name as the HTML parameter into
+            // String format, then HTML-escape it unless it's already HTML (i.e. unless the parameter
+            // is a Template field inside a Template object). Null field values are ignored, i.e. they
+            // result in a parameter substitution of "".  
             String paramName = matcher.group(1);
             Object fieldVal = null;
             try {
                 Field field = this.getClass().getField(paramName);
 
-                // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields cannot be sent to the user
-                if (!fieldIsPrivate(this.getClass(), field) && field.getAnnotation(OnlyReceive.class) == null) {
+                // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields
+                // cannot be sent to the user
+                if (!fieldIsPrivate(this.getClass(), field)
+                        && field.getAnnotation(OnlyReceive.class) == null) {
 
                     // Turn primitive types into strings, they have their own getter methods
                     Class<?> fieldType = field.getType();
@@ -1370,7 +1595,8 @@ public abstract class DataModel {
                     }
                 }
             } catch (NoSuchFieldException | SecurityException | IllegalAccessException e1) {
-                // Should not happen, NoSuchFieldException and SecurityException were checked for when templates were loaded 
+                // Should not happen, NoSuchFieldException and SecurityException were checked for when
+                // templates were loaded 
                 throw new RuntimeException(e1);
             }
 
@@ -1382,40 +1608,53 @@ public abstract class DataModel {
         }
         // Append last unmatched text
         CharSequence afterLastMatch = textWithParams.subSequence(prevMatchIdx, textWithParams.length());
-        buf.append(isAttrVal ? WebUtils.encodeForHTMLAttribute(afterLastMatch) : WebUtils.encodeForHTML(afterLastMatch));
+        buf.append(isAttrVal ? WebUtils.encodeForHTMLAttribute(afterLastMatch) : WebUtils
+                .encodeForHTML(afterLastMatch));
 
-        // Check validity of entirety of text value (template text with substituted param values) for URL attributes
+        // Check validity of entirety of text value (template text with substituted param values)
+        // for URL attributes
         CharSequence escapedTextWithSubstitutedParams = buf.subSequence(bufLenOnEntry, buf.length());
         if (escapedTextWithSubstitutedParams.length() > 0) {
             if (isAttrVal && WebUtils.isURLAttr(tagName, attrName)) {
-                // This is a URI attribute -- check URL contains only valid characters (URIs must already be escaped)
+                // This is a URI attribute -- check URL contains only valid characters
+                // (URIs must already be escaped)
                 String uriStr = escapedTextWithSubstitutedParams.toString();
 
-                // OWASP Rule #5: URL Escape Before Inserting Untrusted Data into HTML URL Parameter Values.
-                // https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#RULE_.235_-_URL_Escape_Before_Inserting_Untrusted_Data_into_HTML_URL_Parameter_Values
-                // We leave it up to the user to escape their URIs. StringUtils.encodeURI() can be used for this purpose.
-                // Instead, we run the URI through the Java URI parser class to validate the URI.
+                // OWASP Rule #5:
+                //     URL Escape Before Inserting Untrusted Data into HTML URL Parameter Values.
+                //     See: http://goo.gl/PTX0ul
+                //
+                // We leave it up to the user to escape their URIs, so that we avoid double-escaping.
+                // StringUtils.encodeURI() can be used for this purpose. Instead, we run the URI through
+                // the Java URI parser class to validate the URI.
                 URI uri = WebUtils.parseURI(uriStr);
                 if (uri == null) {
-                    throw new RuntimeException("String substituted into URI attr \"" + attrName + "\" is not a valid URI: " + uriStr);
+                    throw new RuntimeException("String substituted into URI attr \"" + attrName
+                            + "\" is not a valid URI: " + uriStr);
                 }
 
                 String scheme = uri.getScheme();
                 if (scheme != null) {
                     scheme = scheme.toLowerCase();
                     // Specifically blacklist a few protocols.
-                    // OWASP Rule #5: "Including untrusted data in data: URLs should not be allowed as there is no good way to disable attacks with escaping to prevent switching out of the URL.
-                    // [...] If untrusted input is meant to be placed into href, src or other URL-based attributes, it should be validated to make sure it does not point to an unexpected protocol,
-                    // especially Javascript links."  See also: http://googleonlinesecurity.blogspot.com/2011/03/mhtml-vulnerability-under-active.html
+                    // 
+                    // OWASP Rule #5:
+                    // "Including untrusted data in data: URLs should not be allowed as there is no good way
+                    // to disable attacks with escaping to prevent switching out of the URL. [...]
+                    // If untrusted input is meant to be placed into href, src or other URL-based
+                    // attributes, it should be validated to make sure it does not point to an unexpected
+                    // protocol, especially Javascript links."
+                    // See also: http://goo.gl/UcO36V
                     if (scheme.equals("javascript") || scheme.equals("data") || scheme.equals("mhtml")) {
                         throw new RuntimeException("URI " + uriStr + " uses an unsafe protocol");
                     }
 
                     if (scheme.equals("mailto") || scheme.equals("tel")) {
-                        // See http://owasp-java-html-sanitizer.googlecode.com/svn/trunk/distrib/javadoc/org/owasp/html/Sanitizers.html
-                        // (suggested in OWASP Rule #6)
+                        // OWASP Rule #6:
+                        //     See http://goo.gl/cqealh
                         if (!(tagName.equals("a") && isAttrVal && attrName.equals("href"))) {
-                            throw new RuntimeException("URL " + uriStr + " should be used in an a.href attribute");
+                            throw new RuntimeException("URL " + uriStr
+                                    + " should be used in an a.href attribute");
                         }
                     } else if (!(scheme.equals("http") || scheme.equals("https"))) {
                         // If it's not http: or https:, it's probably unsafe
@@ -1423,25 +1662,48 @@ public abstract class DataModel {
                     }
                 }
 
-                // Log.warning("Using parameter in URI attribute \"" + attrName + "\" is unsafe due to the possibility for SVG script injection: https://www.owasp.org/images/0/03/Mario_Heiderich_OWASP_Sweden_The_image_that_called_me.pdf");
+                // SVG script injection attacks: See http://goo.gl/cx16TR
+                //
+                // Allowing URIs that serve SVG content to be substituted into a URI attribute of
+                // a template could be an attack vector. However, there is  no way to know for sure
+                // what content type is being served by a URI without the server fetching content from
+                // the URI itself, which is prohibitive (and then there would still be no guarantee 
+                // that the user wouldn't be served different content than the web server sees).
+                // We could impose the same-origin policy for SVG, but then we couldn't supply custom
+                // URI parameters for images and link hrefs. We will rely on the expectation that
+                // browsers are not supposed to run JS code for SVG files that are linked to in the
+                // src attribute of an image tag, SVG is (hopefully) only unsafe when linked from an
+                // <object> element or similar context where JS is allowed to run. (We don't allow
+                // template parameters inside an object or applet element, so we should be safe.)
 
-            } else if (isAttrVal && (attrName.equals("id") || attrName.equals("name") || attrName.equals("class"))) {
-                // OWASP Rule #1 under XSS Prevention Rules Summary: "Strictly validate unsafe attributes such as background, id and name."
-                // See also http://stackoverflow.com/questions/70579/what-are-valid-values-for-the-id-attribute-in-html -- we disallow '.' and ':' because they cause problems with jQuery.
+                // Log.warning("Using parameter in URI attribute \"" + attrName + 
+                // "\" is unsafe due to the possibility for SVG script injection: http://goo.gl/cx16TR");
 
-                if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID : WebUtils.VALID_HTML_NAME_OR_ID).matcher(escapedTextWithSubstitutedParams).matches()) {
-                    throw new RuntimeException("Bad characters in attribute value: " + attrName + "=\"" + escapedTextWithSubstitutedParams + "\"");
+            } else if (isAttrVal
+                    && (attrName.equals("id") || attrName.equals("name") || attrName.equals("class"))) {
+                // OWASP Rule #1:
+                //     Strictly validate unsafe attributes such as background, id and name.
+                // See also http://goo.gl/fKZhFA -- we disallow '.' and ':' because they can cause
+                // problems with jQuery.
+
+                if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID : WebUtils.VALID_HTML_NAME_OR_ID)
+                        .matcher(escapedTextWithSubstitutedParams).matches()) {
+                    throw new RuntimeException("Bad characters in attribute value: " + attrName + "=\""
+                            + escapedTextWithSubstitutedParams + "\"");
                 }
                 if (StringUtils.containsUppercaseChar(escapedTextWithSubstitutedParams)) {
-                    throw new RuntimeException("There are uppercase characters in attribute " + attrName + "=\"" + escapedTextWithSubstitutedParams
-                            + "\", but browsers implement case sensitivity differently. Identifiers should all be lowercase.");
+                    throw new RuntimeException("There are uppercase characters in attribute " + attrName
+                            + "=\"" + escapedTextWithSubstitutedParams
+                            + "\", but browsers implement case sensitivity differently. "
+                            + "Identifiers should all be lowercase.");
                 }
             }
         }
     }
 
     /** Append an attribute name and escaped value to the inside of a tag. */
-    private void renderAttrKeyValue(String tagName, String attrName, String attrVal, boolean prettyPrint, int indentLevel, StringBuilder buf) {
+    private void renderAttrKeyValue(String tagName, String attrName, String attrVal, boolean prettyPrint,
+            int indentLevel, StringBuilder buf) {
         buf.append(' ');
         buf.append(attrName);
         if (!attrVal.isEmpty()) {
@@ -1454,13 +1716,15 @@ public abstract class DataModel {
     /**
      * Append a string representation of the attributes of an element to the buffer.
      * 
-     * Sets initial values of inputs in a form to the corresponding values in the passed DataModel, if the DataModel and its field with the same name as the "name" attribute of a
-     * form input are both non-null.
+     * Sets initial values of inputs in a form to the corresponding values in the passed DataModel, if the
+     * DataModel and its field with the same name as the "name" attribute of a form input are both non-null.
      */
-    private void renderAttrs(Element e, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, int indentLevel, StringBuilder buf) {
+    private void renderAttrs(Element e, Element enclosingForm, DataModel formModel, String selectName,
+            boolean prettyPrint, int indentLevel, StringBuilder buf) {
 
-        // Replace the attribute values in the template with overridden values if this is an 'input' or 'option' element in a form,
-        // and if a non-null formModel has been provided to pre-populate these values
+        // Replace the attribute values in the template with overridden values if this is an 'input'
+        // or 'option' element in a form, and if a non-null formModel has been provided to pre-populate
+        // these values.
         HashMap<String, String> replaceAttrVal = null;
         ArrayList<String> removeAttrName = null;
         String tagName = e.tagName();
@@ -1476,11 +1740,15 @@ public abstract class DataModel {
             if (name != null && !name.isEmpty()) {
                 try {
                     formModelField = formModel.getClass().getField(name);
-                    // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields cannot be sent to the user
-                    if (!fieldIsPrivate(formModel.getClass(), formModelField) && formModelField.getAnnotation(OnlyReceive.class) == null) {
+                    // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields
+                    // cannot be sent to the user
+                    if (!fieldIsPrivate(formModel.getClass(), formModelField)
+                            && formModelField.getAnnotation(OnlyReceive.class) == null) {
                         Object formModelFieldValue = formModelField.get(formModel);
                         if (formModelFieldValue != null) {
-                            // The DataModel associated with this form is non-null, and the field in the data model with the same name as this input is non-null
+                            // The DataModel associated with this form is non-null, and the field in the
+                            // data model with the same name as this input is non-null.
+
                             // HTML-escape the field
                             String type = e.attr("type");
                             if (type.isEmpty() && tagName.equals("option")) {
@@ -1531,7 +1799,8 @@ public abstract class DataModel {
                                 break;
 
                             case "password":
-                                // Intentionally ignore this -- should not fill in password field from a DataModel object
+                                // Intentionally ignore this -- should not fill in password field
+                                // from a DataModel object
                                 break;
 
                             case "date":
@@ -1554,7 +1823,8 @@ public abstract class DataModel {
                             case "button":
                             case "image":
                             case "file":
-                                // Should not have a field named "submit" (or any of these others) in a DataModel -- ignore
+                                // Should not have a field named "submit" (or any of these others)
+                                // in a DataModel -- ignore
                                 break;
 
                             default:
@@ -1562,13 +1832,14 @@ public abstract class DataModel {
                         }
                     }
                 } catch (Exception e1) {
-                    // If there are inputs that can't be populated from named fields, don't try to set their default value
+                    // If there are inputs that can't be populated from named fields,
+                    // don't try to set their default value
                 }
             }
         }
 
-        // For elements that are not input elements in a form backed by a DataModel, just append the attributes and values.
-        // For input elements, substitute any values replaced above.
+        // For elements that are not input elements in a form backed by a DataModel, just append
+        // the attributes and values. For input elements, substitute any values replaced above.
         for (Attribute attr : e.attributes()) {
             String attrName = attr.getKey();
             String attrVal = attr.getValue();
@@ -1584,7 +1855,8 @@ public abstract class DataModel {
             }
         }
 
-        // Append any attrs that were added for input forms that didn't replace a value already in the input element
+        // Append any attrs that were added for input forms that didn't replace a value already
+        // in the input element
         if (replaceAttrVal != null) {
             for (Entry<String, String> ent : replaceAttrVal.entrySet()) {
                 renderAttrKeyValue(tagName, ent.getKey(), ent.getValue(), prettyPrint, indentLevel, buf);
@@ -1593,11 +1865,12 @@ public abstract class DataModel {
     }
 
     /**
-     * Recursively traverse the DOM of a template, rendering each node into HTML. Returns true if the node was indented (which happens when prettyPrint == true and the node or one
-     * of its children is a block element).
+     * Recursively traverse the DOM of a template, rendering each node into HTML. Returns true if the node
+     * was indented (which happens when prettyPrint == true and the node or one of its children is a block
+     * element).
      */
-    private boolean renderDOMNode(Node node, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel,
-            StringBuilder buf) {
+    private boolean renderDOMNode(Node node, Element enclosingForm, DataModel formModel, String selectName,
+            boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel, StringBuilder buf) {
         boolean nodeWasIndented = false;
 
         if (node instanceof Element) {
@@ -1605,7 +1878,8 @@ public abstract class DataModel {
             String tagName = e.tagName();
 
             if (tagName.equals("form")) {
-                // For form elements, match form id against field names of this DataModel to see if there's a match
+                // For form elements, match form id against field names of this DataModel to see if
+                // there's a match
                 String formId = e.attr("id");
                 if (!formId.isEmpty()) {
                     try {
@@ -1617,7 +1891,8 @@ public abstract class DataModel {
                         formModel = thisFormModel;
 
                     } catch (Exception e1) {
-                        // This form doesn't match a field with the same name as the form id -- don't do any special processing of this form
+                        // This form doesn't match a field with the same name as the form id -- don't do
+                        // any special processing of this form
                     }
                 }
             } else if (tagName.equals("select")) {
@@ -1625,8 +1900,11 @@ public abstract class DataModel {
                 selectName = e.attr("name");
             }
 
-            // Only indent block elements, inline elements should not be indented because it would introduce extra whitespace, potentially in the wrong place
-            boolean isBlockElement = !WebUtils.INLINE_ELEMENTS.contains(tagName) && !GribbitServer.siteResources.getCustomInlineElements().contains(tagName);
+            // Only indent block elements, inline elements should not be indented because it would introduce
+            // extra whitespace, potentially in the wrong place
+            boolean isBlockElement =
+                    !WebUtils.INLINE_ELEMENTS.contains(tagName)
+                            && !GribbitServer.siteResources.getCustomInlineElements().contains(tagName);
 
             // Render the open tag for this element
             if (prettyPrint && isBlockElement) {
@@ -1640,7 +1918,8 @@ public abstract class DataModel {
 
             // Switch off prettyprinting and text spacing normalization inside the pre element
             if (tagName.equals("pre")) {
-                // FIXME: See http://www.impressivewebs.com/css-white-space/ too, you can also specify whitespace significance in CSS
+                // FIXME: See http://www.impressivewebs.com/css-white-space/ too, you can also specify
+                // whitespace significance in CSS
                 prettyPrint = false;
                 normalizeTextSpacing = false;
             }
@@ -1648,11 +1927,14 @@ public abstract class DataModel {
             // Don't render contents or close tag for void elements
             if (!WebUtils.VOID_ELEMENTS.contains(tagName)) {
                 // Recursively render child nodes of this element
-                boolean hasIndentedChild = renderChildrenOfElement(e, enclosingForm, formModel, selectName, prettyPrint, normalizeTextSpacing, indentLevel, buf);
+                boolean hasIndentedChild =
+                        renderChildrenOfElement(e, enclosingForm, formModel, selectName, prettyPrint,
+                                normalizeTextSpacing, indentLevel, buf);
                 nodeWasIndented |= hasIndentedChild;
 
                 // Indent close tag on its own separate line if anything after start tag was prettyprinted,
-                // otherwise render close tag on same line since content was all inline (or there were no child nodes) 
+                // otherwise render close tag on same line since content was all inline (or there were no 
+                // child nodes) 
                 if (prettyPrint && hasIndentedChild) {
                     StringUtils.indent(indentLevel, buf);
                 }
@@ -1666,15 +1948,18 @@ public abstract class DataModel {
 
             String nodeText = ((TextNode) node).getWholeText();
             if (normalizeTextSpacing) {
-                // We never indent text nodes (they are inline), but unless we're in a <pre> element, if prettyprinting is turned on, we at least normalize the spacing
+                // We never indent text nodes (they are inline), but unless we're in a <pre> element, if
+                // prettyprinting is turned on, we at least normalize the spacing
                 nodeText = StringUtils.normalizeSpacing(nodeText);
             }
-            // OWASP Rule #1: HTML Escape Before Inserting Untrusted Data into HTML Element Content
+            // OWASP Rule #1:
+            //     HTML Escape Before Inserting Untrusted Data into HTML Element Content.
             substituteTemplateParamsAndEscapeText(null, null, nodeText, prettyPrint, indentLevel, buf);
 
         } else if (node instanceof DataNode) {
 
-            // FIXME: Probably need to properly escape DataNode contents (differently for each of style and script elements?)
+            // FIXME: Probably need to properly escape DataNode contents (differently for each of style 
+            // and script elements?)
             DataNode dataNode = (DataNode) node;
             String data = dataNode.getWholeData();
 
@@ -1708,20 +1993,28 @@ public abstract class DataModel {
         return nodeWasIndented;
     }
 
-    /** Recursively render the children of a DOM node into HTML. Returns true if a child of this node was indented on its own line. */
-    private boolean renderChildrenOfElement(Element e, Element enclosingForm, DataModel formModel, String selectName, boolean prettyPrint, boolean normalizeTextSpacing,
-            int indentLevel, StringBuilder buf) {
+    /**
+     * Recursively render the children of a DOM node into HTML. Returns true if a child of this node was
+     * indented on its own line.
+     */
+    private boolean renderChildrenOfElement(Element e, Element enclosingForm, DataModel formModel,
+            String selectName, boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel,
+            StringBuilder buf) {
         boolean childWasIndented = false;
         for (Node child : e.childNodes()) {
             // Recursively render each child node
-            childWasIndented |= renderDOMNode(child, enclosingForm, formModel, selectName, prettyPrint, normalizeTextSpacing, indentLevel + 1, buf);
+            childWasIndented |=
+                    renderDOMNode(child, enclosingForm, formModel, selectName, prettyPrint,
+                            normalizeTextSpacing, indentLevel + 1, buf);
         }
         return childWasIndented;
     }
 
-    // ------------------------------------------------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------
 
-    /** Get the template document associated with this DataModel, or null if there is no associated template */
+    /**
+     * Get the template document associated with this DataModel, or null if there is no associated template.
+     */
     private Document getAssociatedTemplateDoc() {
         return GribbitServer.siteResources.getTemplateDocForClass(this.getClass());
     }
@@ -1736,14 +2029,16 @@ public abstract class DataModel {
     public void renderTemplate(boolean prettyPrint, int indentLevel, StringBuilder buf) {
         Document doc = getAssociatedTemplateDoc();
         if (doc == null) {
-            throw new RuntimeException("Could not find an HTML template named \"" + this.getClass().getSimpleName() + "\" to render model " + this.getClass().getName());
+            throw new RuntimeException("Could not find an HTML template named \""
+                    + this.getClass().getSimpleName() + "\" to render model " + this.getClass().getName());
         }
         renderTemplate(doc, prettyPrint, indentLevel, buf);
     }
 
     /**
-     * Render a DataModel object by rendering the associated template, substituting the values in the DataModel, if there is an associated template, otherwise rendering as a JSON
-     * string. This is marked as final so that subclasses can't generate unsafe HTML by overriding this method.
+     * Render a DataModel object by rendering the associated template, substituting the values in the
+     * DataModel, if there is an associated template, otherwise rendering as a JSON string. This is marked
+     * as final so that subclasses can't generate unsafe HTML by overriding this method.
      */
     @Override
     public final String toString() {

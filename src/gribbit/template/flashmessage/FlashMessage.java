@@ -38,7 +38,7 @@ public class FlashMessage extends DataModel {
         this.strongText = strongText;
         this.message = message;
     }
-    
+
     public FlashMessage(String stringEncoding) {
         // Separate out flash message into FlashType and message text parts
         String flashType = "INFO";
@@ -67,4 +67,10 @@ public class FlashMessage extends DataModel {
             break;
         }
     }
+
+    public static final String _template = //
+            "<div class='alert ${cssClass}'>" //
+                    + "<a class='close' data-dismiss='alert'>&times;</a>" //  
+                    + "<strong>${strongText}</strong> ${message}" //
+                    + "</div>";
 }

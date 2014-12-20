@@ -25,24 +25,33 @@
  */
 package gribbit.auth;
 
+import gribbit.thirdparty.UTF8;
 import gribbit.util.RandomTokenGenerator;
-import gribbit.util.UTF8;
 
 /**
  * CSRF token generation support.
  */
 public class CSRF {
 
-    /** Special CSRF token POST parameter -- used for the name of the form field that is automatically inserted before a form is submitted. */
+    /**
+     * Special CSRF token POST parameter -- used for the name of the form field that is automatically
+     * inserted before a form is submitted.
+     */
     public static final String CSRF_PARAM_NAME = "csrf";
 
-    /** Placeholder token used to hold a fixed number of characters in the csrf hidden input in forms on an HTML page. */
+    /**
+     * Placeholder token used to hold a fixed number of characters in the csrf hidden input in forms on an
+     * HTML page.
+     */
     public static final String CSRF_TOKEN_PLACEHOLDER = generateRandomCSRFToken();
 
     /** Placeholder for CSRF token, in bytes. */
     public static final byte[] CSRF_TOKEN_PLACEHOLDER_BYTES = UTF8.stringToUTF8(CSRF_TOKEN_PLACEHOLDER);
 
-    /** Placeholder used for substitution into forms when the user is not logged in (because if the user is not logged in, the appropriate CSRF token for the user is not known). */
+    /**
+     * Placeholder used for substitution into forms when the user is not logged in (because if the user is
+     * not logged in, the appropriate CSRF token for the user is not known).
+     */
     public static final String CSRF_TOKEN_UNKNOWN;
     static {
         StringBuilder buf = new StringBuilder(CSRF_TOKEN_PLACEHOLDER.length());
