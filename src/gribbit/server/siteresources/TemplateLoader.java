@@ -66,8 +66,7 @@ public class TemplateLoader {
     private static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
 
     /** Pattern for template parameters, of the form "${name}" */
-    public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern
-            .compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
+    public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern.compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -93,8 +92,8 @@ public class TemplateLoader {
     }
 
     /**
-     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block
-     * elements (for prettyprinting)
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for
+     * prettyprinting)
      */
     HashSet<String> getCustomInlineElements() {
         return vulcanizer.customInlineElements;
@@ -106,9 +105,9 @@ public class TemplateLoader {
     }
 
     /**
-     * Get the names of all the static fields containing inline templates that were discovered during
-     * classpath scanning, so that when there are changes on the classpath, we can dynamically reload the
-     * constant values in these static fields.
+     * Get the names of all the static fields containing inline templates that were discovered during classpath
+     * scanning, so that when there are changes on the classpath, we can dynamically reload the constant values in these
+     * static fields.
      */
     public HashSet<String> getInlineTemplateStaticFieldNames() {
         return inlineTemplateStaticFieldNames;
@@ -145,16 +144,14 @@ public class TemplateLoader {
                     if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers)
                             && templateField.getType().equals(String.class)) {
                         // Got an inline template in the static field named "_template" of a DataModel class
-                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "."
-                                + templateField.getName());
+                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "." + templateField.getName());
                         String templateStr = (String) templateField.get(null);
                         classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
                     }
                 }
             } catch (NoSuchFieldException e) {
                 // Ignore
-            } catch (SecurityException | IllegalAccessException | IllegalArgumentException
-                    | NullPointerException e) {
+            } catch (SecurityException | IllegalAccessException | IllegalArgumentException | NullPointerException e) {
                 Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class "
                         + dataModelClass + ": " + e);
             }
@@ -166,17 +163,13 @@ public class TemplateLoader {
         try {
             if (absolutePath.endsWith("/head-content.html")) {
                 // Load header HTML content from the classpath, and run it through Jsoup to clean it
-                headContent
-                        .addAll(StringUtils.splitAsListOfString(
-                                Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body()
-                                        .html(), "\n"));
+                headContent.addAll(StringUtils.splitAsListOfString(
+                        Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body().html(), "\n"));
 
             } else if (absolutePath.endsWith("/tail-content.html")) {
                 // Load footer HTML content from the classpath, and run it through Jsoup to clean it
-                tailContent
-                        .addAll(StringUtils.splitAsListOfString(
-                                Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body()
-                                        .html(), "\n"));
+                tailContent.addAll(StringUtils.splitAsListOfString(
+                        Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body().html(), "\n"));
 
             } else {
                 // Load HTML/CSS/JS resource from the classpath
@@ -189,9 +182,8 @@ public class TemplateLoader {
     }
 
     /**
-     * Found a static initializer value in a classfile on a second or subsequent loading of site resources.
-     * Use this value instead of the one read using reflection, so that hot changes of static constant
-     * values is supported.
+     * Found a static initializer value in a classfile on a second or subsequent loading of site resources. Use this
+     * value instead of the one read using reflection, so that hot changes of static constant values is supported.
      */
     public void gotTemplateStaticFieldValue(String className, String templateString) {
         classNameToInlineTemplateOverride.put(className, templateString);

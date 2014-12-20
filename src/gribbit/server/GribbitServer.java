@@ -76,8 +76,8 @@ public class GribbitServer {
     public static LoginWhitelistChecker loginWhitelistChecker = null;
 
     /**
-     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise,
-     * they are able to log in if they can be authorized with OAuth2 or any other enabled login method.
+     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise, they are able
+     * to log in if they can be authorized with OAuth2 or any other enabled login method.
      */
     public static void setLoginWhitelistChecker(LoginWhitelistChecker checker) {
         loginWhitelistChecker = checker;
@@ -110,9 +110,7 @@ public class GribbitServer {
             // Failed to load site resources
             if (GribbitServer.siteResources == null) {
                 // This is the first time site resources have tried to load, can't start up web server
-                Log.exception(
-                        "Exception during initial attempt to load site resources -- cannot start web server",
-                        e);
+                Log.exception("Exception during initial attempt to load site resources -- cannot start web server", e);
                 Log.error("EXITING");
                 System.exit(1);
             } else {
@@ -127,23 +125,22 @@ public class GribbitServer {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web
-     * server after all routes and handlers have been added.
+     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
+     * after all routes and handlers have been added.
      */
     public static void config(String appPackageName, String staticResourceRoot) {
         config("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
     }
 
     /**
-     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web
-     * server after all routes and handlers have been added.
+     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
+     * after all routes and handlers have been added.
      */
     public static void config(String domain, int port, String appPackageName, String staticResourceRoot) {
         GribbitServer.domain = domain;
 
         if (!portAvailable(port)) {
-            System.err.println("Port " + port
-                    + " is not available -- is server already running?\n\nExiting.");
+            System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
             System.exit(1);
         }
         GribbitServer.port = port;
@@ -179,8 +176,7 @@ public class GribbitServer {
                             loadSiteResources(appPackageName, staticResourceRoot);
                         }
                         GribbitServer.scheduledTaskGroup.schedule(this,
-                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS,
-                                TimeUnit.SECONDS);
+                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
                     }
                 };
                 GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector,

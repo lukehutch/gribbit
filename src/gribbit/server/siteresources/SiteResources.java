@@ -94,8 +94,8 @@ public class SiteResources {
     }
 
     /**
-     * Get the HTML template document for a given template class, or return null if there isn't a template
-     * with the given name.
+     * Get the HTML template document for a given template class, or return null if there isn't a template with the
+     * given name.
      */
     public Document getTemplateDocForClass(Class<? extends DataModel> templateClass) {
         return templateLoader.getTemplateDocument(templateClass);
@@ -114,8 +114,8 @@ public class SiteResources {
     }
 
     /**
-     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block
-     * elements (for prettyprinting)
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for
+     * prettyprinting)
      */
     public HashSet<String> getCustomInlineElements() {
         return templateLoader.getCustomInlineElements();
@@ -211,17 +211,16 @@ public class SiteResources {
                 if (resourceDir.exists()) {
                     if (staticResourceRootDir != null) {
                         throw new RuntimeException("Found two matches for static resource root \""
-                                + staticResourceRootPath + "\" on classpath: "
-                                + staticResourceRootDir.getPath() + " , " + resourceDir.getPath());
+                                + staticResourceRootPath + "\" on classpath: " + staticResourceRootDir.getPath()
+                                + " , " + resourceDir.getPath());
                     }
                     staticResourceRootDir = resourceDir;
                 }
                 File polymerDir = new File(pathElement.getPath() + File.separator + polymerModulePath);
                 if (polymerDir.exists()) {
                     if (polymerModuleRootDir != null) {
-                        throw new RuntimeException("Found two matches for Polymer module root \""
-                                + polymerModulePath + "\" on classpath: " + polymerModuleRootDir.getPath()
-                                + " , " + polymerDir.getPath());
+                        throw new RuntimeException("Found two matches for Polymer module root \"" + polymerModulePath
+                                + "\" on classpath: " + polymerModuleRootDir.getPath() + " , " + polymerDir.getPath());
                     }
                     polymerModuleRootDir = polymerDir;
                 }
@@ -248,10 +247,8 @@ public class SiteResources {
                         "org/polymerproject" })
                         .matchSubclassesOf(RestHandler.class,
                                 matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
-                        .matchSubclassesOf(DataModel.class,
-                                templateClass -> templateLoader.gotDataModel(templateClass)) //
-                        .matchSubclassesOf(DBModel.class,
-                                matchingClass -> db.registerDBModel(matchingClass))
+                        .matchSubclassesOf(DataModel.class, templateClass -> templateLoader.gotDataModel(templateClass)) //
+                        .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass))
                         //
                         .matchFilenamePattern(
                                 ".*\\.(html|js|css)",
@@ -267,9 +264,9 @@ public class SiteResources {
                 GribbitServer.siteResources == null ? null : GribbitServer.siteResources.templateLoader
                         .getInlineTemplateStaticFieldNames();
         if (staticFieldNames != null) {
-            classpathScanner.matchStaticFinalFieldNames(staticFieldNames, (String className,
-                    String fieldName, Object fieldConstantValue) -> templateLoader
-                    .gotTemplateStaticFieldValue(className, (String) fieldConstantValue));
+            classpathScanner.matchStaticFinalFieldNames(staticFieldNames, (String className, String fieldName,
+                    Object fieldConstantValue) -> templateLoader.gotTemplateStaticFieldValue(className,
+                    (String) fieldConstantValue));
         }
 
         // Scan classpath for handlers, models and templates
@@ -288,8 +285,8 @@ public class SiteResources {
             try {
                 Reflection.instantiateWithDefaultConstructor(classThatNeedsZeroArgConstructor);
             } catch (Exception e) {
-                throw new RuntimeException("Could not instantiate " + DataModel.class.getSimpleName()
-                        + " subclass " + classThatNeedsZeroArgConstructor.getName()
+                throw new RuntimeException("Could not instantiate " + DataModel.class.getSimpleName() + " subclass "
+                        + classThatNeedsZeroArgConstructor.getName()
                         + " -- it needs to have a default (zero-argument) constructor if there "
                         + "is any other non-default constructor defined, and the class must be "
                         + "static if it is an inner class");
@@ -300,8 +297,7 @@ public class SiteResources {
     }
 
     /**
-     * Return true if a file or directory on the classpath has been modified since the classpath scanner was
-     * run.
+     * Return true if a file or directory on the classpath has been modified since the classpath scanner was run.
      */
     public boolean classpathContentsModifiedSinceScan() {
         return classpathScanner.classpathContentsModifiedSinceScan();

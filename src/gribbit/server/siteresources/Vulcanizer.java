@@ -58,8 +58,8 @@ import org.jsoup.select.Elements;
  * 
  * (This is basically a re-implementation of https://github.com/Polymer/vulcanize/ )
  * 
- * Concatenates a set of Web resources into two files: one HTML file and one JS file. (The JS file is
- * separate for CSP compliance.)
+ * Concatenates a set of Web resources into two files: one HTML file and one JS file. (The JS file is separate for CSP
+ * compliance.)
  */
 public class Vulcanizer {
 
@@ -81,13 +81,11 @@ public class Vulcanizer {
     // Polymer('y',{x}) -> "Polymer('y',{", "'y'", "{"
     // Polymer('y') -> "Polymer('y')", "'y'", ")"
     // See also https://github.com/Polymer/vulcanize/blob/master/lib/vulcan.js
-    private static final Pattern POLYMER_INVOCATION = Pattern
-            .compile("Polymer\\(([^,{]+)?(?:,\\s*)?(\\{|\\))");
+    private static final Pattern POLYMER_INVOCATION = Pattern.compile("Polymer\\(([^,{]+)?(?:,\\s*)?(\\{|\\))");
     private static final Pattern CSS_URL = Pattern.compile("url\\(([^)]*)\\)");
     private static final Pattern CSS_IMPORT = Pattern.compile("@import\\s*url\\(([^)]*)\\)[;]?");
 
-    private static final Pattern SOURCE_MAPPING_URL_COMMENT = Pattern
-            .compile("//#[\\s]*sourceMappingURL=[^\\n]*");
+    private static final Pattern SOURCE_MAPPING_URL_COMMENT = Pattern.compile("//#[\\s]*sourceMappingURL=[^\\n]*");
 
     private HashSet<String> polymerTagnames = new HashSet<>();
 
@@ -126,12 +124,10 @@ public class Vulcanizer {
         // a Polymer param (i.e. starts with "{{")
         if (hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#")
                 && !WebUtils.EXTERNAL_URI.matcher(hrefURI).matches()
-                && !TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(hrefURI).find()
-                && !hrefURI.startsWith("{{")) {
+                && !TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(hrefURI).find() && !hrefURI.startsWith("{{")) {
             // Build new path for the linked resource
             StringBuilder hrefURIResolved =
-                    new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/"
-                            : baseURI);
+                    new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/" : baseURI);
             for (CharSequence part : StringUtils.splitAsList(hrefURI, "/")) {
                 if (part.length() == 0 || part.equals(".")) {
                     // Ignore
@@ -140,8 +136,7 @@ public class Vulcanizer {
                     int lastIdx = hrefURIResolved.lastIndexOf("/");
                     hrefURIResolved.setLength(lastIdx < 0 ? 0 : lastIdx);
                 } else {
-                    if (hrefURIResolved.length() > 0
-                            && hrefURIResolved.charAt(hrefURIResolved.length() - 1) != '/') {
+                    if (hrefURIResolved.length() > 0 && hrefURIResolved.charAt(hrefURIResolved.length() - 1) != '/') {
                         hrefURIResolved.append('/');
                     }
                     hrefURIResolved.append(part);
@@ -259,8 +254,7 @@ public class Vulcanizer {
             // Get script element's src attribute and/or content 
             DataNode scriptContentNode = e.childNodeSize() > 0 ? (DataNode) e.childNode(0) : null;
             String scriptContent = scriptContentNode == null ? null : scriptContentNode.getWholeData();
-            String scriptContentTrimmed =
-                    scriptContent == null ? null : StringUtils.unicodeTrim(scriptContent);
+            String scriptContentTrimmed = scriptContent == null ? null : StringUtils.unicodeTrim(scriptContent);
             if (scriptContentTrimmed != null && scriptContentTrimmed.isEmpty()) {
                 scriptContent = scriptContentTrimmed = null;
             }
@@ -384,11 +378,11 @@ public class Vulcanizer {
                 }
                 polymerElementName = polymerElementName.toLowerCase();
                 if (polymerElementName.indexOf('-') < 0) {
-                    throw new RuntimeException("The Polymer tag name \"" + polymerElementName
-                            + "\" in template " + id + " does not include a hyphen character");
+                    throw new RuntimeException("The Polymer tag name \"" + polymerElementName + "\" in template " + id
+                            + " does not include a hyphen character");
                 } else if (!WebUtils.VALID_HTML_NAME_OR_ID.matcher(polymerElementName).matches()) {
-                    throw new RuntimeException("Polymer element name \"" + polymerElementName
-                            + "\" in template " + id + " is invalid");
+                    throw new RuntimeException("Polymer element name \"" + polymerElementName + "\" in template " + id
+                            + " is invalid");
                 }
                 if (!polymerTagnames.add(polymerElementName)) {
                     throw new RuntimeException("Multiple Polymer elements define the same tag name \""
@@ -451,8 +445,7 @@ public class Vulcanizer {
                 n.remove();
                 templateDoc.body().appendChild(n);
 
-                if (!(n instanceof TextNode)
-                        || StringUtils.unicodeTrimCharSequence(((TextNode) n).text()).length() > 0) {
+                if (!(n instanceof TextNode) || StringUtils.unicodeTrimCharSequence(((TextNode) n).text()).length() > 0) {
                     templateHasOnlyEmptyNodes = false;
                 }
             }
@@ -464,8 +457,7 @@ public class Vulcanizer {
                 // We only match template names and DataModel names on the leafname currently, so html
                 // files in classpath have to have unique names
                 String leaf = StringUtils.leafName(baseURI);
-                throw new RuntimeException("Two HTML template files found in classpath with same name \""
-                        + leaf + "\"");
+                throw new RuntimeException("Two HTML template files found in classpath with same name \"" + leaf + "\"");
             }
         }
     }
@@ -532,12 +524,10 @@ public class Vulcanizer {
 
     // -----------------------------------------------------------------------------------------------------
 
-    private void topologicalSort(Dep currDep, LinkedList<Dep> topoOrder, HashSet<String> path,
-            HashSet<String> visited) {
+    private void topologicalSort(Dep currDep, LinkedList<Dep> topoOrder, HashSet<String> path, HashSet<String> visited) {
         if (visited.add(currDep.id)) {
             if (!path.add(currDep.id)) {
-                throw new RuntimeException("Circular dependency in HTML imports, involving the nodes: "
-                        + path);
+                throw new RuntimeException("Circular dependency in HTML imports, involving the nodes: " + path);
             }
             DepsAfter depsAfter = idToDepsAfter.get(currDep.id);
             if (depsAfter != null) {
@@ -641,8 +631,7 @@ public class Vulcanizer {
             try {
                 content = FileUtils.readFileToString(file, Charset.forName("UTF-8"));
             } catch (IOException e) {
-                throw new RuntimeException("Could not read linked web resource " + uri + ": "
-                        + e.getMessage());
+                throw new RuntimeException("Could not read linked web resource " + uri + ": " + e.getMessage());
             }
             // Enqueue the resource
             enqueue(uri, content);
@@ -736,24 +725,21 @@ public class Vulcanizer {
                     cssCombinedNoShim.append(cssDep.css);
                     cssCombinedNoShim.append('\n');
                     if (cssCombinedNoShimOrder == -1) {
-                        cssCombinedNoShimOrder =
-                                Math.max(cssCombinedOrder, cssCombinedShimShadowDomOrder) + 1;
+                        cssCombinedNoShimOrder = Math.max(cssCombinedOrder, cssCombinedShimShadowDomOrder) + 1;
                         numCSSShimTypes++;
                     }
                 } else if (shimType != null && shimType.equals("shim-shadowdom")) {
                     cssCombinedShimShadowDom.append(cssDep.css);
                     cssCombinedShimShadowDom.append('\n');
                     if (cssCombinedShimShadowDomOrder == -1) {
-                        cssCombinedShimShadowDomOrder =
-                                Math.max(cssCombinedOrder, cssCombinedNoShimOrder) + 1;
+                        cssCombinedShimShadowDomOrder = Math.max(cssCombinedOrder, cssCombinedNoShimOrder) + 1;
                         numCSSShimTypes++;
                     }
                 } else {
                     cssCombined.append(cssDep.css);
                     cssCombined.append('\n');
                     if (cssCombinedOrder == -1) {
-                        cssCombinedOrder =
-                                Math.max(cssCombinedNoShimOrder, cssCombinedShimShadowDomOrder) + 1;
+                        cssCombinedOrder = Math.max(cssCombinedNoShimOrder, cssCombinedShimShadowDomOrder) + 1;
                         numCSSShimTypes++;
                     }
                 }

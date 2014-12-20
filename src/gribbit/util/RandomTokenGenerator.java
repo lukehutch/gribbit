@@ -32,8 +32,8 @@ public class RandomTokenGenerator {
     public static Random rng = new Random();
 
     /**
-     * Generate a random token with the given number of characters after base64-encoding (using
-     * HTML/URL-safe base64 encoding).
+     * Generate a random token with the given number of characters after base64-encoding (using HTML/URL-safe base64
+     * encoding).
      */
     public static String generateRandomTokenBase64(int numChars) {
         return Base64Safe.base64Encode(generateRandomBytes(numChars)).substring(0, numChars);

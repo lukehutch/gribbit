@@ -32,11 +32,10 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 /**
  * Default handler for "bad request" HTTP errors.
  * 
- * N.B. Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed, so we need
- * to handle this route anyway. We catch that case automatically here by setting the route of this handler
- * to that URI, so that this handler is automatically called for requests that were detected as mal-formed
- * by Netty before we even see them. We can also call this handler ourselves if user-supplied data is
- * invalid.
+ * N.B. Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed, so we need to handle
+ * this route anyway. We catch that case automatically here by setting the route of this handler to that URI, so that
+ * this handler is automatically called for requests that were detected as mal-formed by Netty before we even see them.
+ * We can also call this handler ourselves if user-supplied data is invalid.
  */
 @RouteOverride("/gribbit/err/bad-request")
 public class BadRequest extends RestHandler.AuthNotRequired {

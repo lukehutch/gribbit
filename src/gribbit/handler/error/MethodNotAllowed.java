@@ -30,8 +30,8 @@ import gribbit.server.RestHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Default handler for cases where the user tries to request the GET or POST method on a route that doesn't
- * support that method.
+ * Default handler for cases where the user tries to request the GET or POST method on a route that doesn't support that
+ * method.
  */
 @RouteOverride("/gribbit/err/method-not-allowed")
 public class MethodNotAllowed extends RestHandler.AuthNotRequired {

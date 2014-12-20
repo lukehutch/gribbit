@@ -28,9 +28,8 @@ package gribbit.server;
 import gribbit.auth.User;
 
 /**
- * RestHandler: a REST request Handler. Implement the get() method with optional params to accept URL
- * params, and/or the post() method with one optional param of type DataModel to populate the DataModel
- * values from POST param values.
+ * RestHandler: a REST request Handler. Implement the get() method with optional params to accept URL params, and/or the
+ * post() method with one optional param of type DataModel to populate the DataModel values from POST param values.
  */
 public abstract class RestHandler {
 

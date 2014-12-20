@@ -32,8 +32,7 @@ import java.lang.annotation.Target;
 
 /**
  * If present, runs of whitespace characters (of any valid Unicode form) are replaced with a single space.
- * (NormalizeSpacing is not a constraint, so it will only apply if a value is provided, but the value is not
- * required.)
+ * (NormalizeSpacing is not a constraint, so it will only apply if a value is provided, but the value is not required.)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

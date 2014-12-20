@@ -46,10 +46,9 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Pattern for valid id or name attribute values. NB '.' and ':' are also technically allowed in the
-     * standard, but they cause problems with jQuery, so they are disallowed here. Also note that both
-     * character cases are allowed, but browsers may not handle case sensitivity correctly in all related
-     * contexts. See
+     * Pattern for valid id or name attribute values. NB '.' and ':' are also technically allowed in the standard, but
+     * they cause problems with jQuery, so they are disallowed here. Also note that both character cases are allowed,
+     * but browsers may not handle case sensitivity correctly in all related contexts. See
      * http://stackoverflow.com/questions/70579/what-are-valid-values-for-the-id-attribute-in-html .
      */
     public static final Pattern VALID_HTML_NAME_OR_ID = Pattern.compile("[a-zA-Z][\\w\\-]*");
@@ -57,8 +56,8 @@ public class WebUtils {
     /**
      * Pattern for CSS class name (includes ' ', because class attributes can list multiple classes).
      * 
-     * NB CSS class names can start with '-' or '_', but this is technically reserved for vendor-specific
-     * extensions, so we don't allow that here.
+     * NB CSS class names can start with '-' or '_', but this is technically reserved for vendor-specific extensions, so
+     * we don't allow that here.
      */
     public static final Pattern VALID_CSS_ID = Pattern
             .compile("\\s*[a-zA-Z][_a-zA-Z0-9\\-]*(\\s+[a-zA-Z][_a-zA-Z0-9\\-]*)*\\s*");
@@ -66,9 +65,9 @@ public class WebUtils {
     /**
      * Pattern for valid email address: from http://www.regular-expressions.info/email.html .
      * 
-     * N.B. this is different than the validation performed by Chrome's type="email" form field validation
-     * (it pretty much only requires an '@' character somewhere), so it's possible to submit form data like
-     * "x@y" that passes Chrome's validation but fails serverside validation.
+     * N.B. this is different than the validation performed by Chrome's type="email" form field validation (it pretty
+     * much only requires an '@' character somewhere), so it's possible to submit form data like "x@y" that passes
+     * Chrome's validation but fails serverside validation.
      */
     public static final Pattern VALID_EMAIL_ADDRESS = Pattern
             .compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
@@ -77,34 +76,32 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /** HTML tags that should not be closed. http://www.w3.org/TR/html-markup/syntax.html#void-element */
-    public static final HashSet<String> VOID_ELEMENTS = Stream.of("area", "base", "br", "col", "command",
-            "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr",
-            "!doctype", "!DOCTYPE").collect(Collectors.toCollection(HashSet::new));
+    public static final HashSet<String> VOID_ELEMENTS = Stream.of("area", "base", "br", "col", "command", "embed",
+            "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr", "!doctype", "!DOCTYPE")
+            .collect(Collectors.toCollection(HashSet::new));
 
     /** HTML inline elements. https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente */
-    public static final HashSet<String> INLINE_ELEMENTS = Stream.of("b", "big", "i", "small", "tt", "abbr",
-            "acronym", "cite", "code", "dfn", "em", "kbd", "strong", "samp", "var", "a", "bdo", "br",
-            "img", "map", "object", "q", "script", "span", "sub", "sup", "button", "input", "label",
-            "select", "textarea", "title").collect(Collectors.toCollection(HashSet::new));
+    public static final HashSet<String> INLINE_ELEMENTS = Stream.of("b", "big", "i", "small", "tt", "abbr", "acronym",
+            "cite", "code", "dfn", "em", "kbd", "strong", "samp", "var", "a", "bdo", "br", "img", "map", "object", "q",
+            "script", "span", "sub", "sup", "button", "input", "label", "select", "textarea", "title").collect(
+            Collectors.toCollection(HashSet::new));
 
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * HTML5 attributes that can take a URL:
-     * http://stackoverflow.com/questions/2725156/complete-list-of-html
+     * HTML5 attributes that can take a URL: http://stackoverflow.com/questions/2725156/complete-list-of-html
      * -tag-attributes-which-have-a-url-value
      * 
-     * (Applet and object tags are rejected during template loading, so those tags' attributes are not
-     * listed here, but they also take URL params.)
+     * (Applet and object tags are rejected during template loading, so those tags' attributes are not listed here, but
+     * they also take URL params.)
      */
     private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = new HashMap<>();
     static {
-        for (String s : new String[] { "a.href", "area.href", "base.href", "blockquote.cite",
-                "body.background", "del.cite", "form.action", "frame.longdesc", "frame.src",
-                "head.profile", "iframe.longdesc", "iframe.src", "img.longdesc", "img.src", "img.usemap",
-                "input.src", "input.usemap", "ins.cite", "link.href", "q.cite", "script.src", "audio.src",
-                "button.formaction", "command.icon", "embed.src", "html.manifest", "input.formaction",
-                "source.src", "video.poster", "video.src" }) {
+        for (String s : new String[] { "a.href", "area.href", "base.href", "blockquote.cite", "body.background",
+                "del.cite", "form.action", "frame.longdesc", "frame.src", "head.profile", "iframe.longdesc",
+                "iframe.src", "img.longdesc", "img.src", "img.usemap", "input.src", "input.usemap", "ins.cite",
+                "link.href", "q.cite", "script.src", "audio.src", "button.formaction", "command.icon", "embed.src",
+                "html.manifest", "input.formaction", "source.src", "video.poster", "video.src" }) {
             String[] parts = StringUtils.split(s, ".");
             String eltName = parts[0], attrName = parts[1];
             HashSet<String> set = URL_ELT_ATTRS.get(eltName);
@@ -122,16 +119,15 @@ public class WebUtils {
     }
 
     /**
-     * Whitelisted attributes that can't be exploited in an XSS attack -- source:
-     * https://www.owasp.org/index.
+     * Whitelisted attributes that can't be exploited in an XSS attack -- source: https://www.owasp.org/index.
      * php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#XSS_Prevention_Rules_Summary
      */
-    public static final HashSet<String> XSS_SAFE_ATTRS = Stream.of("align", "alink", "alt", "bgcolor",
-            "border", "cellpadding", "cellspacing", "class", "color", "cols", "colspan", "coords", "dir",
-            "face", "height", "hspace", "ismap", "lang", "marginheight", "marginwidth", "multiple",
-            "nohref", "noresize", "noshade", "nowrap", "ref", "rel", "rev", "rows", "rowspan", "scrolling",
-            "shape", "span", "summary", "tabindex", "title", "usemap", "valign", "value", "vlink",
-            "vspace", "width").collect(Collectors.toCollection(HashSet::new));
+    public static final HashSet<String> XSS_SAFE_ATTRS = Stream.of("align", "alink", "alt", "bgcolor", "border",
+            "cellpadding", "cellspacing", "class", "color", "cols", "colspan", "coords", "dir", "face", "height",
+            "hspace", "ismap", "lang", "marginheight", "marginwidth", "multiple", "nohref", "noresize", "noshade",
+            "nowrap", "ref", "rel", "rev", "rows", "rowspan", "scrolling", "shape", "span", "summary", "tabindex",
+            "title", "usemap", "valign", "value", "vlink", "vspace", "width").collect(
+            Collectors.toCollection(HashSet::new));
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -181,8 +177,8 @@ public class WebUtils {
             char c = segment.charAt(segIdx);
             if (escapePos == 0 || escapePos == 1) {
                 int digit =
-                        c >= '0' && c <= '9' ? (c - '0') : c >= 'a' && c <= 'f' ? (c - 'a' + 10) : c >= 'A'
-                                && c <= 'F' ? (c - 'A' + 10) : -1;
+                        c >= '0' && c <= '9' ? (c - '0') : c >= 'a' && c <= 'f' ? (c - 'a' + 10) : c >= 'A' && c <= 'F'
+                                ? (c - 'A' + 10) : -1;
                 if (digit < 0) {
                     // Got an invalid digit, cancel unescaping and ignore everything from '%' to
                     // the invalid digit inclusive 
@@ -225,8 +221,7 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes. TODO: test
-     * this.
+     * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes. TODO: test this.
      */
     public static String escapeURISegment(String str) {
         byte[] utf8Bytes = UTF8.stringToUTF8(str);
@@ -234,8 +229,8 @@ public class WebUtils {
         for (int i = 0; i < utf8Bytes.length; i++) {
             char c = (char) utf8Bytes[i];
             // See http://goo.gl/JNmVMa
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
-                    || c == '.' || c == '_' || c == '~') {
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.'
+                    || c == '_' || c == '~') {
                 buf.append(c);
             } else {
                 percentEncode(buf, c);
@@ -245,16 +240,15 @@ public class WebUtils {
     }
 
     /**
-     * Convert a URI query param key of the form "q" in "?q=v", %-encoding of UTF8 bytes for unusual
-     * characters.
+     * Convert a URI query param key of the form "q" in "?q=v", %-encoding of UTF8 bytes for unusual characters.
      */
     public static void escapeQueryParamKey(String str, StringBuilder buf) {
         byte[] utf8Bytes = UTF8.stringToUTF8(str);
         for (int i = 0; i < utf8Bytes.length; i++) {
             char c = (char) utf8Bytes[i];
             // See http://goo.gl/OZ9OOZ
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
-                    || c == '.' || c == '_' || c == '~') {
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.'
+                    || c == '_' || c == '~') {
                 buf.append(c);
             } else {
                 percentEncode(buf, c);
@@ -263,8 +257,8 @@ public class WebUtils {
     }
 
     /**
-     * Convert a URI query param value of the form "v" in "?q=v". We use '+' to escape spaces, by
-     * convention, and %-encoding of UTF8 bytes for unusual characters.
+     * Convert a URI query param value of the form "v" in "?q=v". We use '+' to escape spaces, by convention, and
+     * %-encoding of UTF8 bytes for unusual characters.
      */
     public static void escapeQueryParamVal(String str, StringBuilder buf) {
         byte[] utf8Bytes = UTF8.stringToUTF8(str);
@@ -273,8 +267,8 @@ public class WebUtils {
             // See http://goo.gl/s2qntq
             if (c == ' ') {
                 buf.append('+');
-            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-                    || c == '-' || c == '.' || c == '_' || c == '~' || c == '/' || c == ':' || c == '@') {
+            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
+                    || c == '.' || c == '_' || c == '~' || c == '/' || c == ':' || c == '@') {
                 buf.append(c);
             } else {
                 percentEncode(buf, c);
@@ -289,8 +283,8 @@ public class WebUtils {
     }
 
     /**
-     * Split a URI into pieces and encode each piece appropriately to make it safe for use as an HTML
-     * attribute value. See:
+     * Split a URI into pieces and encode each piece appropriately to make it safe for use as an HTML attribute value.
+     * See:
      * 
      * https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#RULE_
      * .235_-_URL_Escape_Before_Inserting_Untrusted_Data_into_HTML_URL_Parameter_Values
@@ -376,8 +370,8 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Encode (percent-escape) any illegal characters (or UTF-8 bytes of non-ASCII characters) in a
-     * PLAIN-type cookie value.
+     * Encode (percent-escape) any illegal characters (or UTF-8 bytes of non-ASCII characters) in a PLAIN-type cookie
+     * value.
      * 
      * See: http://stackoverflow.com/questions/1969232/allowed-characters-in-cookies
      * 
@@ -411,8 +405,7 @@ public class WebUtils {
     /**
      * Encodes HTML-unsafe characters as HTML entities.
      * 
-     * See OWASP XSS Rule #1 at
-     * https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
+     * See OWASP XSS Rule #1 at https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
      */
     public static String encodeForHTML(CharSequence unsafeStr) {
         StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
@@ -477,16 +470,15 @@ public class WebUtils {
      */
     public static String encodeForHTMLAttribute(CharSequence unsafeStr) {
         /**
-         * From OWASP XSS prevention Rule #2: "Except for alphanumeric characters, escape all characters
-         * with ASCII values less than 256 with the &#xHH; format (or a named entity if available) to
-         * prevent switching out of the attribute. The reason this rule is so broad is that developers
-         * frequently leave attributes unquoted. Properly quoted attributes can only be escaped with the
-         * corresponding quote. Unquoted attributes can be broken out of with many characters, including
-         * [space] % * + , - / ; < = > ^ and |."
+         * From OWASP XSS prevention Rule #2: "Except for alphanumeric characters, escape all characters with ASCII
+         * values less than 256 with the &#xHH; format (or a named entity if available) to prevent switching out of the
+         * attribute. The reason this rule is so broad is that developers frequently leave attributes unquoted. Properly
+         * quoted attributes can only be escaped with the corresponding quote. Unquoted attributes can be broken out of
+         * with many characters, including [space] % * + , - / ; < = > ^ and |."
          * 
-         * However, if we escape as aggressively as this, then we get URLs like
-         * href="&#x2F;action&#x2F;log&#x2D;out". Since attributes are all being quoted, and URL attrs are
-         * handled specially, just perform regular HTML escaping inside HTML attribute values.
+         * However, if we escape as aggressively as this, then we get URLs like href="&#x2F;action&#x2F;log&#x2D;out".
+         * Since attributes are all being quoted, and URL attrs are handled specially, just perform regular HTML
+         * escaping inside HTML attribute values.
          */
         return encodeForHTML(unsafeStr);
 
@@ -590,8 +582,8 @@ public class WebUtils {
     }
 
     /**
-     * Trim whitespace from an email address, make it lowercase, and make sure it is valid. If it is not
-     * valid, return null.
+     * Trim whitespace from an email address, make it lowercase, and make sure it is valid. If it is not valid, return
+     * null.
      */
     public static String validateAndNormalizeEmailAddr(String email) {
         if (email == null)

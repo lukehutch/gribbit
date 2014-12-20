@@ -45,8 +45,8 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
- * Objects of this class may be called from each async worker to package up HTTP response fields so that
- * they can be sent back to the main Webbit thread and submitted from there via the HttpResponse.
+ * Objects of this class may be called from each async worker to package up HTTP response fields so that they can be
+ * sent back to the main Webbit thread and submitted from there via the HttpResponse.
  */
 public class Response {
     private Content content = null;
@@ -119,9 +119,9 @@ public class Response {
     }
 
     /**
-     * Get the flash messages and then clear them. This should only be called by a handler that plans to
-     * display the flash messages or save them back in the cookie, since it clears the flash messages before
-     * returning the initial value.
+     * Get the flash messages and then clear them. This should only be called by a handler that plans to display the
+     * flash messages or save them back in the cookie, since it clears the flash messages before returning the initial
+     * value.
      */
     public String getFlashMessages() {
         String fm = flashMessages;
@@ -146,8 +146,7 @@ public class Response {
     public Response addFlashMessage(FlashType flashType, String strongText, String flashMessage) {
         String safeMsg =
                 flashType.toString() + "\t"
-                        + (strongText == null ? "" : strongText.replace('\n', ' ').replace('\t', ' '))
-                        + "\t"
+                        + (strongText == null ? "" : strongText.replace('\n', ' ').replace('\t', ' ')) + "\t"
                         + (flashMessage == null ? "" : flashMessage.replace('\n', ' ').replace('\t', ' '));
         if (flashMessages == null) {
             flashMessages = safeMsg;
@@ -181,15 +180,13 @@ public class Response {
                     if (o instanceof List) {
                         for (Object ol : (List<?>) o) {
                             if (!(ol instanceof DataModel)) {
-                                throw new IllegalArgumentException("Content has type List<"
-                                        + ol.getClass().getName() + ">, needs to be List<? extends "
-                                        + DataModel.class.getName() + ">");
+                                throw new IllegalArgumentException("Content has type List<" + ol.getClass().getName()
+                                        + ">, needs to be List<? extends " + DataModel.class.getName() + ">");
                             }
                         }
                     } else {
-                        throw new IllegalArgumentException("Content must be of type "
-                                + DataModel.class.getName() + " or List<? extends "
-                                + DataModel.class.getName() + ">");
+                        throw new IllegalArgumentException("Content must be of type " + DataModel.class.getName()
+                                + " or List<? extends " + DataModel.class.getName() + ">");
                     }
                 }
             }
@@ -225,15 +222,15 @@ public class Response {
             // Insert HTML import for vulcanized Polymer resources and templates
             StringUtils.append(
                     "<link rel=\"import\" href=\""
-                            + GribbitServer.siteResources.routeURIForHandler(VulcanizedHTMLHandler.class)
-                            + "\">", 2, buf);
+                            + GribbitServer.siteResources.routeURIForHandler(VulcanizedHTMLHandler.class) + "\">", 2,
+                    buf);
 
             // Add flash messages
             String flashMessages = res.getFlashMessages();
             if (flashMessages != null) {
                 for (String flashMessageStringEncoding : StringUtils.split(flashMessages, "\n")) {
-                    new FlashMessage(flashMessageStringEncoding).renderTemplate(
-                            GribbitProperties.PRETTY_PRINT_HTML, 2, buf);
+                    new FlashMessage(flashMessageStringEncoding).renderTemplate(GribbitProperties.PRETTY_PRINT_HTML, 2,
+                            buf);
                 }
             }
 
@@ -248,8 +245,7 @@ public class Response {
                         // content[i] is a List<DataModel>, render templates associated with each list item
                         List<?> list = (List<?>) o;
                         for (int j = 0; j < list.size(); j++) {
-                            ((DataModel) list.get(j)).renderTemplate(GribbitProperties.PRETTY_PRINT_HTML,
-                                    2, buf);
+                            ((DataModel) list.get(j)).renderTemplate(GribbitProperties.PRETTY_PRINT_HTML, 2, buf);
                         }
                     }
                 }
@@ -313,8 +309,8 @@ public class Response {
     }
 
     /**
-     * Content formed of raw bytes. For internal use only, as it can return content that is vulnerable to
-     * XSS attacks etc. if it is used to return HTML without proper escaping.
+     * Content formed of raw bytes. For internal use only, as it can return content that is vulnerable to XSS attacks
+     * etc. if it is used to return HTML without proper escaping.
      */
     private static class ByteBufContent extends Content {
         private ByteBuf buf;
@@ -339,8 +335,8 @@ public class Response {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Set the HTML content of the response by rendering one or more DataModels and/or lists of DataModels
-     * (content will be escaped as needed to be HTML-safe).
+     * Set the HTML content of the response by rendering one or more DataModels and/or lists of DataModels (content will
+     * be escaped as needed to be HTML-safe).
      */
     public Response setContent(String title, Object... content) {
         this.content = new HTMLContent(title, content);
@@ -363,9 +359,8 @@ public class Response {
     }
 
     /**
-     * Set the content of the response as a byte array with the given mime type. For internal use only, as
-     * it can return content that is vulnerable to XSS attacks etc., if it is used to return HTML without
-     * proper escaping.
+     * Set the content of the response as a byte array with the given mime type. For internal use only, as it can return
+     * content that is vulnerable to XSS attacks etc., if it is used to return HTML without proper escaping.
      */
     public Response setContentUnsafe(ByteBuf contentByteBuf, String mimeType) {
         this.content = new ByteBufContent(contentByteBuf, mimeType);
@@ -391,14 +386,11 @@ public class Response {
     /**
      * Add a possibly-base64-encoded cookie to the response.
      */
-    public Response setCookie(String cookieName, String val, String path, int maxAgeInSeconds,
-            EncodingType encodingType) {
+    public Response setCookie(String cookieName, String val, String path, int maxAgeInSeconds, EncodingType encodingType) {
         if (cookies == null)
             cookies = new HashMap<>();
         try {
-            Cookie oldVal =
-                    cookies.put(cookieName,
-                            new Cookie(cookieName, val, path, maxAgeInSeconds, encodingType));
+            Cookie oldVal = cookies.put(cookieName, new Cookie(cookieName, val, path, maxAgeInSeconds, encodingType));
             if (oldVal != null) {
                 Log.warning("Cookie \"" + cookieName + "\" written twice during a single request");
             }
@@ -421,8 +413,7 @@ public class Response {
      */
     public Response setCookie(String key, String val, String path, Instant expiry, EncodingType encodingType) {
         long secondsLeft = Math.max(0, ChronoUnit.SECONDS.between(Instant.now(), expiry));
-        secondsLeft =
-                secondsLeft < 0 ? 0 : secondsLeft > Integer.MAX_VALUE ? Integer.MAX_VALUE : secondsLeft;
+        secondsLeft = secondsLeft < 0 ? 0 : secondsLeft > Integer.MAX_VALUE ? Integer.MAX_VALUE : secondsLeft;
         return setCookie(key, val, path, (int) secondsLeft, encodingType);
     }
 
@@ -452,8 +443,8 @@ public class Response {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Takes a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the
-     * other methods that binds to a RestHandler subclass.
+     * Takes a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the other methods
+     * that binds to a RestHandler subclass.
      */
     public void redirectToTrustedURL(String redirectFromURI, String redirectToURI) {
         this.redirectURI = redirectToURI;
@@ -465,29 +456,27 @@ public class Response {
     }
 
     /**
-     * Takes a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the
-     * other methods that binds to a RestHandler subclass.
+     * Takes a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the other methods
+     * that binds to a RestHandler subclass.
      */
     public void redirectToTrustedURL(String redirectToURI) {
         redirectToTrustedURL(null, redirectToURI);
     }
 
     /**
-     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method),
-     * substituting URL params into the URL for the handler. Can simply call without params if the handler
-     * takes no URI params, e.g. res.redirect(MyHandler.class). If redirectFromURI is set, then the
-     * RestHandler.REDIRECT_ORIGIN_COOKIE_NAME cookie will be set to the URI that the user was redirected
-     * from.
+     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
+     * params into the URL for the handler. Can simply call without params if the handler takes no URI params, e.g.
+     * res.redirect(MyHandler.class). If redirectFromURI is set, then the RestHandler.REDIRECT_ORIGIN_COOKIE_NAME cookie
+     * will be set to the URI that the user was redirected from.
      */
-    public void redirect(String redirectFromURI, Class<? extends RestHandler> redirectToHandler,
-            Object... urlParams) {
+    public void redirect(String redirectFromURI, Class<? extends RestHandler> redirectToHandler, Object... urlParams) {
         redirectToTrustedURL(redirectFromURI, Route.forGet(redirectToHandler, (Object[]) urlParams));
     }
 
     /**
-     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method),
-     * substituting URL params into the URL for the handler. Can simply call without params if the handler
-     * takes no URI params, e.g. res.redirect(MyHandler.class).
+     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
+     * params into the URL for the handler. Can simply call without params if the handler takes no URI params, e.g.
+     * res.redirect(MyHandler.class).
      */
     public void redirect(Class<? extends RestHandler> handlerToRedirectTo, Object... urlParams) {
         redirect(null, handlerToRedirectTo, (Object[]) urlParams);

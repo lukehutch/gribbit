@@ -72,8 +72,7 @@ class RestHandlerLoader {
     }
 
     public Route getInternalServerErrorRoute() {
-        return internalServerErrorRoute != null ? internalServerErrorRoute
-                : routeForHandler(InternalServerError.class);
+        return internalServerErrorRoute != null ? internalServerErrorRoute : routeForHandler(InternalServerError.class);
     }
 
     public Route getBadRequestRoute() {
@@ -89,8 +88,7 @@ class RestHandlerLoader {
     }
 
     public Route getEmailNotValidatedRoute() {
-        return emailNotValidatedRoute != null ? emailNotValidatedRoute
-                : routeForHandler(EmailNotValidated.class);
+        return emailNotValidatedRoute != null ? emailNotValidatedRoute : routeForHandler(EmailNotValidated.class);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -101,8 +99,7 @@ class RestHandlerLoader {
     public Route routeForHandler(Class<? extends RestHandler> handlerClass) {
         Route route = routeForHandler.get(handlerClass);
         if (route == null) {
-            throw new RuntimeException("Class " + handlerClass.getName()
-                    + " is not registered as a handler");
+            throw new RuntimeException("Class " + handlerClass.getName() + " is not registered as a handler");
         }
         return route;
     }
@@ -148,8 +145,7 @@ class RestHandlerLoader {
             if (routeOverride != null) {
                 if (!VALID_ROUTE_OVERRIDE.matcher(routeOverride).matches()) {
                     throw new RuntimeException(RouteOverride.class.getName() + " annotation on class "
-                            + handler.getName() + " has value \"" + routeOverride
-                            + "\" which is not a valid route");
+                            + handler.getName() + " has value \"" + routeOverride + "\" which is not a valid route");
                 }
             }
 
@@ -185,9 +181,8 @@ class RestHandlerLoader {
                 if (existingErrHandler != null) {
                     // Can't have two non-default error handlers with an error handler annotation, because
                     // classpath traversal order is somewhat arbitrary 
-                    throw new RuntimeException("Both " + existingErrHandler.getHandler().getName()
-                            + " and " + handler.getName() + " have the annotation @"
-                            + annType.getSimpleName()
+                    throw new RuntimeException("Both " + existingErrHandler.getHandler().getName() + " and "
+                            + handler.getName() + " have the annotation @" + annType.getSimpleName()
                             + " -- you cannot have two error handlers with the same annotation");
                 }
                 if (hasErrHandlerAnnotation && (!route.hasGetMethod() || route.getNumGetParams() > 0)) {
@@ -205,15 +200,14 @@ class RestHandlerLoader {
                     if (otherRoute.startsWith(routeOverride)) {
                         if (routeOverride.length() == otherRoute.length()
                                 || otherRoute.charAt(routeOverride.length()) == '/')
-                            throw new RuntimeException("Manually-overriden route " + routeOverride
-                                    + " in handler " + handler.getName()
-                                    + " matches or is a prefix of another route " + otherRoute);
+                            throw new RuntimeException("Manually-overriden route " + routeOverride + " in handler "
+                                    + handler.getName() + " matches or is a prefix of another route " + otherRoute);
                     } else if (routeOverride.startsWith(otherRoute)) {
                         if (routeOverride.length() == otherRoute.length()
                                 || routeOverride.charAt(otherRoute.length()) == '/')
                             throw new RuntimeException("Already-added route " + otherRoute
-                                    + " matches or is a prefix of manually-overriden route "
-                                    + routeOverride + " in handler " + handler.getName());
+                                    + " matches or is a prefix of manually-overriden route " + routeOverride
+                                    + " in handler " + handler.getName());
                     }
                 }
             }
@@ -221,8 +215,8 @@ class RestHandlerLoader {
             // Make sure route is unique
             Route existing = routeForRoutePath.put(route.getRoutePath(), route);
             if (existing != null) {
-                throw new RuntimeException("Two handlers have the same route: " + existing.getRoutePath()
-                        + " , " + route.getRoutePath());
+                throw new RuntimeException("Two handlers have the same route: " + existing.getRoutePath() + " , "
+                        + route.getRoutePath());
             }
             if (routeForHandler.put(handler, route) != null) {
                 // Should not happen, objects on classpath should only be scanned once
@@ -237,10 +231,9 @@ class RestHandlerLoader {
             if (postParamType != null) {
                 Route prev = formModelToRoute.put(postParamType, route);
                 if (prev != null) {
-                    throw new RuntimeException(DataModel.class.getName() + " subclass "
-                            + postParamType.getName()
-                            + " is handled by two different post() methods, in classes "
-                            + route.getHandler().getName() + ", " + prev.getHandler().getName());
+                    throw new RuntimeException(DataModel.class.getName() + " subclass " + postParamType.getName()
+                            + " is handled by two different post() methods, in classes " + route.getHandler().getName()
+                            + ", " + prev.getHandler().getName());
                 }
             }
 

@@ -38,10 +38,9 @@ import gribbit.util.Log;
 import gribbit.util.RequestBuilder;
 
 /**
- * Google OAuth2 provider. To use this, your Login button should send the user to the URL
- * /oauth/google/login (i.e. the route for this handler is "/oauth/google", but the additional URI param
- * "login" should be provided after the route, giving "/oauth/google/login" -- this route is also used for
- * handling the OAuth2 callback, at /oauth/google/callback).
+ * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login (i.e. the
+ * route for this handler is "/oauth/google", but the additional URI param "login" should be provided after the route,
+ * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
 public class GoogleLogin extends RestHandler.AuthNotRequired {
@@ -56,8 +55,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
     }
 
     static {
-        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
+        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
             throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
@@ -65,8 +63,8 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
     }
 
     /**
-     * Check if a user's access token has expired or is about to expire, and if so, generate a new access
-     * token using the user's refresh token.
+     * Check if a user's access token has expired or is about to expire, and if so, generate a new access token using
+     * the user's refresh token.
      * 
      * @throws BadRequestException
      *             if the user is null, or doesn't have a refresh token, or if the token refresh fails.
@@ -178,16 +176,14 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
 
                     // The access token obtained from the authorization code
                     String accessToken = auth.access_token;
-                    long accessTokenExpiresIn =
-                            auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in);
+                    long accessTokenExpiresIn = auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in);
                     if (accessToken == null || accessTokenExpiresIn <= 0) {
                         // Should not happen, should always get an access token.
                         // On any result code other than 200 OK (e.g. 400 Bad Request / 401 Not Authorized),
                         // the POST request above will have already thrown an exception.
                         throw new BadRequestException("Could not fetch access token");
                     }
-                    long accessTokenExpiresMillis =
-                            System.currentTimeMillis() + accessTokenExpiresIn * 1000;
+                    long accessTokenExpiresMillis = System.currentTimeMillis() + accessTokenExpiresIn * 1000;
 
                     // Get user's email address, name, gender, profile pic URL etc.
                     // Throws BadRequestException if the access token is bad. 
@@ -231,8 +227,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                                 // There was no user with this email address -- create a new user
                                 user = User.createFederatedLoginUser(email, res);
 
-                                user.emailValidated =
-                                        userInfo.verified_email != null && userInfo.verified_email;
+                                user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 if (!user.emailValidated) {
                                     // Add a flash message if the verified_email field is not set to true,
                                     // so that the user doesn't get confused about why we're asking them to
@@ -259,8 +254,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                             } else {
                                 if (!user.emailValidated) {
                                     // If email was not previously validated, see if it is now.
-                                    user.emailValidated =
-                                            userInfo.verified_email != null && userInfo.verified_email;
+                                    user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 }
 
                                 // Log in existing user with this email address
@@ -275,8 +269,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                             // Store tokens in user record
                             user.putData("googleRefreshToken", refreshToken);
                             user.putData("googleAccessToken", accessToken);
-                            user.putData("googleAccessTokenExpiresMillis",
-                                    Long.toString(accessTokenExpiresMillis));
+                            user.putData("googleAccessTokenExpiresMillis", Long.toString(accessTokenExpiresMillis));
                             user.save();
 
                             // Redirect back home

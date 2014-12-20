@@ -57,8 +57,7 @@ public class Route {
             if (methodName.equals("get")) {
                 if (method.getReturnType() != Void.TYPE) {
                     throw new RuntimeException("Method " + handler.getName() + "." + methodName
-                            + " should have a void return type instead of "
-                            + method.getReturnType().getName());
+                            + " should have a void return type instead of " + method.getReturnType().getName());
                 }
 
                 // Check method parameters are key value pairs, and that the keys are strings, and the
@@ -66,8 +65,7 @@ public class Route {
                 for (int j = 0; j < paramTypes.length; j++) {
                     if (paramTypes[j] != String.class && paramTypes[j] != Integer.class)
                         throw new RuntimeException("Method " + handler.getName() + "." + methodName
-                                + " has a param of type " + paramTypes[j].getName()
-                                + ", needs to be String or Integer");
+                                + " has a param of type " + paramTypes[j].getName() + ", needs to be String or Integer");
                 }
 
                 if (routePath.equals("/") && paramTypes.length != 0) {
@@ -93,21 +91,19 @@ public class Route {
             } else if (methodName.equals("post")) {
                 if (method.getReturnType() != Void.TYPE) {
                     throw new RuntimeException("Method " + handler.getName() + "." + methodName
-                            + " should have a void return type instead of "
-                            + method.getReturnType().getName());
+                            + " should have a void return type instead of " + method.getReturnType().getName());
                 }
 
                 if (paramTypes.length > 1) {
                     throw new RuntimeException("Method " + handler.getName() + "." + methodName
-                            + " needs zero parameters or one parameter of type "
-                            + DataModel.class.getSimpleName() + "; takes " + paramTypes.length
-                            + " parameters");
+                            + " needs zero parameters or one parameter of type " + DataModel.class.getSimpleName()
+                            + "; takes " + paramTypes.length + " parameters");
                 }
 
                 if (paramTypes.length == 1) {
                     if (!DataModel.class.isAssignableFrom(paramTypes[0])) {
-                        throw new RuntimeException("The parameter of method " + handler.getName() + "."
-                                + methodName + " needs to be a subclass of " + DataModel.class.getName());
+                        throw new RuntimeException("The parameter of method " + handler.getName() + "." + methodName
+                                + " needs to be a subclass of " + DataModel.class.getName());
                     }
                     @SuppressWarnings("unchecked")
                     Class<? extends DataModel> paramType = (Class<? extends DataModel>) paramTypes[0];
@@ -136,14 +132,12 @@ public class Route {
         int leaf = name.lastIndexOf('/') + 1;
         buf.append(name.substring(0, leaf));
         for (int i = leaf, n = name.length(); i < n; i++) {
-            if (i > leaf && Character.isUpperCase(name.charAt(i))
-                    && !Character.isUpperCase(name.charAt(i - 1)))
+            if (i > leaf && Character.isUpperCase(name.charAt(i)) && !Character.isUpperCase(name.charAt(i - 1)))
                 buf.append('-');
             buf.append(Character.toLowerCase(name.charAt(i)));
         }
         if (buf.length() > 2
-                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(
-                        GribbitServer.appPackageName))
+                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(GribbitServer.appPackageName))
             return buf.substring(GribbitServer.appPackageName.length() + 1);
         else
             return buf.toString();
@@ -164,8 +158,7 @@ public class Route {
         restHandler.res = res;
         if (RestHandler.AuthRequired.class.isAssignableFrom(handler)) {
             if (user == null) {
-                throw new RuntimeException(
-                        "Can't call AuthRequired handlers without supplying non-null user object");
+                throw new RuntimeException("Can't call AuthRequired handlers without supplying non-null user object");
             }
             ((RestHandler.AuthRequired) restHandler).user = user;
         }
@@ -187,14 +180,13 @@ public class Route {
                 // gives one Integer-typed param value of 53
                 int slashIdx = routePath.length();
                 for (int i = 0; i < getParamTypes.length; i++) {
-                    int nextSlashIdx =
-                            slashIdx < reqURI.length() - 1 ? reqURI.indexOf('/', slashIdx + 1) : -1;
+                    int nextSlashIdx = slashIdx < reqURI.length() - 1 ? reqURI.indexOf('/', slashIdx + 1) : -1;
                     if (nextSlashIdx < 0) {
                         nextSlashIdx = reqURI.length();
                     }
                     if (nextSlashIdx - slashIdx < 2) {
-                        throw new BadRequestException("Insufficient URL parameters, expected "
-                                + getParamTypes.length + ", got " + i);
+                        throw new BadRequestException("Insufficient URL parameters, expected " + getParamTypes.length
+                                + ", got " + i);
                     }
                     String uriSegment = reqURI.substring(slashIdx + 1, nextSlashIdx);
                     if (getParamTypes[i] == Integer.class) {
@@ -253,8 +245,7 @@ public class Route {
                 } catch (InstantiationException e) {
                     // Should never happen, we already tried instantiating all DataModel subclasses
                     // that are bound to POST request handlers when site resources were loaded
-                    throw new AppException("Could not instantiate POST parameter of type "
-                            + postParamType.getName(), e);
+                    throw new AppException("Could not instantiate POST parameter of type " + postParamType.getName(), e);
                 }
 
                 // Bind POST param object from request
@@ -273,13 +264,12 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Get the route annotated with the given HTTP method on the given RestHandler, substituting the
-     * key/value pairs into the params in the URL template.
+     * Get the route annotated with the given HTTP method on the given RestHandler, substituting the key/value pairs
+     * into the params in the URL template.
      * 
-     * Can call this method with no urlParams if the handler takes no params for this httpMethod, otherwise
-     * list URL params in the varargs. URL params can be any type, and their toString() method will be
-     * called. Param values will be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not
-     * safe).
+     * Can call this method with no urlParams if the handler takes no params for this httpMethod, otherwise list URL
+     * params in the varargs. URL params can be any type, and their toString() method will be called. Param values will
+     * be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not safe).
      */
     private static String forMethod(HttpMethod httpMethod, Class<? extends RestHandler> handlerClass,
             Object... urlParams) {
@@ -287,8 +277,7 @@ public class Route {
 
         if (httpMethod == HttpMethod.GET) {
             if (handler.getMethod == null) {
-                throw new RuntimeException("Handler " + handlerClass.getName()
-                        + " does not have a get() method");
+                throw new RuntimeException("Handler " + handlerClass.getName() + " does not have a get() method");
             }
 
             for (Object param : urlParams) {
@@ -297,8 +286,7 @@ public class Route {
                 }
             }
             if (urlParams.length != handler.getParamTypes.length) {
-                throw new RuntimeException("Wrong number of URL params for method "
-                        + handlerClass.getName() + ".get()");
+                throw new RuntimeException("Wrong number of URL params for method " + handlerClass.getName() + ".get()");
             }
             // Build new fully-specified route from route stem and URL params 
             StringBuilder buf = new StringBuilder(handler.routePath);
@@ -310,12 +298,11 @@ public class Route {
 
         } else if (httpMethod == HttpMethod.POST) {
             if (handler.postMethod == null) {
-                throw new RuntimeException("Handler " + handlerClass.getName()
-                        + " does not have a post() method");
+                throw new RuntimeException("Handler " + handlerClass.getName() + " does not have a post() method");
             }
             if (urlParams.length != 0) {
-                throw new RuntimeException("Tried to pass URL params to a POST method, "
-                        + handlerClass.getName() + ".post()");
+                throw new RuntimeException("Tried to pass URL params to a POST method, " + handlerClass.getName()
+                        + ".post()");
             }
             return handler.routePath;
 
@@ -366,17 +353,16 @@ public class Route {
     }
 
     /**
-     * Returns the post() method DataModel param object type. Returns null if this route handler does not
-     * have a post() method, or if the handler does have a post() method but the method doesn't take any
-     * parameters.
+     * Returns the post() method DataModel param object type. Returns null if this route handler does not have a post()
+     * method, or if the handler does have a post() method but the method doesn't take any parameters.
      */
     public Class<? extends DataModel> getPostParamType() {
         return postParamType;
     }
 
     /**
-     * Returns the number of parameters accepted by the get() method, or 0 if there are no params (or if
-     * there is no get() method).
+     * Returns the number of parameters accepted by the get() method, or 0 if there are no params (or if there is no
+     * get() method).
      */
     public int getNumGetParams() {
         return getMethod == null ? 0 : getParamTypes.length;
@@ -385,13 +371,13 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Check if the passed URI matches this route, i.e. returns true if the handler corresponding to this
-     * route should handle the request.
+     * Check if the passed URI matches this route, i.e. returns true if the handler corresponding to this route should
+     * handle the request.
      */
     public boolean matches(String reqURI) {
         // Check if reqURI.equals(routePath) || reqURI.startsWith(routePath + "/")
         return reqURI.equals(routePath)
-                || (reqURI.startsWith(routePath) && reqURI.length() > routePath.length() && reqURI
-                        .charAt(routePath.length()) == '/');
+                || (reqURI.startsWith(routePath) && reqURI.length() > routePath.length() && reqURI.charAt(routePath
+                        .length()) == '/');
     }
 }

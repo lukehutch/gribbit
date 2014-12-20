@@ -62,9 +62,8 @@ public abstract class DBModelObjectIdKey extends DBModel {
     /** Remove this object from the database. */
     public WriteResult<DBModel, Object> remove() {
         if (id == null) {
-            throw new RuntimeException(
-                    "id is null, so object cannot be removed (object was not previously "
-                            + "saved in or retrieved from database)");
+            throw new RuntimeException("id is null, so object cannot be removed (object was not previously "
+                    + "saved in or retrieved from database)");
         }
         return Database.removeById(getClass(), id);
     }

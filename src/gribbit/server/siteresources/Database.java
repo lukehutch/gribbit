@@ -76,8 +76,7 @@ public class Database {
     }
 
     /** A mapping from class to the corresponding MongoDB collection. */
-    private HashMap<Class<? extends DBModel>, JacksonDBCollection<?, ?>> dbModelClassToCollection =
-            new HashMap<>();
+    private HashMap<Class<? extends DBModel>, JacksonDBCollection<?, ?>> dbModelClassToCollection = new HashMap<>();
 
     /**
      * All registered collection names, used to make sure two classes don't map to the same collection name.
@@ -93,8 +92,8 @@ public class Database {
     // ------------------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * Get the collection name for a DBModel. It is derived from the simpleName of the class, but that may
-     * be overridden using the @MongoCollection annotation.
+     * Get the collection name for a DBModel. It is derived from the simpleName of the class, but that may be overridden
+     * using the @MongoCollection annotation.
      */
     private static String collectionNameForDBModelClass(Class<? extends DBModel> dbModelClass) {
         // Read database collection annotation -- see http://mongojack.org/tutorial.html
@@ -112,8 +111,8 @@ public class Database {
     }
 
     /**
-     * Wrap a MongoDB collection in a JacksonDBCollection wrapper and return it. Can be called manually by
-     * utilities that want to access database collections without starting up the web server.
+     * Wrap a MongoDB collection in a JacksonDBCollection wrapper and return it. Can be called manually by utilities
+     * that want to access database collections without starting up the web server.
      */
     @SuppressWarnings("unchecked")
     public static <T extends DBModel, K> JacksonDBCollection<T, K> collectionForDBModel(
@@ -133,13 +132,10 @@ public class Database {
             String collectionName = collectionNameForDBModelClass(dbModelClass);
             if (GribbitServer.siteResources != null && GribbitServer.siteResources.db != null) {
                 Class<? extends DBModel> oldDBModelClass =
-                        GribbitServer.siteResources.db.collectionNameToDBModelClass.put(collectionName,
-                                dbModelClass);
+                        GribbitServer.siteResources.db.collectionNameToDBModelClass.put(collectionName, dbModelClass);
                 if (oldDBModelClass != null) {
-                    throw new RuntimeException(
-                            "Two database collection classes registered with the same name \""
-                                    + collectionName + "\": " + oldDBModelClass.getName() + ", "
-                                    + dbModelClass.getName());
+                    throw new RuntimeException("Two database collection classes registered with the same name \""
+                            + collectionName + "\": " + oldDBModelClass.getName() + ", " + dbModelClass.getName());
                 }
             }
 
@@ -150,8 +146,7 @@ public class Database {
             Class<?> idType = idField.getType();
             if ((DBModelStringKey.class.isAssignableFrom(dbModelClass) && !idType.equals(String.class))
                     || (DBModelLongKey.class.isAssignableFrom(dbModelClass) && !idType.equals(Long.class))
-                    || (DBModelObjectIdKey.class.isAssignableFrom(dbModelClass) && !idType
-                            .equals(ObjectId.class))) {
+                    || (DBModelObjectIdKey.class.isAssignableFrom(dbModelClass) && !idType.equals(ObjectId.class))) {
                 throw new RuntimeException("Field " + idField.getName() + " with @Id annotation in class "
                         + dbModelClass.getName() + " must be of type " + idType.getSimpleName());
             }
@@ -165,8 +160,7 @@ public class Database {
             } catch (Exception e) {
                 throw new RuntimeException(
                         "Failure during JacksonDBCollection.wrap(), this can be caused by having methods "
-                                + "with the prefix \"get\" or \"set\". " + "Fields of "
-                                + DBModel.class.getName()
+                                + "with the prefix \"get\" or \"set\". " + "Fields of " + DBModel.class.getName()
                                 + " subclasses must be public, an getters/setters are not allowed.", e);
             }
 
@@ -226,8 +220,7 @@ public class Database {
     /**
      * Get the indexed fields of a DBModel the slow way, by querying the database.
      */
-    private static <T extends DBModel, K> HashSet<String> getIndexedFieldsSlow(
-            JacksonDBCollection<T, K> coll) {
+    private static <T extends DBModel, K> HashSet<String> getIndexedFieldsSlow(JacksonDBCollection<T, K> coll) {
         HashSet<String> indexedFields = new HashSet<>();
         for (DBObject obj : coll.getIndexInfo()) {
             BasicDBObject key = (BasicDBObject) obj.get("key");
@@ -268,9 +261,8 @@ public class Database {
                         && (id.getAnnotation(org.mongojack.Id.class) != null || id
                                 .getAnnotation(javax.persistence.Id.class) != null)) {
                     if (idField != null) {
-                        throw new RuntimeException("Class " + dbModelClass.getName()
-                                + " has two id fields: \"" + idField.getName() + "\" and \"" + id.getName()
-                                + "\"");
+                        throw new RuntimeException("Class " + dbModelClass.getName() + " has two id fields: \""
+                                + idField.getName() + "\" and \"" + id.getName() + "\"");
                     }
                     idField = id;
                 }
@@ -318,8 +310,7 @@ public class Database {
             idField = findIdFieldSlow(dbModelClass);
         }
         if (idField == null) {
-            throw new RuntimeException(DBModel.class.getSimpleName() + " subclass "
-                    + dbModelClass.getName()
+            throw new RuntimeException(DBModel.class.getSimpleName() + " subclass " + dbModelClass.getName()
                     + " needs an id field named \"id\" or \"_id\", or a field with @Id annotation");
         }
         // Cache DBModel to id field mapping for future use
@@ -359,8 +350,7 @@ public class Database {
     /** Find an object by id. */
     @SuppressWarnings("unchecked")
     public static <T extends DBModel> T findOneById(Class<T> type, Object id) {
-        JacksonDBCollection<DBModel, Object> coll =
-                (JacksonDBCollection<DBModel, Object>) collectionForDBModel(type);
+        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForDBModel(type);
         return (T) coll.findOneById(id);
     }
 
@@ -371,16 +361,14 @@ public class Database {
         try {
             field = dbModelClass.getField(fieldName);
         } catch (NoSuchFieldException e) {
-            throw new RuntimeException("Field \"" + fieldName + "\" is not a field of class "
-                    + dbModelClass.getName());
+            throw new RuntimeException("Field \"" + fieldName + "\" is not a field of class " + dbModelClass.getName());
         } catch (SecurityException e) {
             throw new RuntimeException("Field \"" + fieldName + "\" of class " + dbModelClass.getName()
                     + " is not accessible", e);
         }
         HashSet<String> indexedFieldNames = null;
         if (GribbitServer.siteResources != null && GribbitServer.siteResources.db != null) {
-            indexedFieldNames =
-                    GribbitServer.siteResources.db.dbModelClassToIndexedFieldNames.get(dbModelClass);
+            indexedFieldNames = GribbitServer.siteResources.db.dbModelClassToIndexedFieldNames.get(dbModelClass);
         }
         if (indexedFieldNames == null) {
             // If the server is not running, we check that the field is indexed on every query. This adds
@@ -396,8 +384,7 @@ public class Database {
     }
 
     /** Find an item by an indexed field's value */
-    public static <T extends DBModel> T findOneByIndexedField(Class<T> type, String fieldName,
-            String fieldValue) {
+    public static <T extends DBModel> T findOneByIndexedField(Class<T> type, String fieldName, String fieldValue) {
         JacksonDBCollection<T, Object> coll = collectionForDBModel(type);
         checkFieldIsIndexed(coll, type, fieldName);
         DBCursor<T> cursor = null;
@@ -446,21 +433,20 @@ public class Database {
     }
 
     /**
-     * Remove this object from the database. Slightly faster than remove(), because it doesn't have to find
-     * the id field.
+     * Remove this object from the database. Slightly faster than remove(), because it doesn't have to find the id
+     * field.
      * 
      * @return
      */
     public static WriteResult<DBModel, Object> removeById(Class<? extends DBModel> type, Object id) {
-        JacksonDBCollection<DBModel, Object> coll =
-                (JacksonDBCollection<DBModel, Object>) collectionForDBModel(type);
+        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForDBModel(type);
         return coll.removeById(id);
     }
 
     /**
-     * Find all objects in the database of the given type. NOTE: this may create a burden on the server if
-     * the result set is large -- use only when you know the result set is guaranteed to be small, otherwise
-     * you expose the server to an OOM attack.
+     * Find all objects in the database of the given type. NOTE: this may create a burden on the server if the result
+     * set is large -- use only when you know the result set is guaranteed to be small, otherwise you expose the server
+     * to an OOM attack.
      */
     public static <T extends DBModel> ArrayList<T> findAll(Class<T> type) {
         ArrayList<T> results = new ArrayList<>();

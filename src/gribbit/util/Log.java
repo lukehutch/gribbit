@@ -79,12 +79,9 @@ public class Log {
                 }
                 stackTrace = stacktraceWriter.toString();
             }
-            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.getMillis()), ZoneId.of("UTC"))
-                    .format(DateTimeFormatter.ISO_ZONED_DATE_TIME)
-                    + "\t"
-                    + record.getLevel()
-                    + "\t"
-                    + record.getMessage() + "\n" + stackTrace;
+            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.getMillis()), ZoneId.of("UTC")).format(
+                    DateTimeFormatter.ISO_ZONED_DATE_TIME)
+                    + "\t" + record.getLevel() + "\t" + record.getMessage() + "\n" + stackTrace;
         }
     }
 

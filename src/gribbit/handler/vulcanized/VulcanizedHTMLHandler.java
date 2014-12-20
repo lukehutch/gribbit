@@ -37,8 +37,7 @@ public class VulcanizedHTMLHandler extends RestHandler.AuthNotRequired {
         long resourcesLoadedEpochSecond = GribbitServer.siteResources.getResourcesLoadedEpochSecond();
         if (req.cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {
             // Return the latest vulcanized content
-            res.setContentUnsafe(
-                    Unpooled.wrappedBuffer(GribbitServer.siteResources.getVulcanizedHTMLBytes()),
+            res.setContentUnsafe(Unpooled.wrappedBuffer(GribbitServer.siteResources.getVulcanizedHTMLBytes()),
                     "text/html;charset=utf-8");
         } else {
             // Classpath elements have not changed since last fetched by browser.

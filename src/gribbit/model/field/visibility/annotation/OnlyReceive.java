@@ -31,9 +31,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Prevents a field in a data model from being rendered as a template parameter. Prevents the user from ever
- * seeing the value in the data model when a template is rendered, but allows them to set the value in a
- * POST request.
+ * Prevents a field in a data model from being rendered as a template parameter. Prevents the user from ever seeing the
+ * value in the data model when a template is rendered, but allows them to set the value in a POST request.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
