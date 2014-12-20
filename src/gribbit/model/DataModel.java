@@ -1015,10 +1015,13 @@ public abstract class DataModel {
                     // TODO: I think MongoDB precedes values in a set with a tab character, to denote their uniqueness in a syntax-compatible way?
                     throw new RuntimeException("Sets cannot be rendered into JSON");
 
-                } else if (Map.class.isAssignableFrom(klass)) {
-                    // Render a Map as a JSON associative array
-                    Map<?, ?> map = (Map<?, ?>) obj;
-                    ArrayList<?> keys = new ArrayList<>(map.keySet());
+                } else if (Map.class.isAssignableFrom(klass) || Set.class.isAssignableFrom(klass)) {
+                    // Render a Map or Set as a JSON associative array.
+                    // Sets are rendered as a map from set element to the Boolean value true
+                    boolean isSet = Set.class.isAssignableFrom(klass);
+                    Map<?, ?> map = isSet ? null : (Map<?, ?>) obj;
+                    Set<?> set = isSet ? (Set<?>) obj : null;
+                    ArrayList<?> keys = new ArrayList<>(isSet ? set : map.keySet());
                     int n = keys.size();
                     if (n == 0) {
                         buf.append(prettyPrint ? "{ }" : "{}");
@@ -1037,15 +1040,17 @@ public abstract class DataModel {
                             }
                         }
                         for (int i = 0; i < n; i++) {
-                            // "key" : 
                             Object k = keys.get(i);
-                            Object v = map.get(k);
+                            Object v = isSet ? Boolean.TRUE : map.get(k);
+
+                            // Render key 
                             if (prettyPrint) {
                                 buf.append(StringUtils.spaces(depth + 1));
                             }
                             buf.append('"');
                             WebUtils.escapeJSONString(k.toString(), buf);
                             buf.append(prettyPrint ? "\" : " : "\":");
+                            
                             // Recursively render value
                             toJSONRec(v, prettyPrint, depth + 1, buf);
                             if (i < n - 1) {
@@ -1082,6 +1087,7 @@ public abstract class DataModel {
                         for (int i = 0; i < n; i++) {
                             Field field = fieldsToInclude.get(i);
 
+                            // Render field name as key
                             if (prettyPrint) {
                                 buf.append(StringUtils.spaces(depth + 1));
                             }
@@ -1089,6 +1095,7 @@ public abstract class DataModel {
                             WebUtils.escapeJSONString(field.getName(), buf);
                             buf.append(prettyPrint ? "\" : " : "\":");
 
+                            // Render value
                             // Turn primitive types into strings, they have their own getter methods
                             Class<?> fieldType = field.getType();
                             if (fieldType == Integer.TYPE) {
