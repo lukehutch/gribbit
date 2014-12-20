@@ -977,19 +977,18 @@ public abstract class DataModel {
             try {
                 if (klass == String.class) {
                     buf.append('"');
-                    buf.append(WebUtils.escapeJSONString((String) obj));
+                    WebUtils.escapeJSONString((String) obj, buf);
                     buf.append('"');
 
                 } else if (klass == Integer.class || klass == Boolean.class || klass == Long.class || klass == Float.class || klass == Double.class || klass == Short.class) {
                     buf.append(obj.toString());
 
                 } else if (klass == Byte.class) {
-                    buf.append("0x");
-                    buf.append(Integer.toString((Byte) obj, 16));
+                    buf.append(Integer.toString(((Byte) obj).intValue()));
 
                 } else if (klass == Character.class) {
                     buf.append('"');
-                    buf.append(WebUtils.escapeJSONString(((Character) obj).toString()));
+                    WebUtils.escapeJSONString(((Character) obj).toString(), buf);
                     buf.append('"');
 
                 } else if (klass.isArray() || List.class.isAssignableFrom(klass)) {
@@ -1012,7 +1011,8 @@ public abstract class DataModel {
                     }
 
                 } else if (Set.class.isAssignableFrom(klass)) {
-                    // JSON can't enforce uniqueness of items, so sets are not renderable
+                    // JSON can't enforce uniqueness of items, so sets are by definition not renderable.
+                    // TODO: I think MongoDB precedes values in a set with a tab character, to denote their uniqueness in a syntax-compatible way?
                     throw new RuntimeException("Sets cannot be rendered into JSON");
 
                 } else if (Map.class.isAssignableFrom(klass)) {
@@ -1044,7 +1044,7 @@ public abstract class DataModel {
                                 buf.append(StringUtils.spaces(depth + 1));
                             }
                             buf.append('"');
-                            buf.append(WebUtils.escapeJSONString(k.toString()));
+                            WebUtils.escapeJSONString(k.toString(), buf);
                             buf.append(prettyPrint ? "\" : " : "\":");
                             // Recursively render value
                             toJSONRec(v, prettyPrint, depth + 1, buf);
@@ -1086,7 +1086,7 @@ public abstract class DataModel {
                                 buf.append(StringUtils.spaces(depth + 1));
                             }
                             buf.append('"');
-                            buf.append(WebUtils.escapeJSONString(field.getName()));
+                            WebUtils.escapeJSONString(field.getName(), buf);
                             buf.append(prettyPrint ? "\" : " : "\":");
 
                             // Turn primitive types into strings, they have their own getter methods
@@ -1104,11 +1104,10 @@ public abstract class DataModel {
                             } else if (fieldType == Short.TYPE) {
                                 buf.append(Short.toString(field.getShort(obj)));
                             } else if (fieldType == Byte.TYPE) {
-                                buf.append("0x");
-                                buf.append(Integer.toString(field.getByte(obj), 16));
+                                buf.append(Integer.toString((int) field.getByte(obj)));
                             } else if (fieldType == Character.TYPE) {
                                 buf.append('"');
-                                buf.append(WebUtils.escapeJSONString(Character.toString(field.getChar(obj))));
+                                WebUtils.escapeJSONString(Character.toString(field.getChar(obj)), buf);
                                 buf.append('"');
                             } else {
                                 // Not a primitive type; recursively render value

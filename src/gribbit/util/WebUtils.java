@@ -519,14 +519,20 @@ public class WebUtils {
 
     /** Escape a string to be surrounded in double quotes in JSON. */
     public static String escapeJSONString(String unsafeStr) {
-        // See http://stackoverflow.com/questions/3020094/how-should-i-escape-strings-in-json
         StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
+        escapeJSONString(unsafeStr, buf);
+        return buf.toString();
+    }
+    
+    /** Escape a string to be surrounded in double quotes in JSON. */
+    public static void escapeJSONString(String unsafeStr, StringBuilder buf) {
         for (int i = 0, n = unsafeStr.length(); i < n; i++) {
             char c = unsafeStr.charAt(i);
+            // See http://www.json.org/ under "string"
             switch (c) {
             case '\\':
             case '"':
-            // case '/':  // Not sure why it's recommended to escape forward slash? Jackson doesn't escape it, and it makes URLs ugly..
+            // case '/':  // Forward slash can be escaped, but doesn't have to be. Jackson doesn't escape it, and it makes URLs ugly.
                 buf.append('\\');
                 buf.append(c);
                 break;
@@ -557,7 +563,6 @@ public class WebUtils {
                 }
             }
         }
-        return buf.toString();
     }
 
     // ------------------------------------------------------------------------------------------------------------------------------------
