@@ -23,21 +23,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.server.response;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.RestHandler;
-import gribbit.server.response.Response;
-import gribbit.server.response.TextResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-/**
- * Default handler for cases where the user tries to request the GET or POST method on a route that doesn't support that
- * method.
- */
-@RouteOverride("/gribbit/err/method-not-allowed")
-public class MethodNotAllowed extends RestHandler.AuthNotRequired {
-    public Response get() {
-        return new TextResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
+public class NotFoundResponse extends ErrorResponse {
+    public NotFoundResponse() {
+        super(HttpResponseStatus.NOT_FOUND, "404 Not Found");
     }
 }

@@ -30,10 +30,12 @@ import gribbit.exception.BadRequestException;
 import gribbit.exception.UnauthorizedException;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
-import gribbit.server.Response.FlashType;
 import gribbit.server.RestHandler;
 import gribbit.server.Route;
 import gribbit.server.config.GribbitProperties;
+import gribbit.server.response.RedirectResponse;
+import gribbit.server.response.Response;
+import gribbit.server.response.flashmsg.FlashMessage.FlashType;
 import gribbit.util.Log;
 import gribbit.util.RequestBuilder;
 
@@ -149,15 +151,18 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
     // This handler is initially called with "/login" appended to the URI, initiating the OAuth process.
     // The route of this same handler is given to Google with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
-    public void get(String action) throws Exception {
+    public Response get(String action) throws Exception {
         User user = null;
-        // If the user was denied access, we get back an error, e.g. "error=access_denied"
-        String error = req.getQueryParam("error");
-        if (error == null) {
+        Response response = null;
+        String error = request.getQueryParam("error");
+        if (error != null) {
+            // If the user was denied access, we get back an error, e.g. "error=access_denied"
+            error = "Unauthorized: " + error;
+        } else {
             if ("login".equals(action)) {
                 // Initial click by the user on the "Sign in with Google" button: redirect to Google
                 // to get an authorization code
-                res.redirectToTrustedURL(getAuthorizationCodeURL(/* forceApprovalPrompt = */false));
+                response = new RedirectResponse(getAuthorizationCodeURL(/* forceApprovalPrompt = */false));
 
             } else if ("callback".equals(action)) {
                 // Handling a callback request from Google's OAuth2 server
@@ -168,7 +173,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                     AuthResponse auth = RequestBuilder.postToURLWithJSONResponse(AuthResponse.class, //
                             "https://accounts.google.com/o/oauth2/token", //
                             // Authorization code provided by Google
-                            "code", req.getQueryParam("code"), //
+                            "code", request.getQueryParam("code"), //
                             "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
                             "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
                             "redirect_uri", callbackURI(),//
@@ -194,7 +199,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                     String email = userInfo.email;
                     if (email == null || email.isEmpty()) {
                         // Need an email address to look up user
-                        error = "No email address";
+                        error = "Bad Request: no email address";
 
                     } else {
 
@@ -217,15 +222,15 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                             // user's database record has been deleted, deleting the refresh token.
                             // See: http://goo.gl/aUoDLl
                             if (user != null) {
-                                user.logOut(res);
+                                user.logOut(request);
                             }
-                            res.redirectToTrustedURL(getAuthorizationCodeURL(/* forceApprovalPrompt = */true));
+                            response = new RedirectResponse(getAuthorizationCodeURL(/* forceApprovalPrompt = */true));
 
                         } else {
 
                             if (user == null) {
                                 // There was no user with this email address -- create a new user
-                                user = User.createFederatedLoginUser(email, res);
+                                user = User.createFederatedLoginUser(email, request);
 
                                 user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 if (!user.emailValidated) {
@@ -233,7 +238,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                                     // so that the user doesn't get confused about why we're asking them to
                                     // validate their email address. (TODO: under what circumstances will
                                     // Google report verified_email == false?)
-                                    res.addFlashMessage(FlashType.WARNING, "Please verify email address",
+                                    request.addFlashMessage(FlashType.WARNING, "Please verify email address",
                                             "Google has informed us that you have not verified your email "
                                                     + "address with them. Please do so, then log out and "
                                                     + "log back into this site.");
@@ -249,7 +254,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                                 // res.clearFlashMessages();
                                 // res.addFlashMessage(FlashType.INFO, "Welcome",
                                 // "We created a new account for you with the email address " + email);
-                                Log.info(req.getRequestor() + "\tCreated new Google user " + email);
+                                Log.info(request.getRequestor() + "\tCreated new Google user " + email);
 
                             } else {
                                 if (!user.emailValidated) {
@@ -258,12 +263,12 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                                 }
 
                                 // Log in existing user with this email address
-                                user.logIn(res);
+                                user.logIn(request);
 
                                 // res.clearFlashMessages();
                                 // res.addFlashMessage(FlashType.SUCCESS, "Welcome back",
                                 // "You are now signed in with the email address " + email);
-                                Log.info(req.getRequestor() + "\tGoogle login okay for user " + email);
+                                Log.info(request.getRequestor() + "\tGoogle login okay for user " + email);
                             }
 
                             // Store tokens in user record
@@ -273,47 +278,43 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                             user.save();
 
                             // Redirect back home
-                            res.redirectToTrustedURL("/");
+                            response = new RedirectResponse("/");
                         }
                     }
                 } catch (BadRequestException e) {
                     error = "Bad request: " + e.getMessage();
+
                 } catch (UnauthorizedException e) {
                     error = "Unauthorized: " + e;
+
                 } catch (Exception e) {
                     Log.exception("Exception during Google OAuth2 login", e);
-                    if (error == null) {
-                        error = e.toString();
-                    }
+                    error = e.toString();
                 }
             } else {
-                error = "Bad URI parameter";
+                error = "Bad Request: bad URI parameter";
             }
         }
-        if (error != null) {
+        if (error != null || response == null) {
             Log.error("Error during Google OAuth2 login: " + error);
             if (user != null) {
-                user.logOut(res);
+                user.logOut(request);
             }
-            res.clearFlashMessages();
+            request.clearFlashMessages();
             if (error.contains("Unauthorized")) {
-                res.addFlashMessage(FlashType.ERROR, "Error",
-                        "Could not log in, you are not authorized to access this site. "
-                                + "Please contact the site administrator for authorization.");
-            } else {
-                res.addFlashMessage(FlashType.ERROR, "Error",
-                        "Could not log in, please check your password and try again, "
-                                + "or contact the site administrator.");
+                request.addFlashMessage(FlashType.ERROR, "Error",
+                        "Could not log you in, please check your password or contact the site administrator.");
             }
             if ("callback".equals(action)) {
                 // We don't want the long callback URI in the browser address field,
                 // so redirect to the unauthorized handler's route
-                res.redirect(GribbitServer.siteResources.getUnauthorizedRoute().getHandler());
+                response = new RedirectResponse(GribbitServer.siteResources.getUnauthorizedRoute());
             } else {
                 // Otherwise just call the unauthorized handler without actually redirecting to
                 // the unauthorized route
-                GribbitServer.siteResources.getUnauthorizedRoute().callHandler(req, res);
+                response = GribbitServer.siteResources.getUnauthorizedRoute().callHandler(request, user);
             }
         }
+        return response;
     }
 }

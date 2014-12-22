@@ -129,14 +129,14 @@ public class GribbitServer {
      * after all routes and handlers have been added.
      */
     public static void config(String appPackageName, String staticResourceRoot) {
-        config("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
+        init("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
     }
 
     /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
      * after all routes and handlers have been added.
      */
-    public static void config(String domain, int port, String appPackageName, String staticResourceRoot) {
+    public static void init(String domain, int port, String appPackageName, String staticResourceRoot) {
         GribbitServer.domain = domain;
 
         if (!portAvailable(port)) {
@@ -176,11 +176,11 @@ public class GribbitServer {
                             loadSiteResources(appPackageName, staticResourceRoot);
                         }
                         GribbitServer.scheduledTaskGroup.schedule(this,
-                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
+                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
                     }
                 };
                 GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector,
-                        GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.SECONDS);
+                        GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             }
 
         } catch (Exception e) {

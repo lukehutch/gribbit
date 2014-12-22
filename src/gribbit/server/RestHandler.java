@@ -25,7 +25,11 @@
  */
 package gribbit.server;
 
+import gribbit.auth.Cookie;
 import gribbit.auth.User;
+import gribbit.server.response.flashmsg.FlashMessage.FlashType;
+
+import java.util.ArrayList;
 
 /**
  * RestHandler: a REST request Handler. Implement the get() method with optional params to accept URL params, and/or the
@@ -33,8 +37,35 @@ import gribbit.auth.User;
  */
 public abstract class RestHandler {
 
-    protected Request req;
-    protected Response res;
+    protected Request request;
+
+    private ArrayList<Cookie> cookies;
+    
+    /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
+    protected void addFlashMessage(FlashType flashType, String strongText, String flashMessage) {
+        request.addFlashMessage(flashType, strongText, flashMessage);
+    }
+    
+    /** Clear flash messages. */
+    protected void clearFlashMessages() {
+        request.clearFlashMessages();
+    }
+    
+    /** Add a cookie to the response. */
+    protected void addCookie(Cookie cookie) {
+        // (Stored in the request temporarily)
+        request.setCookie(cookie);
+    }
+    
+    /** Delete a named cookie in the browser when sending the response. */
+    protected void deleteCookie(String cookieName) {
+        // (Stored in the request temporarily)
+        request.deleteCookie(cookieName);
+    }
+    
+    public ArrayList<Cookie> getCookies() {
+        return cookies;
+    }
 
     /**
      * Auth required, but validated email NOT required.

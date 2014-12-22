@@ -35,6 +35,9 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaders.Names.REFERER;
 import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 import gribbit.auth.Cookie;
+import gribbit.server.response.flashmsg.FlashMessage;
+import gribbit.server.response.flashmsg.FlashMessage.FlashType;
+import gribbit.util.StringUtils;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -44,6 +47,7 @@ import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -95,6 +99,9 @@ public class Request {
      */
     private boolean isGetModelRequest;
 
+    /** Flash messages, in cookie string format */
+    private String flashMessageCookieString;
+
     // -----------------------------------------------------------------------------------------------------
 
     public Request(HttpRequest httpReq) {
@@ -141,31 +148,12 @@ public class Request {
             // Remove _getmodel param so that user doesn't see it
             this.queryParamToVals.remove("_getmodel");
         }
+
+        // Get flash messages from cookie, if any
+        this.flashMessageCookieString = getCookieValue(Cookie.FLASH_COOKIE_NAME);
     }
 
-    public long getReqReceivedTimeMillis() {
-        return reqReceivedTimeMillis;
-    }
-
-    void setPostParams(HashMap<String, String> postParamToValue) {
-        this.postParamToValue = postParamToValue;
-    }
-
-    public String getRequestor() {
-        return requestor == null ? "" : requestor;
-    }
-
-    public void setRequestor(String requestor) {
-        this.requestor = requestor;
-    }
-
-    public HttpMethod getMethod() {
-        return method;
-    }
-
-    public void setMethod(HttpMethod method) {
-        this.method = method;
-    }
+    // -----------------------------------------------------------------------------------------------------------------
 
     public String getPostParam(String paramName) {
         if (postParamToValue == null) {
@@ -218,6 +206,12 @@ public class Request {
         }
     }
 
+    void setPostParams(HashMap<String, String> postParamToValue) {
+        this.postParamToValue = postParamToValue;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
     /** Return all URL parameters matching the given name, or null if none. */
     public List<String> getQueryParams(String paramName) {
         if (queryParamToVals == null) {
@@ -237,13 +231,7 @@ public class Request {
         }
     }
 
-    /**
-     * True if the request URL contained the query parameter "?_getmodel=1", in which case return the DataModel backing
-     * an HTML page, and not the rendered page itself.
-     */
-    public boolean isGetModelRequest() {
-        return isGetModelRequest;
-    }
+    // -----------------------------------------------------------------------------------------------------------------
 
     public Collection<Cookie> getCookies() {
         if (cookieNameToCookie == null) {
@@ -260,6 +248,30 @@ public class Request {
             return cookieNameToCookie.get(cookieName);
         }
     }
+
+    public String getCookieValue(String cookieName) {
+        Cookie cookie = getCookie(cookieName);
+        if (cookie == null) {
+            return null;
+        } else {
+            return cookie.getValue();
+        }
+    }
+
+    /** Add a cookie to serve later in the response. */
+    public void setCookie(Cookie cookie) {
+        if (cookieNameToCookie == null) {
+            cookieNameToCookie = new HashMap<>();
+        }
+        cookieNameToCookie.put(cookie.getName(), cookie);
+    }
+
+    /** Add a cookie to delete later in the response. */
+    public void deleteCookie(String cookieName) {
+        setCookie(Cookie.deleteCookie(cookieName));
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     /** Find where the last redirect originated from */
     public String getRedirectOrigin() {
@@ -279,17 +291,83 @@ public class Request {
         }
     }
 
-    public String getCookieValue(String cookieName) {
-        Cookie cookie = getCookie(cookieName);
-        if (cookie == null) {
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see if
+     * the resource is newer than any cached version.
+     */
+    public boolean cachedVersionIsOlderThan(long resourceTimestampEpochSecond) {
+        return resourceTimestampEpochSecond > ifModifiedSinceEpochSecond;
+    }
+
+    public long getReqReceivedTimeMillis() {
+        return reqReceivedTimeMillis;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
+    public void addFlashMessage(FlashType flashType, String strongText, String flashMessage) {
+        String newFlashMsgCookieStr = FlashMessage.toCookieString(flashType, strongText, flashMessage);
+        if (flashMessageCookieString == null) {
+            flashMessageCookieString = newFlashMsgCookieStr;
+        } else {
+            flashMessageCookieString = flashMessageCookieString + "\n" + newFlashMsgCookieStr;
+        }
+    }
+
+    /** Clear flash messages. */
+    public void clearFlashMessages() {
+        flashMessageCookieString = null;
+    }
+
+    /** Get any flash message cookie value produced by calling addFlashMessage() during the handling of this request. */
+    public ArrayList<FlashMessage> getFlashMessages() {
+        if (flashMessageCookieString == null) {
             return null;
         } else {
-            return cookie.getValue();
+            ArrayList<FlashMessage> flashMessages = new ArrayList<>();
+            for (String flashMessageStr : StringUtils.split(flashMessageCookieString, "\n")) {
+                FlashMessage flashMessage = FlashMessage.fromCookieString(flashMessageStr);
+                if (flashMessage != null) {
+                    // As long as message format was valid, add flash message
+                    flashMessages.add(flashMessage);
+                }
+            }
+            return flashMessages.isEmpty() ? null : flashMessages;
         }
+    }
+
+    /** Get flash messages in cookie string format. */
+    public String getFlashMessageCookieString() {
+        return flashMessageCookieString;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    public String getRequestor() {
+        return requestor == null ? "" : requestor;
+    }
+
+    public void setRequestor(String requestor) {
+        this.requestor = requestor;
+    }
+
+    public HttpMethod getMethod() {
+        return method;
+    }
+
+    public void setMethod(HttpMethod method) {
+        this.method = method;
     }
 
     public String getURI() {
         return path;
+    }
+
+    public void setURI(String uri) {
+        this.path = uri;
     }
 
     public String getHost() {
@@ -325,22 +403,10 @@ public class Request {
     }
 
     /**
-     * Add a cookie to delete later in the response (used when a method has access to only the request, not the
-     * response). Will not be deleted if a cookie of the same name is set in the response.
+     * True if the request URL contained the query parameter "?_getmodel=1", in which case return the DataModel backing
+     * an HTML page, and not the rendered page itself.
      */
-    public void addCookieToDeleteInResponse(String cookieName) {
-        cookiesToDelete.add(cookieName);
-    }
-
-    HashSet<String> getCookiesToDelete() {
-        return cookiesToDelete;
-    }
-
-    /**
-     * Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see if
-     * the resource is newer than any cached version.
-     */
-    public boolean cachedVersionIsOlderThan(long resourceTimestampEpochSecond) {
-        return resourceTimestampEpochSecond > ifModifiedSinceEpochSecond;
+    public boolean isGetModelRequest() {
+        return isGetModelRequest;
     }
 }

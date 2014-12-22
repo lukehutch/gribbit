@@ -29,10 +29,14 @@ import gribbit.auth.CSRF;
 import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
 import gribbit.model.DataModel;
+import gribbit.server.response.ErrorResponse;
+import gribbit.server.response.Response;
 import gribbit.util.AppException;
+import gribbit.util.Log;
 import gribbit.util.Reflection;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.lang.reflect.Method;
 
@@ -54,12 +58,15 @@ public class Route {
             String methodName = method.getName();
             Class<?>[] paramTypes = method.getParameterTypes();
 
-            if (methodName.equals("get")) {
-                if (method.getReturnType() != Void.TYPE) {
+            if (methodName.equals("get") || methodName.equals("post")) {
+                if (!Response.class.isAssignableFrom(method.getReturnType())) {
                     throw new RuntimeException("Method " + handler.getName() + "." + methodName
-                            + " should have a void return type instead of " + method.getReturnType().getName());
+                            + " should have a return type of " + Response.class.getName()
+                            + " or a subclass, instead of " + method.getReturnType().getName());
                 }
+            }
 
+            if (methodName.equals("get")) {
                 // Check method parameters are key value pairs, and that the keys are strings, and the
                 // values are String or Integer
                 for (int j = 0; j < paramTypes.length; j++) {
@@ -89,11 +96,6 @@ public class Route {
                 getParamTypes = paramTypes;
 
             } else if (methodName.equals("post")) {
-                if (method.getReturnType() != Void.TYPE) {
-                    throw new RuntimeException("Method " + handler.getName() + "." + methodName
-                            + " should have a void return type instead of " + method.getReturnType().getName());
-                }
-
                 if (paramTypes.length > 1) {
                     throw new RuntimeException("Method " + handler.getName() + "." + methodName
                             + " needs zero parameters or one parameter of type " + DataModel.class.getSimpleName()
@@ -145,23 +147,29 @@ public class Route {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /** Call the RestHandler corresponding to this route, with user set to null. */
-    public void callHandler(Request req, Response res) throws Exception {
-        callHandler(req, res, null);
-    }
-
-    /** Call the RestHandler corresponding to this route. */
-    public void callHandler(Request req, Response res, User user) throws Exception {
-        // Construct a new RestHandler of the appropriate type for this route
+    /** Create a new RestHandler instance to handle a request. */
+    private RestHandler newRestHandlerInstance(Request req, User user) throws InstantiationException,
+            IllegalAccessException {
         RestHandler restHandler = handler.newInstance();
-        restHandler.req = req;
-        restHandler.res = res;
+        restHandler.request = req;
         if (RestHandler.AuthRequired.class.isAssignableFrom(handler)) {
             if (user == null) {
                 throw new RuntimeException("Can't call AuthRequired handlers without supplying non-null user object");
             }
             ((RestHandler.AuthRequired) restHandler).user = user;
         }
+        return restHandler;
+    }
+
+    /**
+     * Call the RestHandler corresponding to this route. Assumes user is sufficiently authorized to call this handler,
+     * i.e. assumes login checks have been performed etc.
+     * 
+     * @return
+     */
+    public Response callHandler(Request req, User user) throws Exception {
+        // Construct a new RestHandler of the appropriate type for this route
+        RestHandler restHandler = newRestHandlerInstance(req, user);
 
         // Get param vals for RestHandler method
         Object[] paramVals = null;
@@ -255,10 +263,26 @@ public class Route {
             }
         }
 
-        // User has sufficient authorization to run this method and parameters are of the right type.
+        // User has sufficient (CSRF token) authorization to run this method and parameters are of the right type.
         // Call Java method corresponding to the requested HTTP method on this route.
-        // This method will set a response in restHandler.res.
-        javaMethod.invoke(restHandler, paramVals);
+        Response response = (Response) javaMethod.invoke(restHandler, paramVals);
+
+        // The Response object returned by the RestHandler should not be null, but if it is, respond with No Content
+        if (response == null) {
+            Log.warning("Handler " + restHandler.getClass().getName() + " returned null from its "
+                    + (reqMethod == HttpMethod.POST ? "post" : "get") + "() method -- responding with 204: No Content");
+            response = new ErrorResponse(HttpResponseStatus.NO_CONTENT, "");
+        }
+        return response;
+    }
+
+    /**
+     * Call the RestHandler corresponding to this route, with user set to null.
+     * 
+     * @return
+     */
+    public Response callHandler(Request req) throws Exception {
+        return (Response) callHandler(req, null);
     }
 
     // -----------------------------------------------------------------------------------------------------

@@ -74,7 +74,6 @@ import java.util.regex.PatternSyntaxException;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Comment;
 import org.jsoup.nodes.DataNode;
-import org.jsoup.nodes.Document;
 import org.jsoup.nodes.DocumentType;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
@@ -86,9 +85,8 @@ import org.jsoup.select.Elements;
  * A model that can be bound from the parameters in a POST request, and/or that can be used to populate an HTML
  * template.
  * 
- * You can apply data constraint annotations to the fields of subclasses of DataModel, such @MaxLength or
- * 
- * @Email, and these constraints will be applied when submitted form data is bound to the model.
+ * You can apply data constraint annotations to the fields of subclasses of DataModel, such MaxLength or Email, and
+ * these constraints will be applied when submitted form data is bound to the model.
  */
 public abstract class DataModel {
 
@@ -779,81 +777,29 @@ public abstract class DataModel {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Cross-check HTML template names against DataModel subclass names, and HTML template parameter names against names
-     * of fields in the correspondingly-named DataModel subclass.
+     * Recursively cross-check HTML template parameters against fields in the correspondingly-named DataModel subclass.
      */
-    public static void crossCheckDataModelAndView(SiteResources siteResources, String templateName,
-            Class<? extends DataModel> templateDataModel, Document templateDoc) {
-        // Compare template HTML files against DataModel class fields so that these checks don't have
-        // to be performed during template rendering
-        HashSet<String> paramNamesUsedInHTML = new HashSet<>();
-        for (Element e : templateDoc.getAllElements()) {
+    private static void crossCheckDataModelAndView(SiteResources siteResources, String templateName,
+            Class<? extends DataModel> templateDataModel, Node node, HashSet<String> paramNamesUsedInHTMLOut) {
 
+        if (node instanceof Element) {
+            Element element = ((Element) node);
             // Check if the DataModel fields that have the same name as template params are accessible
-            String tagName = e.tagName().toLowerCase();
-            for (Node n : e.childNodes()) {
-                if (n instanceof TextNode) {
-                    String text = ((TextNode) n).text();
+            String tagName = element.tagName().toLowerCase();
 
-                    // Check for attempt to put param in the element name, e.g. <${elt}>,
-                    // or malformed HTML like <>. In these cases, Jsoup just inserts a text node with
-                    // unescaped text. 
-                    if (text.indexOf('<') > 0 || text.indexOf('>') > 0) {
-                        throw new RuntimeException("The template \"" + templateName + "\" contains invalid HTML: "
-                                + text);
-                    }
-
-                    Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(text);
-                    boolean containsParam = false;
-                    while (matcher.find()) {
-                        containsParam = true;
-                        String paramName = matcher.group(1);
-                        checkFieldAccessible(templateName, templateDataModel, paramName, null);
-                        paramNamesUsedInHTML.add(paramName);
-                    }
-                    if (containsParam) {
-                        if (tagName.equals("#comment")) {
-                            // Ignore params in comments
-                            // TODO: these could be supported by escaping "<!--" and "-->"
-                        } else {
-                            // OWASP Rule #3:
-                            //     JavaScript Escape Before Inserting Untrusted Data into JavaScript
-                            //     Data Values
-                            // OWASP Rule #4:
-                            //     CSS Escape And Strictly Validate Before Inserting Untrusted Data into
-                            //     HTML Style Property Values.
-                            //
-                            // We currently completely disallow inserting params into style and script
-                            // attributes for safety reasons. All parameter insertion into JS contexts or
-                            // sub-contexts is disabled right now.
-                            //
-                            // See https://www.owasp.org/index.php/DOM_based_XSS_Prevention_Cheat_Sheet :
-                            // "DOM based XSS is extremely difficult to mitigate against because of its
-                            // large attack surface and lack of standardization across browsers."
-                            //
-                            // TODO: CSS parsing is not supported by jsoup, so we can't do context-sensitive
-                            // escaping in CSS. Therefore, parameters are not supported in style tags or
-                            // attributes at this time. CSS parsers:
-                            // -- http://cssparser.sourceforge.net/
-                            // -- https://code.google.com/p/phloc-css/
-                            // -- http://www.w3.org/Style/CSS/SAC/
-                            // -- https://github.com/corgrath/osbcp-css-parser
-                            // Note: see http://goo.gl/n0sWup -- sanitizers can be used to let through
-                            // only sanitized CSS.
-                            if (tagName.equals("script") || tagName.equals("style") || tagName.equals("applet")
-                                    || tagName.equals("object")) {
-                                throw new RuntimeException("The template \"" + templateName
-                                        + "\" contains a template param inside the unsafe element <" + tagName + ">");
-                            }
-                        }
-                    }
-                }
+            // Make sure tag name doesn't contain a parameter
+            if (TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(tagName).find()) {
+                throw new RuntimeException("The template \"" + templateName
+                        + "\" contains an element with a parameter in a tag name: " + tagName);
             }
-            for (Attribute a : e.attributes()) {
+
+            // Check attributes of element
+            for (Attribute a : element.attributes()) {
                 String attrName = a.getKey().toLowerCase();
                 String attrValue = a.getValue();
                 StringBuilder attrValueWithoutParams = new StringBuilder();
 
+                // Look for template params in attribute values
                 Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(attrValue);
                 boolean attrValueContainsParam = false;
                 int firstMatchStart = 0, lastMatchEnd = 0;
@@ -870,7 +816,7 @@ public abstract class DataModel {
                     // is publicly accessible
                     String paramName = matcher.group(1);
                     checkFieldAccessible(templateName, templateDataModel, paramName, attrName);
-                    paramNamesUsedInHTML.add(paramName);
+                    paramNamesUsedInHTMLOut.add(paramName);
                 }
                 attrValueWithoutParams.append(attrValue.subSequence(lastMatchEnd, attrValue.length()));
 
@@ -969,12 +915,12 @@ public abstract class DataModel {
 
                 // Add CSRF input to form with placeholder value that will be replaced with the real CSRF
                 // value when the page is served
-                Elements csrfElts = e.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME);
+                Elements csrfElts = element.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME);
                 if (csrfElts.size() > 0) {
                     throw new RuntimeException("Form in template " + templateName
                             + " should not include its own elements with name " + CSRF.CSRF_PARAM_NAME);
                 }
-                Element csrfElt = e.appendElement("input");
+                Element csrfElt = element.appendElement("input");
                 csrfElt.attr("name", CSRF.CSRF_PARAM_NAME);
                 csrfElt.attr("type", "hidden");
                 csrfElt.attr("value", CSRF.CSRF_TOKEN_PLACEHOLDER);
@@ -982,7 +928,7 @@ public abstract class DataModel {
                 // Check if the id attribute of the form matches a DataModel-typed field in the template 
                 // class associated with the form. If so, this field's own fields are cross-checked against
                 // the input values in the form, as a special case of template parameter matching. 
-                String id = e.attr("id");
+                String id = element.attr("id");
                 if (id != null && !id.isEmpty()) {
                     Field field = null;
                     try {
@@ -1008,24 +954,24 @@ public abstract class DataModel {
                             Class<? extends DataModel> formModel = (Class<? extends DataModel>) field.getType();
 
                             // The form id is a special case of template parameter name
-                            paramNamesUsedInHTML.add(id);
+                            paramNamesUsedInHTMLOut.add(id);
 
                             // Cross-check the names of inputs in the form with fields in the DataModel,
                             // and copy any constraint annotations in this DataModel across to the elements
                             // in the form.
-                            addConstraintsToForm(templateName, e, formModel);
+                            addConstraintsToForm(templateName, element, formModel);
 
                             // If form is to be submitted via POST, try substituting the route URL for the
                             // RestHandler that handles the POST into the action attribute
                             String submitURI = siteResources.routeURIForDataModel(formModel);
-                            String method = e.attr("method");
+                            String method = element.attr("method");
                             if (method.isEmpty()) {
                                 // Method was not specified
                                 if (submitURI == null) {
                                     // Fill in missing (default) GET action if there is no POST handler
                                     // that accepts this form
                                     method = "GET";
-                                    e.attr("method", method);
+                                    element.attr("method", method);
                                 } else {
                                     // Fill in missing POST action if there is a POST handler that accepts
                                     // this form. This overrides the HTML default action of GET, but it is
@@ -1033,7 +979,7 @@ public abstract class DataModel {
                                     // annotations will be checked on POST requests, whereas for GET
                                     // requests the user has to do binding and param checking themselves.
                                     method = "POST";
-                                    e.attr("method", method);
+                                    element.attr("method", method);
                                 }
                             } else {
                                 // Method was specified
@@ -1053,12 +999,12 @@ public abstract class DataModel {
                                     // Form is submitted via POST, and field type that matches form id is
                                     // accepted by the post() method of a RestHandler
 
-                                    String action = e.attr("action");
+                                    String action = element.attr("action");
                                     if (action.isEmpty()) {
                                         // Fill in missing action attribute value with route path of the
                                         // RestHandler that has a post() method that takes a parameter of
                                         // the type bound to this form
-                                        e.attr("action", submitURI);
+                                        element.attr("action", submitURI);
                                     } else if (!action.equals(submitURI)) {
                                         // Maybe this is heavy-handed (probably the user should be able to
                                         // override with a different URI), but they can manually construct
@@ -1071,7 +1017,7 @@ public abstract class DataModel {
                                                 + submitURI + " , but this form is submitted to the route " + action
                                                 + " , not " + submitURI + " . Overriding " + action + " with "
                                                 + submitURI);
-                                        e.attr("action", submitURI);
+                                        element.attr("action", submitURI);
                                     }
 
                                 } else {
@@ -1088,6 +1034,81 @@ public abstract class DataModel {
                     }
                 }
             }
+
+            // Recurse on child nodes
+            for (Node childNode : element.childNodes()) {
+                crossCheckDataModelAndView(siteResources, templateName, templateDataModel, childNode,
+                        paramNamesUsedInHTMLOut);
+            }
+
+        } else if (node instanceof TextNode) {
+            String text = ((TextNode) node).text();
+
+            // Check for attempt to put param in the element name, e.g. <${elt}>,
+            // or malformed HTML like <>. In these cases, Jsoup just inserts a text node with
+            // unescaped text. 
+            if (text.indexOf('<') > 0 || text.indexOf('>') > 0) {
+                throw new RuntimeException("The template \"" + templateName + "\" contains invalid HTML: " + text);
+            }
+
+            // Look for template params in text
+            Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(text);
+            boolean containsParam = false;
+            while (matcher.find()) {
+                containsParam = true;
+                String paramName = matcher.group(1);
+                checkFieldAccessible(templateName, templateDataModel, paramName, null);
+                paramNamesUsedInHTMLOut.add(paramName);
+            }
+            if (containsParam) {
+                String parentTagName = node.parent() == null ? "body" : ((Element) node.parent()).tagName();
+
+                if (parentTagName.equals("#comment")) {
+                    // Ignore params in comments
+                    // TODO: these could be supported by escaping "<!--" and "-->"
+                } else {
+                    // OWASP Rule #3:
+                    //     JavaScript Escape Before Inserting Untrusted Data into JavaScript
+                    //     Data Values
+                    // OWASP Rule #4:
+                    //     CSS Escape And Strictly Validate Before Inserting Untrusted Data into
+                    //     HTML Style Property Values.
+                    //
+                    // We currently completely disallow inserting params into style and script
+                    // attributes for safety reasons. All parameter insertion into JS contexts or
+                    // sub-contexts is disabled right now.
+                    //
+                    // See https://www.owasp.org/index.php/DOM_based_XSS_Prevention_Cheat_Sheet :
+                    // "DOM based XSS is extremely difficult to mitigate against because of its
+                    // large attack surface and lack of standardization across browsers."
+                    //
+                    // TODO: CSS parsing is not supported by jsoup, so we can't do context-sensitive
+                    // escaping in CSS. Therefore, parameters are not supported in style tags or
+                    // attributes at this time. CSS parsers:
+                    // -- http://cssparser.sourceforge.net/
+                    // -- https://code.google.com/p/phloc-css/
+                    // -- http://www.w3.org/Style/CSS/SAC/
+                    // -- https://github.com/corgrath/osbcp-css-parser
+                    // Note: see http://goo.gl/n0sWup -- sanitizers can be used to let through
+                    // only sanitized CSS.
+                    if (parentTagName.equals("script") || parentTagName.equals("style")
+                            || parentTagName.equals("applet") || parentTagName.equals("object")) {
+                        throw new RuntimeException("The template \"" + templateName
+                                + "\" contains a template param inside the XSS-unsafe element <" + parentTagName + ">");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively cross-check HTML template parameters against fields in the correspondingly-named DataModel subclass.
+     */
+    public static void crossCheckDataModelAndView(SiteResources siteResources, String templateName,
+            Class<? extends DataModel> templateDataModel, List<Node> templateNodes) {
+        HashSet<String> paramNamesUsedInHTML = new HashSet<>();
+        for (Node node : templateNodes) {
+            crossCheckDataModelAndView(siteResources, templateName, templateDataModel, node, paramNamesUsedInHTML);
         }
 
         // Get names of template fields in DataModel
@@ -1308,40 +1329,18 @@ public abstract class DataModel {
      * state.
      */
     public String toJSON(boolean prettyPrint) {
-        StringBuilder buf = new StringBuilder(1024);
+        StringBuilder buf = new StringBuilder(8192);
         toJSONRec(this, prettyPrint, 0, buf);
         return buf.toString();
     }
 
     /**
-     * Render a list of objects as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel
-     * objects. This produces a JSON rendering that may be served over a Web connection without exposing internal server
-     * state.
-     */
-    public static String toJSON(List<?> list, boolean prettyPrint) {
-        StringBuilder buf = new StringBuilder(1024);
-        toJSONRec(list, prettyPrint, 0, buf);
-        return buf.toString();
-    }
-
-    /**
-     * Render an array of objects as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of
-     * DBModel objects. This produces a JSON rendering that may be served over a Web connection without exposing
-     * internal server state.
-     */
-    public static String toJSON(Object[] arr, boolean prettyPrint) {
-        StringBuilder buf = new StringBuilder(1024);
-        toJSONRec(arr, prettyPrint, 0, buf);
-        return buf.toString();
-    }
-
-    /**
-     * Recursively render an Object as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of
-     * DBModel objects. This produces a JSON rendering that may be served over a Web connection without exposing
-     * internal server state.
+     * Recursively render an Object (or array, list, map or set of objects) as JSON, skipping fields marked with the
+     * annotanions Private or OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be
+     * served over a Web connection without exposing internal server state.
      */
     public static String toJSON(Object obj, boolean prettyPrint) {
-        StringBuilder buf = new StringBuilder(1024);
+        StringBuilder buf = new StringBuilder(8192);
         toJSONRec(obj, prettyPrint, 0, buf);
         return buf.toString();
     }
@@ -1405,17 +1404,19 @@ public abstract class DataModel {
     }
 
     /** Escape and render a field value (recursively rendering any lists or arrays). */
-    private void recursivelyRender(String tagName, String attrName, boolean isAttrVal, Object fieldValue,
+    private boolean recursivelyRender(String tagName, String attrName, boolean isAttrVal, Object fieldValue,
             boolean prettyPrint, int indentLevel, StringBuilder buf) {
+        boolean wasIndented = false;
         Class<?> type = fieldValue.getClass();
         if (type == String.class) {
             // Expand a string parameter
 
             String unsafeStr = (String) fieldValue;
-            if (unsafeStr != null) {
+            if (unsafeStr != null && !unsafeStr.isEmpty()) {
                 // Parameter is being expanded in non-URI attribute, or in a text node --
                 // use regular HTML escaping
-                buf.append(encodeParamText(tagName, attrName, unsafeStr));
+                String safeStr = encodeParamText(tagName, attrName, unsafeStr);
+                buf.append(safeStr);
             }
 
         } else if (DataModel.class.isAssignableFrom(type)) {
@@ -1425,10 +1426,9 @@ public abstract class DataModel {
                 // Shouldn't happen, this was checked for on template load, but included here for safety
                 throw new RuntimeException("Can't include HTML inside an attribute value");
             }
-            DataModel template = (DataModel) fieldValue;
-            if (template != null) {
+            if (fieldValue != null) {
                 // Recursively add template content to this buffer from nested template
-                template.renderTemplate(prettyPrint, indentLevel, buf);
+                wasIndented = ((DataModel) fieldValue).renderTemplate(prettyPrint, indentLevel, buf);
             }
 
         } else if (List.class.isAssignableFrom(type) || type.isArray()) {
@@ -1448,12 +1448,13 @@ public abstract class DataModel {
                     if (elt != null) {
                         if (elt instanceof DataModel) {
                             // Render HTML template for DataModel-typed list item
-                            ((DataModel) elt).renderTemplate(prettyPrint, indentLevel, buf);
+                            wasIndented |= ((DataModel) elt).renderTemplate(prettyPrint, indentLevel, buf);
 
                         } else {
                             // For any other list or array element type, recursively render
                             // list/array elements
-                            recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel, buf);
+                            wasIndented |=
+                                    recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel, buf);
 
                             if (!prettyPrint && i > 0) {
                                 // Insert a space between adjacent values stringified from a list or array
@@ -1496,13 +1497,15 @@ public abstract class DataModel {
                 buf.append(encodeParamText(tagName, attrName, unsafeStr));
             }
         }
+        return wasIndented;
     }
-
+    
     /**
      * Substitute params from this DataModel object into the text, performing proper HTML escaping as needed.
      */
-    private void substituteTemplateParamsAndEscapeText(String tagName, String attrName, String textWithParams,
+    private boolean substituteTemplateParamsAndEscapeText(String tagName, String attrName, String textWithParams,
             boolean prettyPrint, int indentLevel, StringBuilder buf) {
+        boolean wasIndented = false;
         boolean isAttrVal = attrName != null;
 
         Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(textWithParams);
@@ -1511,7 +1514,11 @@ public abstract class DataModel {
         while (matcher.find()) {
             // Append content before the match to the buffer
             CharSequence beforeMatch = textWithParams.subSequence(prevMatchIdx, matcher.start());
-            buf.append(isAttrVal ? WebUtils.encodeForHTMLAttribute(beforeMatch) : WebUtils.encodeForHTML(beforeMatch));
+            if (isAttrVal) {
+                buf.append(WebUtils.encodeForHTMLAttribute(beforeMatch));
+            } else {
+                StringUtils.appendAligned(prettyPrint, WebUtils.encodeForHTML(beforeMatch), buf);
+            }
             prevMatchIdx = matcher.end();
 
             // Render the content of the Template field with the same name as the HTML parameter into
@@ -1557,10 +1564,10 @@ public abstract class DataModel {
                 throw new RuntimeException(e1);
             }
 
-            // Null items produce no output
+            // Recursively render content into params contained within text nodes
             if (fieldVal != null) {
                 // Escape and render a field value (recursively rendering any lists or arrays) 
-                recursivelyRender(tagName, attrName, isAttrVal, fieldVal, prettyPrint, indentLevel, buf);
+                wasIndented |= recursivelyRender(tagName, attrName, isAttrVal, fieldVal, prettyPrint, indentLevel, buf);
             }
         }
         // Append last unmatched text
@@ -1653,6 +1660,7 @@ public abstract class DataModel {
                 }
             }
         }
+        return wasIndented;
     }
 
     /** Append an attribute name and escaped value to the inside of a tag. */
@@ -1859,6 +1867,10 @@ public abstract class DataModel {
                     !WebUtils.INLINE_ELEMENTS.contains(tagName)
                             && !GribbitServer.siteResources.getCustomInlineElements().contains(tagName);
 
+            //            if (tagName.equals("script")) {
+            //                System.out.println("got here"); // TODO
+            //            }
+
             // Render the open tag for this element
             if (prettyPrint && isBlockElement) {
                 StringUtils.indent(indentLevel, buf);
@@ -1868,6 +1880,9 @@ public abstract class DataModel {
             buf.append(tagName);
             renderAttrs(e, enclosingForm, formModel, selectName, prettyPrint, indentLevel, buf);
             buf.append('>');
+            if (prettyPrint && (tagName.equals("head") || tagName.equals("body"))) {
+                StringUtils.indent(indentLevel, buf);
+            }
 
             // Switch off prettyprinting and text spacing normalization inside the pre element
             if (tagName.equals("pre")) {
@@ -1880,9 +1895,12 @@ public abstract class DataModel {
             // Don't render contents or close tag for void elements
             if (!WebUtils.VOID_ELEMENTS.contains(tagName)) {
                 // Recursively render child nodes of this element
-                boolean hasIndentedChild =
-                        renderChildrenOfElement(e, enclosingForm, formModel, selectName, prettyPrint,
-                                normalizeTextSpacing, indentLevel, buf);
+                boolean hasIndentedChild = false;
+                for (Node child : e.childNodes()) {
+                    hasIndentedChild |=
+                            renderDOMNode(child, enclosingForm, formModel, selectName, prettyPrint,
+                                    normalizeTextSpacing, indentLevel + 1, buf);
+                }
                 nodeWasIndented |= hasIndentedChild;
 
                 // Indent close tag on its own separate line if anything after start tag was prettyprinted,
@@ -1907,7 +1925,8 @@ public abstract class DataModel {
             }
             // OWASP Rule #1:
             //     HTML Escape Before Inserting Untrusted Data into HTML Element Content.
-            substituteTemplateParamsAndEscapeText(null, null, nodeText, prettyPrint, indentLevel, buf);
+            nodeWasIndented |=
+                    substituteTemplateParamsAndEscapeText(null, null, nodeText, prettyPrint, indentLevel, buf);
 
         } else if (node instanceof DataNode) {
 
@@ -1925,19 +1944,22 @@ public abstract class DataModel {
                 // If not prettyprinting, insert whole data node text
                 buf.append(data);
             }
+            nodeWasIndented = true;
 
         } else if (node instanceof DocumentType || node instanceof XmlDeclaration) {
 
-            StringUtils.indent(indentLevel, buf);
-            nodeWasIndented = true;
-
             buf.append(node.toString());
+            nodeWasIndented = true;
 
         } else if (node instanceof Comment) {
 
-            // Only add comments to output if we're prettyprinting
-            if (prettyPrint) {
-                StringUtils.append(node.toString(), indentLevel, buf);
+            // Only add comments to output if we're prettyprinting, unless comment is an IE conditional
+            String contents = ((Comment) node).getData();
+            if (prettyPrint || contents.startsWith("[if ") || contents.startsWith(" [if ")) {
+                StringUtils.append("<!-- ", indentLevel, buf);
+                buf.append(contents);
+                buf.append(" -->");
+                nodeWasIndented = true;
             }
 
         } else {
@@ -1946,45 +1968,80 @@ public abstract class DataModel {
         return nodeWasIndented;
     }
 
-    /**
-     * Recursively render the children of a DOM node into HTML. Returns true if a child of this node was indented on its
-     * own line.
-     */
-    private boolean renderChildrenOfElement(Element e, Element enclosingForm, DataModel formModel, String selectName,
-            boolean prettyPrint, boolean normalizeTextSpacing, int indentLevel, StringBuilder buf) {
-        boolean childWasIndented = false;
-        for (Node child : e.childNodes()) {
-            // Recursively render each child node
-            childWasIndented |=
-                    renderDOMNode(child, enclosingForm, formModel, selectName, prettyPrint, normalizeTextSpacing,
-                            indentLevel + 1, buf);
-        }
-        return childWasIndented;
-    }
-
     // -----------------------------------------------------------------------------------------------------
 
     /**
      * Get the template document associated with this DataModel, or null if there is no associated template.
      */
-    private Document getAssociatedTemplateDoc() {
+    private List<Node> getAssociatedTemplateDoc() {
         return GribbitServer.siteResources.getTemplateDocForClass(this.getClass());
     }
 
     /** Render a template recursively (i.e. substitute templates inside of templates, if present). */
-    private void renderTemplate(Document doc, boolean prettyPrint, int indentLevel, StringBuilder buf) {
+    private boolean renderTemplate(List<Node> nodes, boolean prettyPrint, int indentLevel, StringBuilder buf) {
+        boolean wasIndented = false;
         // Render template DOM nodes (they are children of doc body element)
-        renderChildrenOfElement(doc.body(), null, null, null, prettyPrint, true, indentLevel, buf);
+        for (Node node : nodes) {
+            wasIndented |= renderDOMNode(node, null, null, null, prettyPrint, true, indentLevel, buf);
+        }
+        return wasIndented;
     }
 
     /** Render a template recursively (i.e. substitute templates inside of templates, if present). */
-    public void renderTemplate(boolean prettyPrint, int indentLevel, StringBuilder buf) {
-        Document doc = getAssociatedTemplateDoc();
-        if (doc == null) {
+    private boolean renderTemplate(boolean prettyPrint, int indentLevel, StringBuilder buf) {
+        List<Node> templateNodes = getAssociatedTemplateDoc();
+        if (templateNodes == null) {
             throw new RuntimeException("Could not find an HTML template named \"" + this.getClass().getSimpleName()
                     + "\" to render model " + this.getClass().getName());
         }
-        renderTemplate(doc, prettyPrint, indentLevel, buf);
+        return renderTemplate(templateNodes, prettyPrint, indentLevel, buf);
+    }
+
+    /** Render a template recursively (i.e. substitute templates inside of templates, if present). */
+    public String renderTemplate(boolean prettyPrint) {
+        StringBuilder buf = new StringBuilder(8192);
+        renderTemplate(prettyPrint, 0, buf);
+        return buf.toString();
+    }
+
+    /**
+     * Render a template (or list or array of templates) recursively.
+     */
+    public static String renderTemplate(Object content, boolean prettyPrint) {
+        if (content == null) {
+            return "";
+        } else {
+            StringBuilder buf = new StringBuilder(8192);
+            if (content instanceof DataModel) {
+                ((DataModel) content).renderTemplate(prettyPrint, 0, buf);
+            } else if (content instanceof List) {
+                for (Object o : (List<?>) content) {
+                    if (o instanceof DataModel) {
+                        ((DataModel) o).renderTemplate(prettyPrint, 0, buf);
+                    } else {
+                        throw new IllegalArgumentException("Content has type List<" + o.getClass().getName()
+                                + ">, needs to be type List<? extends " + DataModel.class.getName() + ">");
+                    }
+                }
+            } else if (content.getClass().isArray()) {
+                int n = Array.getLength(content);
+                if (n > 0) {
+                    for (int i = 0; i < n; i++) {
+                        Object o = Array.get(content, i);
+                        if (o instanceof DataModel) {
+                            ((DataModel) o).renderTemplate(prettyPrint, 0, buf);
+                        } else {
+                            throw new IllegalArgumentException("Content has type " + o.getClass().getName()
+                                    + "[], needs to be type " + DataModel.class.getName() + "[]");
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("Content must be of type " + DataModel.class.getName() + ", "
+                        + DataModel.class.getName() + "[], or List<? extends " + DataModel.class.getName() + ">");
+            }
+            return buf.toString();
+        }
     }
 
     /**
@@ -1995,7 +2052,7 @@ public abstract class DataModel {
     @Override
     public final String toString() {
         // See if there's a template associated with this DataModel 
-        Document doc = getAssociatedTemplateDoc();
+        List<Node> doc = getAssociatedTemplateDoc();
         if (doc != null) {
             // Render the associated template, if there is one
             StringBuilder buf = new StringBuilder(8192);

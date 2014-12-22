@@ -204,7 +204,7 @@ public class Cookie {
      * expire at end of browser session.
      */
     public Cookie(String name, String unencodedValue, String path, long maxAgeInSeconds, EncodingType encodingType,
-            boolean discardAtEndOfBrowserSession) throws Exception {
+            boolean discardAtEndOfBrowserSession) {
         this.name = name;
         this.cookieJar =
                 new CookieJar(name, unencodedValue, path, maxAgeInSeconds, encodingType, discardAtEndOfBrowserSession);
@@ -214,17 +214,16 @@ public class Cookie {
      * Create a possibly-base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser
      * session closes).
      */
-    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds, EncodingType encodingType)
-            throws Exception {
+    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds, EncodingType encodingType) {
         this(name, valueCleartext, path, maxAgeInSeconds, encodingType, false);
     }
 
     /**
-     * Create a base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser session
+     * Create a %-encoded cookie with the discard flag set to false (cookie is not discarded when browser session
      * closes).
      */
     public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds) throws Exception {
-        this(name, valueCleartext, path, maxAgeInSeconds, EncodingType.BASE64_ENCODED, false);
+        this(name, valueCleartext, path, maxAgeInSeconds, EncodingType.PLAIN, false);
     }
 
     /**
@@ -264,14 +263,14 @@ public class Cookie {
     /**
      * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is set to zero)
      */
-    public static Cookie deleteCookie(String name) throws Exception {
+    public static Cookie deleteCookie(String name) {
         return new Cookie(name, "", "/", 0, EncodingType.PLAIN, false);
     }
 
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Get the cookie as an HTTP header string, including all cookie headers, with the value encoded in base64
+     * Get the cookie as an HTTP header string, including all cookie headers, with the value escaped or base64-encoded.
      */
     @Override
     public String toString() {

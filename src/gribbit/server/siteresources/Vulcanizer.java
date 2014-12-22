@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,7 +51,6 @@ import org.jsoup.nodes.DataNode;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
-import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
 /**
@@ -67,7 +67,7 @@ public class Vulcanizer {
 
     public byte[] vulcanizedHTMLBytes, vulcanizedJSBytes;
 
-    public HashMap<String, Document> templateNameToDocument = new HashMap<>();
+    public HashMap<String, List<Node>> templateNameToTemplateNodes = new HashMap<>();
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -97,6 +97,9 @@ public class Vulcanizer {
 
     private HashMap<String, String> cssShimType = new HashMap<>();
 
+    /** Templates that consist of complete HTML docs, with head and body elements */
+    private ArrayList<Document> pageTemplateDocs = new ArrayList<>();
+
     private File polymerModuleRootDir;
 
     final HashSet<String> customInlineElements = new HashSet<>();
@@ -110,6 +113,18 @@ public class Vulcanizer {
 
     // -----------------------------------------------------------------------------------------------------
 
+    private static boolean isLocalURI(String hrefURI) {
+        return
+        //Not empty/null/'#'
+        hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#") //
+                // Not external/absolute URI
+                && !WebUtils.EXTERNAL_URI.matcher(hrefURI).matches() //
+                // Not template param
+                && !hrefURI.contains("${") //
+                // Not Polymer param
+                && !hrefURI.contains("{{");
+    }
+
     /**
      * Resolve a relative path in an URI attribute to an absolute path.
      * 
@@ -122,9 +137,7 @@ public class Vulcanizer {
     private static String resolveHREF(String hrefURI, String baseURI) {
         // Return original URI if it is empty, starts with "#", is a template param, or starts with
         // a Polymer param (i.e. starts with "{{")
-        if (hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#")
-                && !WebUtils.EXTERNAL_URI.matcher(hrefURI).matches()
-                && !TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(hrefURI).find() && !hrefURI.startsWith("{{")) {
+        if (isLocalURI(hrefURI)) {
             // Build new path for the linked resource
             StringBuilder hrefURIResolved =
                     new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/" : baseURI);
@@ -186,12 +199,28 @@ public class Vulcanizer {
     }
 
     private void addHTML(String id, String html, String baseURI) {
-        Document bodyFragment = Jsoup.parseBodyFragment(html);
+        String idLeaf = id.substring(id.lastIndexOf('/') + 1);
+        String templateName = idLeaf.substring(0, idLeaf.lastIndexOf('.'));
 
-        HTMLDep dep = new HTMLDep(id, bodyFragment);
-        idToDep.put(dep.id, dep);
+        // See if this is a page template (a complete HTML doc with head and body sections)
+        int firstTagIdx = html.indexOf("<");
+        boolean isBodyFragment =
+                firstTagIdx < 0
+                        || !!!((html.length() >= 5 && html.substring(firstTagIdx, firstTagIdx + 5).toLowerCase()
+                                .equals("<html")) //
+                        || (html.length() >= 9 && html.substring(firstTagIdx, firstTagIdx + 9).toLowerCase()
+                                .equals("<!doctype")));
 
-        for (Element e : dep.doc.getAllElements()) {
+        // Page templates need to be run through Jsoup.parse(), not Jsoup.parseBodyFragment()
+        Document doc = isBodyFragment ? Jsoup.parseBodyFragment(html) : Jsoup.parse(html);
+
+        // Only vulcanize HTML fragments, not complete documents
+        if (isBodyFragment) {
+            HTMLDep dep = new HTMLDep(id, doc);
+            idToDep.put(dep.id, dep);
+        }
+
+        for (Element e : doc.getAllElements()) {
             // Strip HTML comments
             ArrayList<Node> childNodes = new ArrayList<>(e.childNodes());
             for (Node n : childNodes) {
@@ -217,13 +246,13 @@ public class Vulcanizer {
                 // TODO: inline Polymer image resources as data: URIs
             }
 
-            // Create dependency for linked stylesheets
+            // Create dependency for linked stylesheets and HTML imports
             if (e.tagName().equalsIgnoreCase("link")) {
                 String rel = e.attr("rel");
                 if (rel != null && !rel.isEmpty()) {
                     if (rel.equalsIgnoreCase("stylesheet")) {
                         String href = e.attr("href");
-                        if (href != null && !href.isEmpty()) {
+                        if (isLocalURI(href)) {
                             // FIXME: if we vulcanize linked stylesheets, then the styles will be moved out
                             // of the scope of the element. I think Polymer does the opposite: it inlines
                             // the stylesheet into the custom element. for now, leave the link in place.
@@ -243,6 +272,16 @@ public class Vulcanizer {
                             //        enqueue(href);
                             //    }
                         }
+                    } else if (rel.equalsIgnoreCase("import")) {
+                        String href = e.attr("href");
+                        if (isLocalURI(href)) {
+                            // Put this page before the linked page
+                            addDepOrder(id, id, href);
+                            // Remove link from doc
+                            e.remove();
+                            // Enqueue the linked HTML file
+                            enqueue(href);
+                        }
                     }
                 }
             }
@@ -250,7 +289,7 @@ public class Vulcanizer {
 
         // Extract script elements
         int jsIdCounter = 0;
-        for (Element e : dep.doc.getElementsByTag("script")) {
+        for (Element e : doc.getElementsByTag("script")) {
             // Get script element's src attribute and/or content 
             DataNode scriptContentNode = e.childNodeSize() > 0 ? (DataNode) e.childNode(0) : null;
             String scriptContent = scriptContentNode == null ? null : scriptContentNode.getWholeData();
@@ -320,24 +359,23 @@ public class Vulcanizer {
                 addDepOrder(id, scriptDependency, extractedJSId);
                 e.remove();
 
-            } else if (src != null) {
+            } else if (isLocalURI(src)) {
                 // Not currently vulcanizing absolute URIs
-                if (!WebUtils.EXTERNAL_URI.matcher(src).matches()) {
-                    // This script tag has a site-local src attribute, schedule the JS to be included
-                    // after this HTML
-                    addDepOrder(id, id, src);
-                    // Remove this script tag from doc
-                    e.remove();
-                    // Enqueue the linked script
-                    enqueue(src);
-                }
+
+                // This script tag has a site-local src attribute, schedule the JS to be included
+                // after this HTML
+                addDepOrder(id, id, src);
+                // Remove this script tag from doc
+                e.remove();
+                // Enqueue the linked script
+                enqueue(src);
             }
         }
 
         // Extract style elements that are not part of a polymer-element and do not have an HTML
         // "scoped" attribute
         int cssIdCounter = 0;
-        for (Element e : dep.doc.getElementsByTag("style")) {
+        for (Element e : doc.getElementsByTag("style")) {
             DataNode styleContentNode = e.childNodeSize() > 0 ? (DataNode) e.childNode(0) : null;
             String styleContent = styleContentNode == null ? null : styleContentNode.getWholeData();
             if (styleContent != null) {
@@ -359,106 +397,97 @@ public class Vulcanizer {
         }
 
         // Extract remaining nodes
-        boolean templateHasOnlyEmptyNodes = true;
-        String uriLeaf = id.substring(id.lastIndexOf('/') + 1);
-        String uriLeafBaseName = uriLeaf.substring(0, uriLeaf.lastIndexOf('.'));
-        ArrayList<Node> remainingChildNodes = new ArrayList<>(dep.doc.body().childNodes());
-        Document templateDoc = Jsoup.parseBodyFragment("");
-        for (Node n : remainingChildNodes) {
-            Element e = n instanceof Element ? (Element) n : null;
-            String tagName = e != null ? e.tagName() : null;
-            if ("polymer-element".equals(tagName)) {
-                // Extract polymer-element elements
+        ArrayList<Node> remainingChildNodes = new ArrayList<>(doc.body().childNodes());
+        // Use the whole document as the template in the case of complete HTML documents (rather than fragments)
+        Document templateDoc;
+        if (isBodyFragment) {
+            templateDoc = Jsoup.parseBodyFragment("");
+            for (Node n : remainingChildNodes) {
+                Element e = n instanceof Element ? (Element) n : null;
+                String tagName = e != null ? e.tagName() : null;
+                if ("polymer-element".equals(tagName)) {
+                    // Extract polymer-element elements
 
-                // Check validity of polymer-element tag name
-                String polymerElementName = n.attr("name");
-                if (polymerElementName == null) {
-                    throw new RuntimeException("Polymer element in template " + id
-                            + " is missing the required attribute \"name\"");
-                }
-                polymerElementName = polymerElementName.toLowerCase();
-                if (polymerElementName.indexOf('-') < 0) {
-                    throw new RuntimeException("The Polymer tag name \"" + polymerElementName + "\" in template " + id
-                            + " does not include a hyphen character");
-                } else if (!WebUtils.VALID_HTML_NAME_OR_ID.matcher(polymerElementName).matches()) {
-                    throw new RuntimeException("Polymer element name \"" + polymerElementName + "\" in template " + id
-                            + " is invalid");
-                }
-                if (!polymerTagnames.add(polymerElementName)) {
-                    throw new RuntimeException("Multiple Polymer elements define the same tag name \""
-                            + polymerElementName + "\"");
-                }
-
-                // Handle Polymer "noscript" elements by injecting an explicit initializer in the JS to
-                // preserve the initialization order
-                String polymerEltId = id + ":" + polymerElementName;
-                if (n.hasAttr("noscript")) {
-                    String injectedJSId = id + ":js" + cssIdCounter++;
-                    addJS(injectedJSId, "Polymer('" + polymerElementName + "');");
-                    addDepOrder(id, polymerEltId, injectedJSId);
-                    n.removeAttr("noscript");
-                }
-
-                // Move the Polymer element into its own doc, and add it as a dependant of the original doc
-                Document polymerEltDoc = Jsoup.parseBodyFragment("");
-                n.remove();
-                polymerEltDoc.body().appendChild(n);
-                HTMLDep polymerDep = new HTMLDep(polymerEltId, polymerEltDoc);
-                idToDep.put(polymerEltId, polymerDep);
-                addDepOrder(id, id, polymerEltId);
-
-                // Clone the element template for later use in determining if template is block or inline
-                Elements template = e.getElementsByTag("template");
-                ArrayList<Element> templateElements = new ArrayList<>();
-                for (Element et : template) {
-                    templateElements.addAll(et.children());
-                }
-                polymerTagnameToTemplateElements.put(polymerElementName, templateElements);
-
-            } else if ("link".equals(tagName)) {
-                // Create a dependency for HTML5 imports
-
-                String rel = n.attr("rel");
-                if (rel != null && !rel.isEmpty()) {
-                    if (rel.equalsIgnoreCase("import")) {
-                        String href = n.attr("href");
-                        if (href != null && !href.isEmpty()) {
-                            if (!WebUtils.EXTERNAL_URI.matcher(href).matches()) {
-                                // Put this page before the linked page
-                                addDepOrder(id, id, href);
-                                // Remove link from doc
-                                n.remove();
-                                // Enqueue the linked HTML file
-                                enqueue(href);
-                            }
-                        }
+                    // Check validity of polymer-element tag name
+                    String polymerElementName = n.attr("name");
+                    if (polymerElementName == null) {
+                        throw new RuntimeException("Polymer element in template " + id
+                                + " is missing the required attribute \"name\"");
                     }
-                }
+                    polymerElementName = polymerElementName.toLowerCase();
+                    if (polymerElementName.indexOf('-') < 0) {
+                        throw new RuntimeException("The Polymer tag name \"" + polymerElementName + "\" in template "
+                                + id + " does not include a hyphen character");
+                    } else if (!WebUtils.VALID_HTML_NAME_OR_ID.matcher(polymerElementName).matches()) {
+                        throw new RuntimeException("Polymer element name \"" + polymerElementName + "\" in template "
+                                + id + " is invalid");
+                    }
+                    if (!polymerTagnames.add(polymerElementName)) {
+                        throw new RuntimeException("Multiple Polymer elements define the same tag name \""
+                                + polymerElementName + "\"");
+                    }
 
-            } else {
-                // Element is not a polymer-element and not an HTML import.
-                // Concatenate all such elements into a new template document. This will later be paired
-                // with a sub-class of the DataModel class that has the same name as the leaf name of this
-                // HTML doc without the .html suffix.
+                    // Handle Polymer "noscript" elements by injecting an explicit initializer in the JS to
+                    // preserve the initialization order
+                    String polymerEltId = id + ":" + polymerElementName;
+                    if (n.hasAttr("noscript")) {
+                        String injectedJSId = id + ":js" + cssIdCounter++;
+                        addJS(injectedJSId, "Polymer('" + polymerElementName + "');");
+                        addDepOrder(id, polymerEltId, injectedJSId);
+                        n.removeAttr("noscript");
+                    }
 
-                // Move this HTML element into the template
-                n.remove();
-                templateDoc.body().appendChild(n);
+                    // Move the Polymer element into its own doc, and add it as a dependant of the original doc
+                    Document polymerEltDoc = Jsoup.parseBodyFragment("");
+                    n.remove();
+                    polymerEltDoc.body().appendChild(n);
+                    HTMLDep polymerDep = new HTMLDep(polymerEltId, polymerEltDoc);
+                    idToDep.put(polymerEltId, polymerDep);
+                    addDepOrder(id, id, polymerEltId);
 
-                if (!(n instanceof TextNode) || StringUtils.unicodeTrimCharSequence(((TextNode) n).text()).length() > 0) {
-                    templateHasOnlyEmptyNodes = false;
+                    // Clone the element template for later use in determining if template is block or inline
+                    Elements template = e.getElementsByTag("template");
+                    ArrayList<Element> templateElements = new ArrayList<>();
+                    for (Element et : template) {
+                        templateElements.addAll(et.children());
+                    }
+                    polymerTagnameToTemplateElements.put(polymerElementName, templateElements);
+
+                } else {
+                    // Element is not a polymer-element and not an HTML import.
+                    // Concatenate all such elements into a new template document. This will later be paired
+                    // with a sub-class of the DataModel class that has the same name as the leaf name of this
+                    // HTML doc without the .html suffix.
+
+                    // Move this HTML element into the template
+                    n.remove();
+                    templateDoc.body().appendChild(n);
+
+                    //    if (!(n instanceof TextNode)
+                    //            || StringUtils.unicodeTrimCharSequence(((TextNode) n).text()).length() > 0) {
+                    //        templateHasOnlyEmptyNodes = false;
+                    //    }
                 }
             }
+        } else {
+            // Use whole document as template if this is a complete page
+            templateDoc = doc;
         }
-        if (!templateHasOnlyEmptyNodes) {
-            // Don't add template if there are only empty text nodes
-            Document oldDoc = templateNameToDocument.put(uriLeafBaseName, templateDoc);
-            if (oldDoc != null) {
-                // We only match template names and DataModel names on the leafname currently, so html
-                // files in classpath have to have unique names
-                String leaf = StringUtils.leafName(baseURI);
-                throw new RuntimeException("Two HTML template files found in classpath with same name \"" + leaf + "\"");
-            }
+
+        // Store mapping from template name to template doc
+        List<Node> prevTemplate =
+                templateNameToTemplateNodes.put(templateName, isBodyFragment ? templateDoc.body().childNodes()
+                        : templateDoc.childNodes());
+        if (prevTemplate != null) {
+            // We only match template names and DataModel names on the leafname currently, so html
+            // files in classpath have to have unique names
+            throw new RuntimeException("Two HTML template files found in classpath with same name \"" + templateName
+                    + "\"");
+        }
+
+        // If this is a whole-page template with head and body elements, record that
+        if (!isBodyFragment) {
+            pageTemplateDocs.add(templateDoc);
         }
     }
 
@@ -649,7 +678,7 @@ public class Vulcanizer {
     /**
      * Vulcanize HTML/CSS/JS resources.
      */
-    void vulcanize() {
+    void vulcanize(String headContent, String tailContent) {
         String vulcanizedJSHandlerURI = siteResources.routeURIForHandler(VulcanizedJSHandler.class);
 
         // Always enqueue the main Polymer files. TODO: these are added as two separate dependencies right
@@ -664,8 +693,9 @@ public class Vulcanizer {
             String uri = uriQueue.removeFirst();
             String content = uriToContent.get(uri);
 
-            String baseURI = uri.substring(0, uri.lastIndexOf('/'));
-            if (uri.endsWith(".html")) {
+            int lastSlashIdx = uri.lastIndexOf('/');
+            String baseURI = lastSlashIdx < 0 ? "" : uri.substring(0, lastSlashIdx);
+            if (uri.endsWith(".html") || uri.endsWith(".java")) {
                 addHTML(uri, content, baseURI);
             } else if (uri.endsWith(".css")) {
                 addCSS(uri, content, baseURI);
@@ -698,7 +728,7 @@ public class Vulcanizer {
         StringBuilder cssCombinedShimShadowDom = new StringBuilder(65536);
         int cssCombinedOrder = -1, cssCombinedNoShimOrder = -1, cssCombinedShimShadowDomOrder = -1;
         int numCSSShimTypes = 0;
-        StringBuilder jsCombined = new StringBuilder(1000000);
+        StringBuilder jsCombined = new StringBuilder(65536);
         for (Dep dep : depOrder) {
             if (dep instanceof HTMLDep) {
                 // Vulcanize HTML in dependency order
@@ -847,6 +877,13 @@ public class Vulcanizer {
                 // do not contain block elements
                 customInlineElements.add(tagName);
             }
+        }
+
+        // For whole-page templates, add head-content.html to the end of the head element and tail-content.html
+        // to the end of the body element
+        for (Document wholePageDoc : pageTemplateDocs) {
+            wholePageDoc.head().append(headContent);
+            wholePageDoc.body().append(tailContent);
         }
 
         // Convert vulcanized content to ByteBufs for fast serving

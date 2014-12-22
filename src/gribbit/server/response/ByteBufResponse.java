@@ -23,21 +23,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.server.response;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.RestHandler;
-import gribbit.server.response.Response;
-import gribbit.server.response.TextResponse;
+import gribbit.auth.User;
+import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-/**
- * Default handler for cases where the user tries to request the GET or POST method on a route that doesn't support that
- * method.
- */
-@RouteOverride("/gribbit/err/method-not-allowed")
-public class MethodNotAllowed extends RestHandler.AuthNotRequired {
-    public Response get() {
-        return new TextResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
+/** Cached ByteBuf response. This is for internal use only, it is XSS-unsafe because the content is in no way escaped. */
+public class ByteBufResponse extends Response {
+
+    ByteBuf content;
+
+    public ByteBufResponse(HttpResponseStatus status, String mimeType, ByteBuf content) {
+        super(status, mimeType);
+        this.content = content;
     }
+
+    @Override
+    public ByteBuf getContent(User user, boolean isGetModelRequest) {
+        return content;
+    }
+
 }

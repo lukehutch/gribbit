@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 public class WebUtils {
 
     /** Pattern for recognizing external URIs. */
-    public static final Pattern EXTERNAL_URI = Pattern.compile("^((data:)|(http[s]?:))?\\/\\/");
+    public static final Pattern EXTERNAL_URI = Pattern.compile("^((data:)|(http[s]?:))?\\/\\/.*");
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -81,9 +81,9 @@ public class WebUtils {
             .collect(Collectors.toCollection(HashSet::new));
 
     /** HTML inline elements. https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente */
-    public static final HashSet<String> INLINE_ELEMENTS = Stream.of("b", "big", "i", "small", "tt", "abbr", "acronym",
-            "cite", "code", "dfn", "em", "kbd", "strong", "samp", "var", "a", "bdo", "br", "img", "map", "object", "q",
-            "script", "span", "sub", "sup", "button", "input", "label", "select", "textarea", "title").collect(
+    public static final HashSet<String> INLINE_ELEMENTS = Stream.of("a", "abbr", "acronym", "b", "bdo", "big", "br",
+            "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd", "label", "map", "object", "q", "samp",
+            "select", "small", "span", "strong", "sub", "sup", "textarea", "title", "tt", "var").collect(
             Collectors.toCollection(HashSet::new));
 
     // -----------------------------------------------------------------------------------------------------

@@ -27,6 +27,8 @@ package gribbit.handler.error;
 
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.RestHandler;
+import gribbit.server.response.Response;
+import gribbit.server.response.TextResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -34,8 +36,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  */
 @RouteOverride("/gribbit/err/404")
 public class NotFound extends RestHandler.AuthNotRequired {
-    public void get() {
-        res.setStatus(HttpResponseStatus.NOT_FOUND);
-        res.setContent("404: not found");
+    public Response get() {
+        return new TextResponse(HttpResponseStatus.NOT_FOUND, "404: Not Found");
     }
 }

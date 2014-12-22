@@ -27,6 +27,8 @@ package gribbit.handler.error;
 
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.RestHandler;
+import gribbit.server.response.Response;
+import gribbit.server.response.TextResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -39,8 +41,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  */
 @RouteOverride("/gribbit/err/bad-request")
 public class BadRequest extends RestHandler.AuthNotRequired {
-    public void get() {
-        res.setStatus(HttpResponseStatus.BAD_REQUEST);
-        res.setContent("Bad request");
+    public Response get() {
+        return new TextResponse(HttpResponseStatus.BAD_REQUEST, "Bad request");
     }
 }

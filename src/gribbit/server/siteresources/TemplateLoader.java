@@ -37,14 +37,13 @@ import java.io.File;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.regex.Pattern;
 
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Node;
 
 public class TemplateLoader {
     private SiteResources siteResources;
@@ -53,9 +52,9 @@ public class TemplateLoader {
 
     private HashMap<String, Class<? extends DataModel>> classNameToDataModel = new HashMap<>();
 
-    private ArrayList<String> headContent = new ArrayList<>(), tailContent = new ArrayList<>();
+    private StringBuilder headContent = new StringBuilder(8192), tailContent = new StringBuilder(8192);
 
-    private HashMap<Class<? extends DataModel>, Document> templateClassToDocument = new HashMap<>();
+    private HashMap<Class<? extends DataModel>, List<Node>> templateClassToDocument = new HashMap<>();
 
     private HashMap<String, String> classNameToInlineTemplate = new HashMap<>();
 
@@ -75,14 +74,6 @@ public class TemplateLoader {
         this.vulcanizer = new Vulcanizer(siteResources, polymerModuleRootDir);
     }
 
-    ArrayList<String> getHeadContent() {
-        return headContent;
-    }
-
-    ArrayList<String> getTailContent() {
-        return tailContent;
-    }
-
     byte[] getVulcanizedHTMLBytes() {
         return vulcanizer.vulcanizedHTMLBytes;
     }
@@ -100,7 +91,7 @@ public class TemplateLoader {
     }
 
     /** Return the named template, or null if it doesn't exist. */
-    Document getTemplateDocument(Class<? extends DataModel> templateClass) {
+    List<Node> getTemplateDocument(Class<? extends DataModel> templateClass) {
         return templateClassToDocument.get(templateClass);
     }
 
@@ -162,14 +153,12 @@ public class TemplateLoader {
     void gotWebResource(String absolutePath, String relativePath, InputStream inputStream) {
         try {
             if (absolutePath.endsWith("/head-content.html")) {
-                // Load header HTML content from the classpath, and run it through Jsoup to clean it
-                headContent.addAll(StringUtils.splitAsListOfString(
-                        Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body().html(), "\n"));
+                // Load header HTML content from the classpath
+                headContent.append(StringUtils.readWholeFile(inputStream));
 
             } else if (absolutePath.endsWith("/tail-content.html")) {
-                // Load footer HTML content from the classpath, and run it through Jsoup to clean it
-                tailContent.addAll(StringUtils.splitAsListOfString(
-                        Jsoup.parseBodyFragment(StringUtils.readWholeFile(inputStream)).body().html(), "\n"));
+                // Load footer HTML content from the classpath
+                tailContent.append(StringUtils.readWholeFile(inputStream));
 
             } else {
                 // Load HTML/CSS/JS resource from the classpath
@@ -200,29 +189,27 @@ public class TemplateLoader {
             if (templateStr == null) {
                 templateStr = ent.getValue();
             }
-            // Make it look like we loaded the inline static field templates from an HTML file named the
-            // same as the class
-            String relativePath = className.replace('.', '/') + ".html";
+            String relativePath = className.replace('.', '/') + ".java";
             vulcanizer.addResource("/" + relativePath, templateStr);
         }
 
         // Vulcanize HTML/CSS/JS resources into one CSS+HTML file and one JS file, in topological sort order
         // of dependencies 
-        vulcanizer.vulcanize();
+        vulcanizer.vulcanize(headContent.toString(), tailContent.toString());
 
         // The set of template names is the intersection between html file names and DataModel class names
-        HashSet<String> templateNames = new HashSet<>(vulcanizer.templateNameToDocument.keySet());
+        HashSet<String> templateNames = new HashSet<>(vulcanizer.templateNameToTemplateNodes.keySet());
         templateNames.retainAll(classNameToDataModel.keySet());
 
         for (String templateName : templateNames) {
             Class<? extends DataModel> templateClass = classNameToDataModel.get(templateName);
-            Document templateDoc = vulcanizer.templateNameToDocument.get(templateName);
+            List<Node> templateNodes = vulcanizer.templateNameToTemplateNodes.get(templateName);
 
             // Cross-check parameter names between HTML templates and DataModel subclasses 
-            DataModel.crossCheckDataModelAndView(siteResources, templateName, templateClass, templateDoc);
+            DataModel.crossCheckDataModelAndView(siteResources, templateName, templateClass, templateNodes);
 
             // Create a mapping from DataModel class to the HTML doc that holds the template contents
-            templateClassToDocument.put(templateClass, templateDoc);
+            templateClassToDocument.put(templateClass, templateNodes);
         }
     }
 }

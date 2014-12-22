@@ -38,8 +38,9 @@ import java.io.File;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
-import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Node;
 
 import com.lukehutch.fastclasspathscanner.FastClasspathScanner;
 
@@ -97,16 +98,8 @@ public class SiteResources {
      * Get the HTML template document for a given template class, or return null if there isn't a template with the
      * given name.
      */
-    public Document getTemplateDocForClass(Class<? extends DataModel> templateClass) {
+    public List<Node> getTemplateDocForClass(Class<? extends DataModel> templateClass) {
         return templateLoader.getTemplateDocument(templateClass);
-    }
-
-    public ArrayList<String> getHeadContent() {
-        return templateLoader.getHeadContent();
-    }
-
-    public ArrayList<String> getTailContent() {
-        return templateLoader.getTailContent();
     }
 
     public long getResourcesLoadedEpochSecond() {

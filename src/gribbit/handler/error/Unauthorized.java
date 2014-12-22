@@ -25,9 +25,11 @@
  */
 package gribbit.handler.error;
 
-import gribbit.auth.Cookie;
+import gribbit.auth.User;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.RestHandler;
+import gribbit.server.response.Response;
+import gribbit.server.response.TextResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -35,10 +37,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  */
 @RouteOverride("/gribbit/err/unauthorized")
 public class Unauthorized extends RestHandler.AuthNotRequired {
-    public void get() {
-        res.deleteCookie(Cookie.EMAIL_COOKIE_NAME);
-        res.deleteCookie(Cookie.SESSION_COOKIE_NAME);
-        res.setStatus(HttpResponseStatus.UNAUTHORIZED);
-        res.setContent("Unauthorized");
+    public Response get() {
+        User.removeLoginCookies(request);
+        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
     }
 }

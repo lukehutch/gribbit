@@ -25,26 +25,28 @@
  */
 package gribbit.handler.vulcanized;
 
-import gribbit.handler.error.NotModified;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
 import gribbit.server.RestHandler;
+import gribbit.server.response.ByteBufResponse;
+import gribbit.server.response.NotModifiedResponse;
+import gribbit.server.response.Response;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 @RouteOverride("/vulcanized-html")
 public class VulcanizedHTMLHandler extends RestHandler.AuthNotRequired {
-    public void get() throws Exception {
+    public Response get() throws Exception {
         long resourcesLoadedEpochSecond = GribbitServer.siteResources.getResourcesLoadedEpochSecond();
-        if (req.cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {
-            // Return the latest vulcanized content
-            res.setContentUnsafe(Unpooled.wrappedBuffer(GribbitServer.siteResources.getVulcanizedHTMLBytes()),
-                    "text/html;charset=utf-8");
+        if (request.cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {
+            // Classpath elements have changed since the last version fetched by the browser --
+            // return the latest version of the vulcanized resources from GribbitServer.siteResources
+            return new ByteBufResponse(HttpResponseStatus.OK, "text/html;charset=utf-8",
+                    Unpooled.wrappedBuffer(GribbitServer.siteResources.getVulcanizedHTMLBytes()));
         } else {
             // Classpath elements have not changed since last fetched by browser.
             // Call the Not Modified handler. 
-            GribbitServer.siteResources.routeForHandler(NotModified.class).callHandler(req, res);
+            return new NotModifiedResponse(resourcesLoadedEpochSecond);
         }
-        // Have to set this header even on Not Modified, or the resource will no longer be cached.
-        res.setLastModifiedEpochSecond(resourcesLoadedEpochSecond);
     }
 }
