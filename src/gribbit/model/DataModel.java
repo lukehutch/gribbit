@@ -1173,7 +1173,8 @@ public abstract class DataModel {
                     WebUtils.escapeJSONString(((Character) obj).toString(), buf);
                     buf.append('"');
 
-                } else if (klass.isArray() || List.class.isAssignableFrom(klass)) {
+                } else if (klass.isArray()
+                        || (List.class.isAssignableFrom(klass) && !DataModel.class.isAssignableFrom(klass))) {
                     // Render an array or list
                     boolean isList = List.class.isAssignableFrom(klass);
                     List<?> list = isList ? (List<?>) obj : null;
@@ -1192,12 +1193,17 @@ public abstract class DataModel {
                         buf.append(prettyPrint ? " ]" : "]");
                     }
 
-                } else if (Iterable.class.isAssignableFrom(klass)) {
-                    // Render a Set or other Iterable
+                } else if (Iterable.class.isAssignableFrom(klass) && !DataModel.class.isAssignableFrom(klass)) {
+                    // Render an Iterable (e.g. a Set)
                     Iterable<?> iterable = (Iterable<?>) obj;
                     boolean empty = true;
                     buf.append(prettyPrint ? "[ " : "[");
+                    int i = 0;
                     for (Object element : iterable) {
+                        if (i++ > 0) {
+                            buf.append(prettyPrint ? ", " : ",");
+                        }
+                        // Recursively render value
                         toJSONRec(element, prettyPrint, depth + 1, buf);
                         empty = false;
                     }
@@ -1206,7 +1212,7 @@ public abstract class DataModel {
                     }
                     buf.append(prettyPrint ? (!empty ? " ]" : "]") : "]");
 
-                } else if (Map.class.isAssignableFrom(klass)) {
+                } else if (Map.class.isAssignableFrom(klass) && !DataModel.class.isAssignableFrom(klass)) {
                     // Render a Map as a JSON associative array.
                     Map<?, ?> map = (Map<?, ?>) obj;
                     if (map.size() == 0) {
@@ -1230,7 +1236,7 @@ public abstract class DataModel {
                             for (int i = 0; i < n; i++) {
                                 Object key = keys.get(i);
                                 Object val = map.get(key);
-                                
+
                                 // Render key 
                                 if (prettyPrint) {
                                     buf.append(StringUtils.spaces(depth + 1));
@@ -1238,7 +1244,7 @@ public abstract class DataModel {
                                 buf.append('"');
                                 WebUtils.escapeJSONString(key.toString(), buf);
                                 buf.append(prettyPrint ? "\" : " : "\":");
-                                
+
                                 // Recursively render value
                                 toJSONRec(val, prettyPrint, depth + 1, buf);
                                 if (i < n - 1) {
@@ -1253,7 +1259,7 @@ public abstract class DataModel {
                             for (Entry ent : map.entrySet()) {
                                 Object key = ent.getKey();
                                 Object val = ent.getValue();
-                                
+
                                 // Render key 
                                 if (prettyPrint) {
                                     buf.append(StringUtils.spaces(depth + 1));
@@ -1261,14 +1267,14 @@ public abstract class DataModel {
                                 buf.append('"');
                                 WebUtils.escapeJSONString(key.toString(), buf);
                                 buf.append(prettyPrint ? "\" : " : "\":");
-                                
+
                                 // Recursively render value
                                 toJSONRec(val, prettyPrint, depth + 1, buf);
                                 if (--remaining > 0) {
                                     buf.append(prettyPrint ? ",\n" : ",");
                                 } else if (prettyPrint) {
                                     buf.append('\n');
-                                }                                
+                                }
                             }
                         }
                         if (prettyPrint) {
