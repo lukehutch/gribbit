@@ -25,6 +25,7 @@
  */
 package gribbit.auth.oauth.google;
 
+import gribbit.auth.Cookie;
 import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
 import gribbit.exception.UnauthorizedException;
@@ -277,8 +278,11 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
                             user.putData("googleAccessTokenExpiresMillis", Long.toString(accessTokenExpiresMillis));
                             user.save();
 
-                            // Redirect back home
-                            response = new RedirectResponse("/");
+                            // User has successfully logged in. See if they were originally trying to reach a specific
+                            // URL when they were originally told they were unauthorized. If so, try again, otherwise
+                            // redirect back home.
+                            String redirectOrigin = request.getCookieValue(Cookie.REDIRECT_ORIGIN_COOKIE_NAME);
+                            response = new RedirectResponse(redirectOrigin != null ? redirectOrigin : "/");
                         }
                     }
                 } catch (BadRequestException e) {

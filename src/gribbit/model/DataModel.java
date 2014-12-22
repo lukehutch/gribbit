@@ -1384,6 +1384,7 @@ public abstract class DataModel {
             if (unsafeStr.indexOf("\n") >= 0) {
                 // Turn "\n" within text params into <br> for convenience
                 ArrayList<CharSequence> parts = StringUtils.splitAsList(unsafeStr, "\n");
+                // FIXME *** : pass in buf, don't allocate it here
                 StringBuilder buf = new StringBuilder(unsafeStr.length() + parts.size() * 3);
                 for (int i = 0; i < parts.size(); i++) {
                     if (i > 0) {
@@ -1407,99 +1408,113 @@ public abstract class DataModel {
     private boolean recursivelyRender(String tagName, String attrName, boolean isAttrVal, Object fieldValue,
             boolean prettyPrint, int indentLevel, StringBuilder buf) {
         boolean wasIndented = false;
-        Class<?> type = fieldValue.getClass();
-        if (type == String.class) {
-            // Expand a string parameter
+        if (fieldValue != null) {
+            Class<?> fieldType = fieldValue.getClass();
+            if (fieldType == String.class) {
+                // Expand a string parameter
 
-            String unsafeStr = (String) fieldValue;
-            if (unsafeStr != null && !unsafeStr.isEmpty()) {
-                // Parameter is being expanded in non-URI attribute, or in a text node --
-                // use regular HTML escaping
-                String safeStr = encodeParamText(tagName, attrName, unsafeStr);
-                buf.append(safeStr);
-            }
+                String unsafeStr = (String) fieldValue;
+                if (unsafeStr != null && !unsafeStr.isEmpty()) {
+                    // Parameter is being expanded in non-URI attribute, or in a text node --
+                    // use regular HTML escaping
+                    String safeStr = encodeParamText(tagName, attrName, unsafeStr);
+                    buf.append(safeStr);
+                }
 
-        } else if (DataModel.class.isAssignableFrom(type)) {
-            // Expand an HTML template into the parameter position (param must not be in an attribute value)
+            } else if (DataModel.class.isAssignableFrom(fieldType)) {
+                // Expand an HTML template into the parameter position (param must not be in an attribute value)
 
-            if (isAttrVal) {
-                // Shouldn't happen, this was checked for on template load, but included here for safety
-                throw new RuntimeException("Can't include HTML inside an attribute value");
-            }
-            if (fieldValue != null) {
+                if (isAttrVal) {
+                    // Shouldn't happen, this was checked for on template load, but included here for safety
+                    throw new RuntimeException("Can't include HTML inside an attribute value");
+                }
                 // Recursively add template content to this buffer from nested template
                 wasIndented = ((DataModel) fieldValue).renderTemplate(prettyPrint, indentLevel, buf);
-            }
 
-        } else if (List.class.isAssignableFrom(type) || type.isArray()) {
-            // Expand a list or array of values
+            } else if (List.class.isAssignableFrom(fieldType) || fieldType.isArray()) {
+                // Expand a list or array of values
 
-            if (isAttrVal) {
-                // Shouldn't happen, this was checked for on template load, but included here for safety
-                throw new RuntimeException("Can't include HTML inside an attribute value");
-            }
-            List<?> list = List.class.isAssignableFrom(type) ? (List<?>) fieldValue : null;
-            Object[] array = type.isArray() ? (Object[]) fieldValue : null;
-            if (list != null || array != null) {
-                int n = list != null ? list.size() : array.length;
-                // Render each item in the list
-                for (int i = 0; i < n; i++) {
-                    Object elt = list != null ? list.get(i) : array[i];
-                    if (elt != null) {
-                        if (elt instanceof DataModel) {
-                            // Render HTML template for DataModel-typed list item
-                            wasIndented |= ((DataModel) elt).renderTemplate(prettyPrint, indentLevel, buf);
+                if (isAttrVal) {
+                    // Shouldn't happen, this was checked for on template load, but included here for safety
+                    throw new RuntimeException("Can't include HTML inside an attribute value");
+                }
+                List<?> list = List.class.isAssignableFrom(fieldType) ? (List<?>) fieldValue : null;
+                Object[] array = fieldType.isArray() ? (Object[]) fieldValue : null;
+                if (list != null || array != null) {
+                    int n = list != null ? list.size() : array.length;
+                    // Render each item in the list
+                    for (int i = 0; i < n; i++) {
+                        Object elt = list != null ? list.get(i) : array[i];
+                        if (elt != null) {
+                            if (elt instanceof DataModel) {
+                                // Render HTML template for DataModel-typed list item
+                                wasIndented |= ((DataModel) elt).renderTemplate(prettyPrint, indentLevel, buf);
 
-                        } else {
-                            // For any other list or array element type, recursively render
-                            // list/array elements
-                            wasIndented |=
-                                    recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel, buf);
+                            } else {
+                                // For any other list or array element type, recursively render
+                                // list/array elements
+                                wasIndented |=
+                                        recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel,
+                                                buf);
 
-                            if (!prettyPrint && i > 0) {
-                                // Insert a space between adjacent values stringified from a list or array
-                                // to ensure they are separated. (Hopefully this is the most useful
-                                // behavior; if you need {"a", "b", "c"} -> "abc" without spaces, you need
-                                // to do the join of the parameters manually before inserting into the
-                                // template.)
-                                buf.append(' ');
+                                if (!prettyPrint && i > 0) {
+                                    // Insert a space between adjacent values stringified from a list or array
+                                    // to ensure they are separated. (Hopefully this is the most useful
+                                    // behavior; if you need {"a", "b", "c"} -> "abc" without spaces, you need
+                                    // to do the join of the parameters manually before inserting into the
+                                    // template.)
+                                    buf.append(' ');
+                                }
                             }
                         }
                     }
                 }
-            }
 
-        } else if (Class.class.isAssignableFrom(type)) {
-            // Special case: if a field type is a Class<? extends RestHandler>, then insert the URL of the
-            // RestHandler's route as a string, so that routes can be inserted into href attributes
-            Class<?> concreteClass = (Class<?>) fieldValue;
-            if (concreteClass != null) {
-                if (RestHandler.class.isAssignableFrom(concreteClass)) {
-                    // Put URI for RestHandler into buf -- this is not escaped, since the RestHandler URIs
-                    // should all be valid without escaping (they are either safely derived from the class
-                    // name, or from the RouteOverride annotation, which is checked for validity)
-                    @SuppressWarnings("unchecked")
-                    Class<? extends RestHandler> restHandler = (Class<? extends RestHandler>) concreteClass;
-                    String uriForClass = GribbitServer.siteResources.routeForHandler(restHandler).getRoutePath();
-                    buf.append(uriForClass);
+            } else if (Class.class.isAssignableFrom(fieldType)) {
+                // Special case: if a field type is a Class<? extends RestHandler>, then insert the URL of the
+                // RestHandler's route as a string, so that routes can be inserted into href attributes
+                Class<?> concreteClass = (Class<?>) fieldValue;
+                if (concreteClass != null) {
+                    if (RestHandler.class.isAssignableFrom(concreteClass)) {
+                        // TODO *** : test this
+                        // Put URI for RestHandler into buf -- this is not escaped, since the RestHandler URIs
+                        // should all be valid without escaping (they are either safely derived from the class
+                        // name, or from the RouteOverride annotation, which is checked for validity)
+                        @SuppressWarnings("unchecked")
+                        Class<? extends RestHandler> restHandler = (Class<? extends RestHandler>) concreteClass;
+                        String uriForClass = GribbitServer.siteResources.routeForHandler(restHandler).getRoutePath();
+                        buf.append(uriForClass);
 
-                } else {
-                    // Due to type erasure, can't check until runtime if the right class type is passed in.
-                    throw new RuntimeException("Got template parameter of type Class<" + concreteClass.getName()
-                            + ">, but should be of type Class<? extends " + RestHandler.class.getName() + ">");
+                    } else {
+                        // Due to type erasure, can't check until runtime if the right class type is passed in.
+                        throw new RuntimeException("Got template parameter of type Class<" + concreteClass.getName()
+                                + ">, but should be of type Class<? extends " + RestHandler.class.getName() + ">");
+                    }
                 }
-            }
 
-        } else {
-            // For all other non-builtin types, call the toString() method and then HTML-escape the result
-            if (fieldValue != null) {
-                String unsafeStr = fieldValue.toString();
-                buf.append(encodeParamText(tagName, attrName, unsafeStr));
+            } else {
+                // For all other non-builtin types, call the toString() method and then HTML-escape the result.
+                // But first check if the method has defined its own toString() method.
+                try {
+                    if (fieldType.getMethod("toString").getDeclaringClass() != Object.class) {
+                        String unsafeStr = fieldValue.toString();
+                        String safeStr = encodeParamText(tagName, attrName, unsafeStr);
+                        buf.append(safeStr);
+                    } else {
+                        throw new RuntimeException("The class " + fieldType.getName()
+                                + " does not override Object.toString(), and is not a subclass of "
+                                + DataModel.class.getName()
+                                + ", so it cannot be rendered into an HTML template as text or HTML respectively");
+                    }
+                } catch (NoSuchMethodException | SecurityException e) {
+                    // Shouldn't happen, all classes have a public toString() method
+                    throw new RuntimeException(e);
+                }
             }
         }
         return wasIndented;
     }
-    
+
     /**
      * Substitute params from this DataModel object into the text, performing proper HTML escaping as needed.
      */

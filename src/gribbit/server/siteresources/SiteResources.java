@@ -129,8 +129,8 @@ public class SiteResources {
             // Unescape %20 -> ' ' etc.
             // N.B. the unescape is performed only once here, between '/' characters (the URI is not
             // unescaped by the caller prior to passing the URI to this method), and the unescaped string
-            // is passed directly to new File() below, so there is no possibility of a double-encoding
-            // attack -- see https://www.owasp.org/index.php/Double_Encoding
+            // is passed directly to new File() below, after checking for "." and "..", so there is no
+            // possibility of a double-encoding attack -- see https://www.owasp.org/index.php/Double_Encoding
             subdirName = WebUtils.unescapeURISegment(subdirName);
             if (!currFileOrDir.isDirectory()) {
                 // Files don't have subdirectory

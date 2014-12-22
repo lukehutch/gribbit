@@ -132,12 +132,15 @@ public class TemplateLoader {
                 templateField = dataModelClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
                 if (templateField != null) {
                     int modifiers = templateField.getModifiers();
-                    if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers)
+                    if (Modifier.isStatic(modifiers) && Modifier.isPublic(modifiers)
                             && templateField.getType().equals(String.class)) {
                         // Got an inline template in the static field named "_template" of a DataModel class
                         inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "." + templateField.getName());
                         String templateStr = (String) templateField.get(null);
                         classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
+                    } else {
+                        throw new RuntimeException("Field \"" + templateField.getName() + "\" in class "
+                                + dataModelClass.getName() + " must be both static and final");
                     }
                 }
             } catch (NoSuchFieldException e) {
