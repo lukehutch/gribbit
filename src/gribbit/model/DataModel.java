@@ -1156,7 +1156,11 @@ public abstract class DataModel {
         } else {
             Class<? extends Object> klass = obj.getClass();
             try {
-                if (klass == String.class) {
+                boolean renderFieldsAsMap = true;
+                if (DataModel.class.isAssignableFrom(klass)) {
+                    renderFieldsAsMap = true;
+
+                } else if (klass == String.class) {
                     buf.append('"');
                     WebUtils.escapeJSONString((String) obj, buf);
                     buf.append('"');
@@ -1173,8 +1177,7 @@ public abstract class DataModel {
                     WebUtils.escapeJSONString(((Character) obj).toString(), buf);
                     buf.append('"');
 
-                } else if (klass.isArray()
-                        || (List.class.isAssignableFrom(klass) && !DataModel.class.isAssignableFrom(klass))) {
+                } else if (klass.isArray() || List.class.isAssignableFrom(klass)) {
                     // Render an array or list
                     boolean isList = List.class.isAssignableFrom(klass);
                     List<?> list = isList ? (List<?>) obj : null;
@@ -1193,7 +1196,7 @@ public abstract class DataModel {
                         buf.append(prettyPrint ? " ]" : "]");
                     }
 
-                } else if (Iterable.class.isAssignableFrom(klass) && !DataModel.class.isAssignableFrom(klass)) {
+                } else if (Iterable.class.isAssignableFrom(klass)) {
                     // Render an Iterable (e.g. a Set)
                     Iterable<?> iterable = (Iterable<?>) obj;
                     boolean empty = true;
@@ -1212,7 +1215,7 @@ public abstract class DataModel {
                     }
                     buf.append(prettyPrint ? (!empty ? " ]" : "]") : "]");
 
-                } else if (Map.class.isAssignableFrom(klass) && !DataModel.class.isAssignableFrom(klass)) {
+                } else if (Map.class.isAssignableFrom(klass)) {
                     // Render a Map as a JSON associative array.
                     Map<?, ?> map = (Map<?, ?>) obj;
                     if (map.size() == 0) {
@@ -1284,8 +1287,12 @@ public abstract class DataModel {
                     }
 
                 } else {
-                    // DataModel, DBModel, or some other class -- render fields as a JSON
-                    // associative array using introspection
+                    // Some other class -- render fields as a JSON associative array using introspection
+                    renderFieldsAsMap = true;
+                }
+                    
+                if (renderFieldsAsMap) {
+                    // DataModel, DBModel, or some other class -- render fields as a JSON associative array
                     ArrayList<Field> fieldsToInclude = new ArrayList<>();
                     Field[] fields = klass.getFields();
                     for (int i = 0; i < fields.length; i++) {
