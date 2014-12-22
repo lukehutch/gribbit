@@ -28,8 +28,8 @@ package gribbit.server.siteresources;
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
-import gribbit.server.RestHandler;
 import gribbit.server.Route;
+import gribbit.server.RouteInfo;
 import gribbit.util.Reflection;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
@@ -52,7 +52,7 @@ public class SiteResources {
 
     private final FastClasspathScanner classpathScanner;
 
-    private RestHandlerLoader restHandlerLoader;
+    private RouteMapping routeMapping;
 
     public Database db;
 
@@ -62,29 +62,52 @@ public class SiteResources {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public ArrayList<Route> getAllRoutes() {
-        return restHandlerLoader.getAllRoutes();
+    public ArrayList<RouteInfo> getAllRoutes() {
+        return routeMapping.getAllRoutes();
     }
 
-    public Route getInternalServerErrorRoute() {
-        return restHandlerLoader.getInternalServerErrorRoute();
+    public RouteInfo getInternalServerErrorRoute() {
+        return routeMapping.getInternalServerErrorRoute();
     }
 
-    public Route getBadRequestRoute() {
-        return restHandlerLoader.getBadRequestRoute();
+    public RouteInfo getBadRequestRoute() {
+        return routeMapping.getBadRequestRoute();
     }
 
-    public Route getNotFoundRoute() {
-        return restHandlerLoader.getNotFoundRoute();
+    public RouteInfo getNotFoundRoute() {
+        return routeMapping.getNotFoundRoute();
     }
 
-    public Route getUnauthorizedRoute() {
-        return restHandlerLoader.getUnauthorizedRoute();
+    public RouteInfo getUnauthorizedRoute() {
+        return routeMapping.getUnauthorizedRoute();
     }
 
-    public Route getEmailNotValidatedRoute() {
-        return restHandlerLoader.getEmailNotValidatedRoute();
+    public RouteInfo getEmailNotValidatedRoute() {
+        return routeMapping.getEmailNotValidatedRoute();
     }
+
+    /**
+     * Get the Route corresponding to a given RestHandler class.
+     */
+    public RouteInfo routeForHandler(Class<? extends Route> handlerClass) {
+        return routeMapping.routeForHandler(handlerClass);
+    }
+
+    /**
+     * Get the path (URI) for the Route corresponding to a given RestHandler class.
+     */
+    public String routeURIForHandler(Class<? extends Route> handlerClass) {
+        return routeMapping.routeForHandler(handlerClass).getRoutePath();
+    }
+
+    /**
+     * Get the path (URI) for the Route corresponding to a given DataModel class.
+     */
+    public String routeURIForDataModel(Class<? extends DataModel> formModelClass) {
+        return routeMapping.routeForFormDataModel(formModelClass).getRoutePath();
+    }
+
+    // -----------------------------------------------------------------------------------------------------
 
     public byte[] getVulcanizedHTMLBytes() {
         return templateLoader.getVulcanizedHTMLBytes();
@@ -169,29 +192,6 @@ public class SiteResources {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Get the Route corresponding to a given RestHandler class.
-     */
-    public Route routeForHandler(Class<? extends RestHandler> handlerClass) {
-        return restHandlerLoader.routeForHandler(handlerClass);
-    }
-
-    /**
-     * Get the path (URI) for the Route corresponding to a given RestHandler class.
-     */
-    public String routeURIForHandler(Class<? extends RestHandler> handlerClass) {
-        return restHandlerLoader.routeForHandler(handlerClass).getRoutePath();
-    }
-
-    /**
-     * Get the path (URI) for the Route corresponding to a given DataModel class.
-     */
-    public String routeURIForDataModel(Class<? extends DataModel> formModelClass) {
-        return restHandlerLoader.routeForFormDataModel(formModelClass).getRoutePath();
-    }
-
-    // -----------------------------------------------------------------------------------------------------
-
-    /**
      * Set up classpath scanner for detecting handler classes, models and templates.
      */
     public SiteResources(String appPackageName, String staticResourceRootPath) {
@@ -230,7 +230,7 @@ public class SiteResources {
                     + "on the classpath)");
         }
 
-        restHandlerLoader = new RestHandlerLoader();
+        routeMapping = new RouteMapping();
         db = new Database();
         templateLoader = new TemplateLoader(this, polymerModuleRootDir);
 
@@ -238,14 +238,17 @@ public class SiteResources {
         classpathScanner =
                 new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath,
                         "org/polymerproject" })
-                        .matchSubclassesOf(RestHandler.class,
-                                matchingClass -> restHandlerLoader.gotRestHandlerClass(matchingClass)) //
-                        .matchSubclassesOf(DataModel.class, templateClass -> templateLoader.gotDataModel(templateClass)) //
+                //
+                        .matchSubclassesOf(Route.class, matchingClass -> routeMapping.registerRoute(matchingClass))
+                        //
+                        .matchSubclassesOf(DataModel.class,
+                                templateClass -> templateLoader.registerDataModel(templateClass))
+                        //
                         .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass))
                         //
                         .matchFilenamePattern(
                                 ".*\\.(html|js|css)",
-                                (absolutePath, relativePath, inputStream) -> templateLoader.gotWebResource(
+                                (absolutePath, relativePath, inputStream) -> templateLoader.registerWebResource(
                                         absolutePath, relativePath, inputStream));
 
         // If this is the second or subsequent loading of site resources, directly load constant literal
@@ -258,7 +261,7 @@ public class SiteResources {
                         .getInlineTemplateStaticFieldNames();
         if (staticFieldNames != null) {
             classpathScanner.matchStaticFinalFieldNames(staticFieldNames, (String className, String fieldName,
-                    Object fieldConstantValue) -> templateLoader.gotTemplateStaticFieldValue(className,
+                    Object fieldConstantValue) -> templateLoader.registerTemplateStaticFieldValue(className,
                     (String) fieldConstantValue));
         }
 
@@ -270,7 +273,7 @@ public class SiteResources {
         // Make sure that all DataModel classes that are bound by POST requests or that are subclasses of
         // DBModel can be initialized with a zero-argument constructor
         HashSet<Class<? extends DataModel>> classesThatNeedZeroArgConstructor =
-                new HashSet<>(restHandlerLoader.getAllFormDataModels());
+                new HashSet<>(routeMapping.getAllFormDataModels());
         classesThatNeedZeroArgConstructor.addAll(db.getAllDBModelClasses());
         for (Class<? extends DataModel> classThatNeedsZeroArgConstructor : classesThatNeedZeroArgConstructor) {
             // Try instantiating DataModel with default constructor to make sure there will be no problems

@@ -38,8 +38,8 @@ import gribbit.handler.error.annotation.OnUnauthorized;
 import gribbit.handler.route.annotation.Disabled;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.model.DataModel;
-import gribbit.server.RestHandler;
 import gribbit.server.Route;
+import gribbit.server.RouteInfo;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -47,47 +47,47 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-class RestHandlerLoader {
+class RouteMapping {
 
     // Routes
-    private ArrayList<Route> allRoutes = new ArrayList<>();
-    private HashMap<Class<? extends RestHandler>, Route> routeForHandler = new HashMap<>();
-    private HashMap<String, Route> routeForRoutePath = new HashMap<>();
+    private ArrayList<RouteInfo> allRoutes = new ArrayList<>();
+    private HashMap<Class<? extends Route>, RouteInfo> routeForHandler = new HashMap<>();
+    private HashMap<String, RouteInfo> routeForRoutePath = new HashMap<>();
 
-    private HashMap<Class<? extends DataModel>, Route> formModelToRoute = new HashMap<>();
+    private HashMap<Class<? extends DataModel>, RouteInfo> formModelToRoute = new HashMap<>();
 
     // Route handlers for each error type. If left null, then default handlers are called.
-    private Route internalServerErrorRoute;
-    private Route badRequestRoute;
-    private Route notFoundRoute;
-    private Route unauthorizedRoute;
-    private Route emailNotValidatedRoute;
+    private RouteInfo internalServerErrorRoute;
+    private RouteInfo badRequestRoute;
+    private RouteInfo notFoundRoute;
+    private RouteInfo unauthorizedRoute;
+    private RouteInfo emailNotValidatedRoute;
 
     private static final Pattern VALID_ROUTE_OVERRIDE = Pattern.compile("^(/|(/[a-zA-Z0-9\\-_]+)+)$");
 
     // -----------------------------------------------------------------------------------------------------
 
-    public ArrayList<Route> getAllRoutes() {
+    public ArrayList<RouteInfo> getAllRoutes() {
         return allRoutes;
     }
 
-    public Route getInternalServerErrorRoute() {
+    public RouteInfo getInternalServerErrorRoute() {
         return internalServerErrorRoute != null ? internalServerErrorRoute : routeForHandler(InternalServerError.class);
     }
 
-    public Route getBadRequestRoute() {
+    public RouteInfo getBadRequestRoute() {
         return badRequestRoute != null ? badRequestRoute : routeForHandler(BadRequest.class);
     }
 
-    public Route getNotFoundRoute() {
+    public RouteInfo getNotFoundRoute() {
         return notFoundRoute != null ? notFoundRoute : routeForHandler(NotFound.class);
     }
 
-    public Route getUnauthorizedRoute() {
+    public RouteInfo getUnauthorizedRoute() {
         return unauthorizedRoute != null ? unauthorizedRoute : routeForHandler(Unauthorized.class);
     }
 
-    public Route getEmailNotValidatedRoute() {
+    public RouteInfo getEmailNotValidatedRoute() {
         return emailNotValidatedRoute != null ? emailNotValidatedRoute : routeForHandler(EmailNotValidated.class);
     }
 
@@ -96,8 +96,8 @@ class RestHandlerLoader {
     /**
      * Get the Route corresponding to a given RestHandler class.
      */
-    public Route routeForHandler(Class<? extends RestHandler> handlerClass) {
-        Route route = routeForHandler.get(handlerClass);
+    public RouteInfo routeForHandler(Class<? extends Route> handlerClass) {
+        RouteInfo route = routeForHandler.get(handlerClass);
         if (route == null) {
             throw new RuntimeException("Class " + handlerClass.getName() + " is not registered as a handler");
         }
@@ -107,12 +107,12 @@ class RestHandlerLoader {
     /**
      * Get the Route that accepts the given DataModel as a parameter to its post() method.
      */
-    public Route routeForFormDataModel(Class<? extends DataModel> formModelClass) {
-        Route route = formModelToRoute.get(formModelClass);
+    public RouteInfo routeForFormDataModel(Class<? extends DataModel> formModelClass) {
+        RouteInfo route = formModelToRoute.get(formModelClass);
         if (route == null) {
             throw new RuntimeException("Class " + formModelClass.getName()
                     + " is not registered as a parameter to a post() method of any known subclass of "
-                    + RestHandler.class.getName());
+                    + Route.class.getName());
         }
         return route;
     }
@@ -124,7 +124,7 @@ class RestHandlerLoader {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public void removeRoute(Route route) {
+    public void removeRoute(RouteInfo route) {
         if (route != null) {
             routeForHandler.remove(route.getHandler());
             routeForRoutePath.remove(route.getRoutePath());
@@ -134,7 +134,7 @@ class RestHandlerLoader {
     }
 
     /** Register a RestHandler route. */
-    public void gotRestHandlerClass(Class<? extends RestHandler> handler) {
+    public void registerRoute(Class<? extends Route> handler) {
         if (handler.getAnnotation(Disabled.class) != null) {
             // Log.info("Found disabled handler: " + handler.getName());
 
@@ -149,14 +149,14 @@ class RestHandlerLoader {
                 }
             }
 
-            Route route = new Route(handler, routeOverride);
+            RouteInfo route = new RouteInfo(handler, routeOverride);
 
             // Check for error handler annotations
             for (Annotation ann : handler.getAnnotations()) {
                 Class<? extends Annotation> annType = ann.annotationType();
 
                 boolean hasErrHandlerAnnotation = false;
-                Route existingErrHandler = null;
+                RouteInfo existingErrHandler = null;
                 if (annType == OnInternalServerError.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = internalServerErrorRoute;
@@ -213,7 +213,7 @@ class RestHandlerLoader {
             }
 
             // Make sure route is unique
-            Route existing = routeForRoutePath.put(route.getRoutePath(), route);
+            RouteInfo existing = routeForRoutePath.put(route.getRoutePath(), route);
             if (existing != null) {
                 throw new RuntimeException("Two handlers have the same route: " + existing.getRoutePath() + " , "
                         + route.getRoutePath());
@@ -229,7 +229,7 @@ class RestHandlerLoader {
             // handles the POST request)
             Class<? extends DataModel> postParamType = route.getPostParamType();
             if (postParamType != null) {
-                Route prev = formModelToRoute.put(postParamType, route);
+                RouteInfo prev = formModelToRoute.put(postParamType, route);
                 if (prev != null) {
                     throw new RuntimeException(DataModel.class.getName() + " subclass " + postParamType.getName()
                             + " is handled by two different post() methods, in classes " + route.getHandler().getName()

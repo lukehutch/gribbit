@@ -268,12 +268,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // Call route handlers until one is able to handle the route,
                 // or until we run out of handlers
                 User user = null;
-                Route authorizedRoute = null;
-                for (Route route : GribbitServer.siteResources.getAllRoutes()) {
+                RouteInfo authorizedRoute = null;
+                for (RouteInfo route : GribbitServer.siteResources.getAllRoutes()) {
 
                     // If the request URI matches this route path
                     if (route.matches(reqURI)) {
-                        Class<? extends RestHandler> handler = route.getHandler();
+                        Class<? extends Route> handler = route.getHandler();
 
                         if (!(request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.POST)) {
 
@@ -295,7 +295,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                             GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class),
                                             request, user);
 
-                        } else if (RestHandler.AuthRequired.class.isAssignableFrom(handler)) {
+                        } else if (Route.AuthRequired.class.isAssignableFrom(handler)) {
 
                             // This handler requires authentication -- check if user is logged in
                             user = User.getLoggedInUser(request);
@@ -310,7 +310,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 // log in successfully
                                 request.setCookie(new Cookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME, reqURI, "/", 300));
 
-                            } else if (RestHandler.AuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
+                            } else if (Route.AuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
                                     && !user.emailIsValidated()) {
 
                                 // User is logged in, but their email address has not been validated:
@@ -612,7 +612,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
     }
 
     /** Call the route handler for the given route. */
-    private static Response getResponse(Route route, Request req, User user) throws Exception {
+    private static Response getResponse(RouteInfo route, Request req, User user) throws Exception {
         Response response;
         try {
             // Call the RestHandler for the route
@@ -633,7 +633,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
     }
 
     /** Call the given error handler route. */
-    private static Response getErrorResponse(Route route, Request req, User user) throws Exception {
+    private static Response getErrorResponse(RouteInfo route, Request req, User user) throws Exception {
         // Temporarily replace the method on the original route with a GET request on the error handler's route
         String origURI = req.getURI();
         HttpMethod origMethod = req.getMethod();

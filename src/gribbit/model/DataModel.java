@@ -41,7 +41,7 @@ import gribbit.model.field.visibility.annotation.OnlySend;
 import gribbit.model.field.visibility.annotation.Private;
 import gribbit.server.GribbitServer;
 import gribbit.server.Request;
-import gribbit.server.RestHandler;
+import gribbit.server.Route;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.SiteResources;
@@ -1516,7 +1516,7 @@ public abstract class DataModel {
                 // RestHandler's route as a string, so that routes can be inserted into href attributes
                 Class<?> concreteClass = (Class<?>) fieldValue;
                 if (concreteClass != null) {
-                    if (RestHandler.class.isAssignableFrom(concreteClass)) {
+                    if (Route.class.isAssignableFrom(concreteClass)) {
                         // URI routes can be inserted into URI attributes by defining a field in a DataModel
                         // like: "public Class<? extends RestHandler> myUrl = MyURLHandler.class;"
                         // then including a parameter in HTML like: "<a href='${myUrl}'>Click here</a>"
@@ -1525,14 +1525,14 @@ public abstract class DataModel {
                         // should all be valid without escaping (they are either safely derived from the class
                         // name, or from the RouteOverride annotation, which is checked for validity)
                         @SuppressWarnings("unchecked")
-                        Class<? extends RestHandler> restHandler = (Class<? extends RestHandler>) concreteClass;
-                        String uriForClass = GribbitServer.siteResources.routeForHandler(restHandler).getRoutePath();
+                        Class<? extends Route> routeClass = (Class<? extends Route>) concreteClass;
+                        String uriForClass = GribbitServer.siteResources.routeForHandler(routeClass).getRoutePath();
                         buf.append(uriForClass);
 
                     } else {
                         // Due to type erasure, can't check until runtime if the right class type is passed in.
                         throw new RuntimeException("Got template parameter of type Class<" + concreteClass.getName()
-                                + ">, but should be of type Class<? extends " + RestHandler.class.getName() + ">");
+                                + ">, but should be of type Class<? extends " + Route.class.getName() + ">");
                     }
                 }
 

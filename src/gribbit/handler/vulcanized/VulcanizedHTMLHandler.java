@@ -27,7 +27,7 @@ package gribbit.handler.vulcanized;
 
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
-import gribbit.server.RestHandler;
+import gribbit.server.Route;
 import gribbit.server.response.ByteBufResponse;
 import gribbit.server.response.NotModifiedResponse;
 import gribbit.server.response.Response;
@@ -35,7 +35,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 @RouteOverride("/vulcanized-html")
-public class VulcanizedHTMLHandler extends RestHandler.AuthNotRequired {
+public class VulcanizedHTMLHandler extends Route.AuthNotRequired {
     public Response get() throws Exception {
         long resourcesLoadedEpochSecond = GribbitServer.siteResources.getResourcesLoadedEpochSecond();
         if (request.cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {

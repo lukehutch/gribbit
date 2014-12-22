@@ -26,7 +26,7 @@
 package gribbit.handler.error;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.RestHandler;
+import gribbit.server.Route;
 import gribbit.server.response.Response;
 import gribbit.server.response.TextResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -36,7 +36,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * user's email address must be validated for them to be able to access a given route.
  */
 @RouteOverride("/gribbit/err/email-not-validated")
-public class EmailNotValidated extends RestHandler.AuthNotRequired {
+public class EmailNotValidated extends Route.AuthNotRequired {
     public Response get() {
         return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Email address has not yet been validated");
     }

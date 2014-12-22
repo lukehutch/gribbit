@@ -31,8 +31,8 @@ import gribbit.exception.BadRequestException;
 import gribbit.exception.UnauthorizedException;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
-import gribbit.server.RestHandler;
 import gribbit.server.Route;
+import gribbit.server.RouteInfo;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.response.RedirectResponse;
 import gribbit.server.response.Response;
@@ -46,7 +46,7 @@ import gribbit.util.RequestBuilder;
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
-public class GoogleLogin extends RestHandler.AuthNotRequired {
+public class GoogleLogin extends Route.AuthNotRequired {
 
     public static class AuthResponse {
         public String access_token, token_type, expires_in, id_token, refresh_token;
@@ -125,7 +125,7 @@ public class GoogleLogin extends RestHandler.AuthNotRequired {
     // to contact if something goes wrong
 
     private static String callbackURI() {
-        return GribbitServer.uri + Route.forGet(GoogleLogin.class, "callback");
+        return GribbitServer.uri + RouteInfo.forGet(GoogleLogin.class, "callback");
     }
 
     private static String getAuthorizationCodeURL(boolean forceApprovalPrompt) {

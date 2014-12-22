@@ -107,7 +107,7 @@ public class TemplateLoader {
     // -----------------------------------------------------------------------------------------------------
 
     /** Got a DataModel subclass on the classpath. */
-    void gotDataModel(Class<? extends DataModel> dataModelClass) {
+    void registerDataModel(Class<? extends DataModel> dataModelClass) {
         if (dataModelClass != DBModel.class && dataModelClass != DBModelObjectIdKey.class
                 && dataModelClass != DBModelStringKey.class && dataModelClass != DBModelLongKey.class) {
 
@@ -153,7 +153,7 @@ public class TemplateLoader {
     }
 
     /** Got an HTML, CSS or JS file on the classpath. */
-    void gotWebResource(String absolutePath, String relativePath, InputStream inputStream) {
+    void registerWebResource(String absolutePath, String relativePath, InputStream inputStream) {
         try {
             if (absolutePath.endsWith("/head-content.html")) {
                 // Load header HTML content from the classpath
@@ -177,7 +177,7 @@ public class TemplateLoader {
      * Found a static initializer value in a classfile on a second or subsequent loading of site resources. Use this
      * value instead of the one read using reflection, so that hot changes of static constant values is supported.
      */
-    public void gotTemplateStaticFieldValue(String className, String templateString) {
+    public void registerTemplateStaticFieldValue(String className, String templateString) {
         classNameToInlineTemplateOverride.put(className, templateString);
     }
 

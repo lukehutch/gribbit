@@ -26,7 +26,7 @@
 package gribbit.auth;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.RestHandler;
+import gribbit.server.Route;
 import gribbit.server.response.RedirectResponse;
 import gribbit.server.response.Response;
 
@@ -34,7 +34,7 @@ import gribbit.server.response.Response;
  * Default GET/POST handler for /logout URL. Logs the user out then redirects to the home page.
  */
 @RouteOverride("/logout")
-public class Logout extends RestHandler.AuthNotRequired {
+public class Logout extends Route.AuthNotRequired {
     public Response get() {
         User.logOutUser(request);
         return new RedirectResponse("/");

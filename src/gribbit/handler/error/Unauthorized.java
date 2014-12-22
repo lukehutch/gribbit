@@ -27,7 +27,7 @@ package gribbit.handler.error;
 
 import gribbit.auth.User;
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.RestHandler;
+import gribbit.server.Route;
 import gribbit.server.response.Response;
 import gribbit.server.response.TextResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -36,7 +36,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * Default handler called when user is not authorized to see a given resource.
  */
 @RouteOverride("/gribbit/err/unauthorized")
-public class Unauthorized extends RestHandler.AuthNotRequired {
+public class Unauthorized extends Route.AuthNotRequired {
     public Response get() {
         User.removeLoginCookies(request);
         return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
