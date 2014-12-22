@@ -237,7 +237,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             // ------------------------------------------------------------------------------
 
             if (requestComplete) {
-                // All POST chunks received (or no chunks); ready to start handling the request
+                
+                // All POST chunks have been received (or there are no chunks); ready to start handling the request
 
                 String reqURI = request.getURI();
 
@@ -381,9 +382,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             }
                             if (fileToServe != null) {
 
-                                // ------------------------------------------------------------------------------
-                                // Handle static file requests (these are not authenticated)
-                                // ------------------------------------------------------------------------------
+                                // -----------------------------------------
+                                // Serve a static file (not authenticated)
+                                // -----------------------------------------
 
                                 DefaultHttpResponse httpRes =
                                         new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);

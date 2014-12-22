@@ -334,28 +334,6 @@ public class StringUtils {
         }
     }
 
-    /**
-     * If prettyprinting, skip any initial spaces in the string if the buf already ends in a space (i.e. if the input is
-     * already indented), so that first non-space char starts at the indent position.
-     */
-    public static void appendAligned(boolean prettyPrint, String safeStr, StringBuilder buf) {
-        if (prettyPrint && safeStr.length() > 0 && safeStr.charAt(0) == ' '
-                && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ')) {
-            for (int i = 0, n = safeStr.length(), copy = 0; i < n; i++) {
-                char c = safeStr.charAt(i);
-                if (c != ' ') {
-                    copy = 1;
-                }
-                if (copy == 1) {
-                    buf.append(c);
-                }
-            }
-        } else {
-            // else just insert the safe string into the HTML buffer 
-            buf.append(safeStr);
-        }
-    }
-
     /** Append string to buffer, possibly prefixed by prettyprinting indentation. */
     public static void append(CharSequence str, int indentDepth, StringBuilder buf) {
         indent(indentDepth, buf);

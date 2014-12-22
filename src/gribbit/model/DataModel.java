@@ -1365,18 +1365,18 @@ public abstract class DataModel {
      */
 
     /** Escape text for an HTML attribute value or for an HTML text node. */
-    private static String encodeParamText(String tagName, String attrName, String unsafeStr) {
+    private static void encodeParamText(String tagName, String attrName, String unsafeStr, StringBuilder buf) {
         boolean isAttrVal = attrName != null;
         if (isAttrVal) {
             if (WebUtils.isURLAttr(tagName, attrName)) {
-                // This parameter may be just part of a URI, so we need to check the whole string
-                // for validity after all params have been substituted -- just insert param string
-                // directly for now. 
-                return unsafeStr;
+                // This parameter may be just one part of a URI, so we need to check the whole composed URI string
+                // for validity after all params have been substituted -- just insert unsafe param string directly
+                // for now. URI attributes are checked after all parameters have been substituted. 
+                buf.append(unsafeStr);
             } else {
                 // OWASP Rule #2:
                 //     Attribute Escape Before Inserting Untrusted Data into HTML Common Attributes.
-                return WebUtils.encodeForHTMLAttribute(unsafeStr);
+                WebUtils.encodeForHTMLAttribute(unsafeStr, buf);
             }
         } else {
             // OWASP Rule #1:
@@ -1384,8 +1384,6 @@ public abstract class DataModel {
             if (unsafeStr.indexOf("\n") >= 0) {
                 // Turn "\n" within text params into <br> for convenience
                 ArrayList<CharSequence> parts = StringUtils.splitAsList(unsafeStr, "\n");
-                // FIXME *** : pass in buf, don't allocate it here
-                StringBuilder buf = new StringBuilder(unsafeStr.length() + parts.size() * 3);
                 for (int i = 0; i < parts.size(); i++) {
                     if (i > 0) {
                         // Can insert a raw <br> here because this text is not an attribute val,
@@ -1393,13 +1391,12 @@ public abstract class DataModel {
                         buf.append("<br>");
                     }
                     // Separately escape each part split by a newline character
-                    buf.append(WebUtils.encodeForHTML(parts.get(i)));
+                    WebUtils.encodeForHTML(parts.get(i), buf);
                 }
-                return buf.toString();
 
             } else {
                 // No newline characters, HTML-escape the whole parameter string
-                return WebUtils.encodeForHTML(unsafeStr);
+                WebUtils.encodeForHTML(unsafeStr, buf);
             }
         }
     }
@@ -1415,10 +1412,8 @@ public abstract class DataModel {
 
                 String unsafeStr = (String) fieldValue;
                 if (unsafeStr != null && !unsafeStr.isEmpty()) {
-                    // Parameter is being expanded in non-URI attribute, or in a text node --
-                    // use regular HTML escaping
-                    String safeStr = encodeParamText(tagName, attrName, unsafeStr);
-                    buf.append(safeStr);
+                    // Parameter is being expanded in non-URI attribute, or in a text node -- use regular HTML escaping
+                    encodeParamText(tagName, attrName, unsafeStr, buf);
                 }
 
             } else if (DataModel.class.isAssignableFrom(fieldType)) {
@@ -1498,8 +1493,7 @@ public abstract class DataModel {
                 try {
                     if (fieldType.getMethod("toString").getDeclaringClass() != Object.class) {
                         String unsafeStr = fieldValue.toString();
-                        String safeStr = encodeParamText(tagName, attrName, unsafeStr);
-                        buf.append(safeStr);
+                        encodeParamText(tagName, attrName, unsafeStr, buf);
                     } else {
                         throw new RuntimeException("The class " + fieldType.getName()
                                 + " does not override Object.toString(), and is not a subclass of "
@@ -1530,9 +1524,27 @@ public abstract class DataModel {
             // Append content before the match to the buffer
             CharSequence beforeMatch = textWithParams.subSequence(prevMatchIdx, matcher.start());
             if (isAttrVal) {
-                buf.append(WebUtils.encodeForHTMLAttribute(beforeMatch));
+                WebUtils.encodeForHTMLAttribute(beforeMatch, buf);
             } else {
-                StringUtils.appendAligned(prettyPrint, WebUtils.encodeForHTML(beforeMatch), buf);
+                // If prettyprinting, don't create runs of spaces if the buffer ends in a space and the text we're
+                // appending starts in a space
+                if (prettyPrint && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ')
+                        && beforeMatch.length() > 0 && beforeMatch.charAt(0) == ' ') {
+                    boolean hasNonSpace = false;
+                    for (int i = 0, n = beforeMatch.length(); i < n; i++) {
+                        char c = beforeMatch.charAt(i);
+                        if (c != ' ') {
+                            hasNonSpace = true;
+                            beforeMatch = beforeMatch.subSequence(i, beforeMatch.length());
+                            break;
+                        }
+                    }
+                    if (!hasNonSpace) {
+                        beforeMatch = "";
+                    }
+                }
+                // Encode and insert string into the HTML buffer 
+                WebUtils.encodeForHTML(beforeMatch, buf);
             }
             prevMatchIdx = matcher.end();
 
@@ -1587,7 +1599,11 @@ public abstract class DataModel {
         }
         // Append last unmatched text
         CharSequence afterLastMatch = textWithParams.subSequence(prevMatchIdx, textWithParams.length());
-        buf.append(isAttrVal ? WebUtils.encodeForHTMLAttribute(afterLastMatch) : WebUtils.encodeForHTML(afterLastMatch));
+        if (isAttrVal) {
+            WebUtils.encodeForHTMLAttribute(afterLastMatch, buf);
+        } else {
+            WebUtils.encodeForHTML(afterLastMatch, buf);
+        }
 
         // Check validity of entirety of text value (template text with substituted param values)
         // for URL attributes

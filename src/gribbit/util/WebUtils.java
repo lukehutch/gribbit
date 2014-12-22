@@ -407,8 +407,7 @@ public class WebUtils {
      * 
      * See OWASP XSS Rule #1 at https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
      */
-    public static String encodeForHTML(CharSequence unsafeStr) {
-        StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
+    public static void encodeForHTML(CharSequence unsafeStr, StringBuilder buf) {
         for (int i = 0, n = unsafeStr.length(); i < n; i++) {
             char c = unsafeStr.charAt(i);
             switch (c) {
@@ -462,13 +461,23 @@ public class WebUtils {
                 break;
             }
         }
+    }
+    
+    /**
+     * Encodes HTML-unsafe characters as HTML entities.
+     * 
+     * See OWASP XSS Rule #1 at https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
+     */
+    public static String encodeForHTML(CharSequence unsafeStr) {
+        StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
+        encodeForHTML(unsafeStr, buf);
         return buf.toString();
     }
 
     /**
      * Encodes HTML-attr-unsafe chars (all non-alphanumeric chars less than 0xff) as hex codes or entities.
      */
-    public static String encodeForHTMLAttribute(CharSequence unsafeStr) {
+    public static void encodeForHTMLAttribute(CharSequence unsafeStr, StringBuilder buf) {
         /**
          * From OWASP XSS prevention Rule #2: "Except for alphanumeric characters, escape all characters with ASCII
          * values less than 256 with the &#xHH; format (or a named entity if available) to prevent switching out of the
@@ -480,9 +489,8 @@ public class WebUtils {
          * Since attributes are all being quoted, and URL attrs are handled specially, just perform regular HTML
          * escaping inside HTML attribute values.
          */
-        return encodeForHTML(unsafeStr);
+        encodeForHTML(unsafeStr, buf);
 
-        //        StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
         //        for (int i = 0, n = unsafeStr.length(); i < n; i++) {
         //            char c = unsafeStr.charAt(i);
         //            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
@@ -519,7 +527,15 @@ public class WebUtils {
         //                }
         //            }
         //        }
-        //        return buf.toString();
+    }
+    
+    /**
+     * Encodes HTML-attr-unsafe chars (all non-alphanumeric chars less than 0xff) as hex codes or entities.
+     */
+    public static String encodeForHTMLAttribute(CharSequence unsafeStr) {
+        StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
+        encodeForHTMLAttribute(unsafeStr, buf);
+        return buf.toString();
     }
 
     // -----------------------------------------------------------------------------------------------------
