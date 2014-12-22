@@ -66,7 +66,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -1193,49 +1192,83 @@ public abstract class DataModel {
                         buf.append(prettyPrint ? " ]" : "]");
                     }
 
-                } else if (Map.class.isAssignableFrom(klass) || Set.class.isAssignableFrom(klass)) {
-                    // Render a Map or Set as a JSON associative array.
-                    // Sets are rendered as a map from set element to the Boolean value true
-                    boolean isSet = Set.class.isAssignableFrom(klass);
-                    Map<?, ?> map = isSet ? null : (Map<?, ?>) obj;
-                    Set<?> set = isSet ? (Set<?>) obj : null;
-                    ArrayList<?> keys = new ArrayList<>(isSet ? set : map.keySet());
-                    int n = keys.size();
-                    if (n == 0) {
+                } else if (Iterable.class.isAssignableFrom(klass)) {
+                    // Render a Set or other Iterable
+                    Iterable<?> iterable = (Iterable<?>) obj;
+                    boolean empty = true;
+                    buf.append(prettyPrint ? "[ " : "[");
+                    for (Object element : iterable) {
+                        toJSONRec(element, prettyPrint, depth + 1, buf);
+                        empty = false;
+                    }
+                    if (!empty && prettyPrint) {
+                        buf.append(' ');
+                    }
+                    buf.append(prettyPrint ? (!empty ? " ]" : "]") : "]");
+
+                } else if (Map.class.isAssignableFrom(klass)) {
+                    // Render a Map as a JSON associative array.
+                    Map<?, ?> map = (Map<?, ?>) obj;
+                    if (map.size() == 0) {
                         buf.append(prettyPrint ? "{ }" : "{}");
                     } else {
                         buf.append(prettyPrint ? "{\n" : "{");
                         if (prettyPrint) {
                             // If prettyprinting, get first non-null key and see if it
                             // implements Comparable, and if so, sort the keys into order
-                            Object key = keys.get(0);
-                            if (key == null && n > 1) {
-                                key = keys.get(1);
+                            ArrayList<?> keys = new ArrayList<>(map.keySet());
+                            int n = keys.size();
+                            Object firstKey = keys.get(0);
+                            if (firstKey == null && n > 1) {
+                                firstKey = keys.get(1);
                             }
-                            if (key != null) {
-                                if (Comparable.class.isAssignableFrom(key.getClass())) {
+                            if (firstKey != null) {
+                                if (Comparable.class.isAssignableFrom(firstKey.getClass())) {
                                     Collections.sort((ArrayList<Comparable>) keys);
                                 }
                             }
-                        }
-                        for (int i = 0; i < n; i++) {
-                            Object key = keys.get(i);
-                            Object val = isSet ? Boolean.TRUE : map.get(key);
-
-                            // Render key 
-                            if (prettyPrint) {
-                                buf.append(StringUtils.spaces(depth + 1));
+                            for (int i = 0; i < n; i++) {
+                                Object key = keys.get(i);
+                                Object val = map.get(key);
+                                
+                                // Render key 
+                                if (prettyPrint) {
+                                    buf.append(StringUtils.spaces(depth + 1));
+                                }
+                                buf.append('"');
+                                WebUtils.escapeJSONString(key.toString(), buf);
+                                buf.append(prettyPrint ? "\" : " : "\":");
+                                
+                                // Recursively render value
+                                toJSONRec(val, prettyPrint, depth + 1, buf);
+                                if (i < n - 1) {
+                                    buf.append(prettyPrint ? ",\n" : ",");
+                                } else if (prettyPrint) {
+                                    buf.append('\n');
+                                }
                             }
-                            buf.append('"');
-                            WebUtils.escapeJSONString(key.toString(), buf);
-                            buf.append(prettyPrint ? "\" : " : "\":");
-
-                            // Recursively render value
-                            toJSONRec(val, prettyPrint, depth + 1, buf);
-                            if (i < n - 1) {
-                                buf.append(prettyPrint ? ",\n" : ",");
-                            } else if (prettyPrint) {
-                                buf.append('\n');
+                        } else {
+                            // Save on time if not prettyprinting
+                            int remaining = map.size();
+                            for (Entry ent : map.entrySet()) {
+                                Object key = ent.getKey();
+                                Object val = ent.getValue();
+                                
+                                // Render key 
+                                if (prettyPrint) {
+                                    buf.append(StringUtils.spaces(depth + 1));
+                                }
+                                buf.append('"');
+                                WebUtils.escapeJSONString(key.toString(), buf);
+                                buf.append(prettyPrint ? "\" : " : "\":");
+                                
+                                // Recursively render value
+                                toJSONRec(val, prettyPrint, depth + 1, buf);
+                                if (--remaining > 0) {
+                                    buf.append(prettyPrint ? ",\n" : ",");
+                                } else if (prettyPrint) {
+                                    buf.append('\n');
+                                }                                
                             }
                         }
                         if (prettyPrint) {
@@ -1471,7 +1504,10 @@ public abstract class DataModel {
                 Class<?> concreteClass = (Class<?>) fieldValue;
                 if (concreteClass != null) {
                     if (RestHandler.class.isAssignableFrom(concreteClass)) {
-                        // TODO *** : test this
+                        // URI routes can be inserted into URI attributes by defining a field in a DataModel
+                        // like: "public Class<? extends RestHandler> myUrl = MyURLHandler.class;"
+                        // then including a parameter in HTML like: "<a href='${myUrl}'>Click here</a>"
+                        //
                         // Put URI for RestHandler into buf -- this is not escaped, since the RestHandler URIs
                         // should all be valid without escaping (they are either safely derived from the class
                         // name, or from the RouteOverride annotation, which is checked for validity)

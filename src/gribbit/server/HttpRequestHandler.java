@@ -444,8 +444,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                     lastContentFuture.addListener(ChannelFutureListener.CLOSE);
                                 }
 
-                                // Invariant: routeToUse == null && response == null
-
                                 Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
                                         + filePath + "\t" + HttpResponseStatus.OK + "\t"
                                         + (System.currentTimeMillis() - request.getReqReceivedTimeMillis()) + " msec");
