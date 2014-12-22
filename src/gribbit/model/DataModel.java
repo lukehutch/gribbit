@@ -1510,6 +1510,31 @@ public abstract class DataModel {
     }
 
     /**
+     * Append a text part to the buffer. If prettyPrint is true, and the buffer already ends in a space, and the text
+     * part starts in a space, skip initial spaces in the text part so as not to create a run of spaces, which can throw
+     * off indenting if the text is at the beginning of an indented line.
+     */
+    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint, StringBuilder buf) {
+        if (prettyPrint && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ') && textPart.length() > 0
+                && textPart.charAt(0) == ' ') {
+            boolean hasNonSpace = false;
+            for (int i = 0, n = textPart.length(); i < n; i++) {
+                char c = textPart.charAt(i);
+                if (c != ' ') {
+                    hasNonSpace = true;
+                    textPart = textPart.subSequence(i, textPart.length());
+                    break;
+                }
+            }
+            if (!hasNonSpace) {
+                textPart = "";
+            }
+        }
+        // Encode and insert string into the buffer 
+        WebUtils.encodeForHTML(textPart, buf);
+    }
+
+    /**
      * Substitute params from this DataModel object into the text, performing proper HTML escaping as needed.
      */
     private boolean substituteTemplateParamsAndEscapeText(String tagName, String attrName, String textWithParams,
@@ -1526,25 +1551,7 @@ public abstract class DataModel {
             if (isAttrVal) {
                 WebUtils.encodeForHTMLAttribute(beforeMatch, buf);
             } else {
-                // If prettyprinting, don't create runs of spaces if the buffer ends in a space and the text we're
-                // appending starts in a space
-                if (prettyPrint && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ')
-                        && beforeMatch.length() > 0 && beforeMatch.charAt(0) == ' ') {
-                    boolean hasNonSpace = false;
-                    for (int i = 0, n = beforeMatch.length(); i < n; i++) {
-                        char c = beforeMatch.charAt(i);
-                        if (c != ' ') {
-                            hasNonSpace = true;
-                            beforeMatch = beforeMatch.subSequence(i, beforeMatch.length());
-                            break;
-                        }
-                    }
-                    if (!hasNonSpace) {
-                        beforeMatch = "";
-                    }
-                }
-                // Encode and insert string into the HTML buffer 
-                WebUtils.encodeForHTML(beforeMatch, buf);
+                encodeForHTMLNormalizingInitialSpace(beforeMatch, prettyPrint, buf);
             }
             prevMatchIdx = matcher.end();
 
@@ -1602,7 +1609,7 @@ public abstract class DataModel {
         if (isAttrVal) {
             WebUtils.encodeForHTMLAttribute(afterLastMatch, buf);
         } else {
-            WebUtils.encodeForHTML(afterLastMatch, buf);
+            encodeForHTMLNormalizingInitialSpace(afterLastMatch, prettyPrint, buf);
         }
 
         // Check validity of entirety of text value (template text with substituted param values)
@@ -1898,10 +1905,6 @@ public abstract class DataModel {
                     !WebUtils.INLINE_ELEMENTS.contains(tagName)
                             && !GribbitServer.siteResources.getCustomInlineElements().contains(tagName);
 
-            //            if (tagName.equals("script")) {
-            //                System.out.println("got here"); // TODO
-            //            }
-
             // Render the open tag for this element
             if (prettyPrint && isBlockElement) {
                 StringUtils.indent(indentLevel, buf);
@@ -1912,7 +1915,8 @@ public abstract class DataModel {
             renderAttrs(e, enclosingForm, formModel, selectName, prettyPrint, indentLevel, buf);
             buf.append('>');
             if (prettyPrint && (tagName.equals("head") || tagName.equals("body"))) {
-                StringUtils.indent(indentLevel, buf);
+                // Always indent after body and head elements
+                StringUtils.indent(indentLevel + 1, buf);
             }
 
             // Switch off prettyprinting and text spacing normalization inside the pre element
