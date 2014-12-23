@@ -27,9 +27,9 @@ package gribbit.response;
 
 import gribbit.handler.vulcanized.VulcanizedHTMLHandler;
 import gribbit.model.DataModel;
+import gribbit.response.flashmsg.FlashMessage;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.server.response.flashmsg.FlashMessage;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.util.ArrayList;

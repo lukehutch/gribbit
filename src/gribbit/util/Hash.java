@@ -26,7 +26,7 @@
 package gribbit.util;
 
 import gribbit.auth.User;
-import gribbit.thirdparty.BCrypt;
+import gribbit.util.thirdparty.BCrypt;
 
 /**
  */

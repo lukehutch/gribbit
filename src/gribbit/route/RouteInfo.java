@@ -23,16 +23,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server.siteresources.route;
+package gribbit.route;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
 import gribbit.model.DataModel;
+import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
 import gribbit.response.Response;
 import gribbit.server.GribbitServer;
-import gribbit.server.Request;
 import gribbit.util.AppException;
 import gribbit.util.Log;
 import gribbit.util.Reflection;

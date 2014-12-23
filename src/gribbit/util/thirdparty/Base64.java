@@ -71,7 +71,7 @@
  * @version 2.2
  * @author Mikael Grev Date: 2004-aug-02 Time: 11:31:11
  */
-package gribbit.thirdparty;
+package gribbit.util.thirdparty;
 
 import java.util.Arrays;
 

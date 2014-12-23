@@ -29,7 +29,7 @@ import gribbit.auth.CSRF;
 import gribbit.auth.User;
 import gribbit.model.DataModel;
 import gribbit.server.config.GribbitProperties;
-import gribbit.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;

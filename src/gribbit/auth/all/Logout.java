@@ -28,7 +28,7 @@ package gribbit.auth.all;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
-import gribbit.server.siteresources.route.Route;
+import gribbit.route.Route;
 
 /**
  * Default GET/POST handler for /logout URL. Logs the user out then redirects to the home page.

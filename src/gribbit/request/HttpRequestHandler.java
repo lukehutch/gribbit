@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server;
+package gribbit.request;
 
 import static io.netty.handler.codec.http.HttpHeaders.Names.CACHE_CONTROL;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
@@ -45,13 +45,14 @@ import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLPageResponse;
 import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
+import gribbit.response.flashmsg.FlashMessage;
+import gribbit.route.Route;
+import gribbit.route.RouteInfo;
+import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.server.response.flashmsg.FlashMessage;
-import gribbit.server.siteresources.route.Route;
-import gribbit.server.siteresources.route.RouteInfo;
-import gribbit.thirdparty.UTF8;
 import gribbit.util.Log;
 import gribbit.util.WebUtils;
+import gribbit.util.thirdparty.UTF8;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;

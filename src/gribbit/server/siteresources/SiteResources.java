@@ -27,10 +27,10 @@ package gribbit.server.siteresources;
 
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
+import gribbit.route.Route;
+import gribbit.route.RouteInfo;
+import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
-import gribbit.server.siteresources.route.Route;
-import gribbit.server.siteresources.route.RouteInfo;
-import gribbit.server.siteresources.route.RouteMapping;
 import gribbit.util.Reflection;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;

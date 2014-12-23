@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server.response.flashmsg;
+package gribbit.response.flashmsg;
 
 import gribbit.model.DataModel;
 import gribbit.util.StringUtils;

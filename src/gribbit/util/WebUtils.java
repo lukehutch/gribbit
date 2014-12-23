@@ -25,7 +25,7 @@
  */
 package gribbit.util;
 
-import gribbit.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;

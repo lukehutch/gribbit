@@ -29,8 +29,8 @@ import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.ByteBufResponse;
 import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
-import gribbit.server.siteresources.route.Route;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 

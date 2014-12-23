@@ -25,8 +25,8 @@
  */
 package gribbit.auth;
 
-import gribbit.thirdparty.UTF8;
 import gribbit.util.RandomTokenGenerator;
+import gribbit.util.thirdparty.UTF8;
 
 /**
  * CSRF token generation support.

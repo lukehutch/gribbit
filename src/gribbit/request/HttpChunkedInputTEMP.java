@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server;
+package gribbit.request;
 
 /*
  * Copyright 2014 The Netty Project

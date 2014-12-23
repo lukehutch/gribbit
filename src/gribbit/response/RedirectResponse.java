@@ -26,8 +26,8 @@
 package gribbit.response;
 
 import gribbit.auth.Cookie;
-import gribbit.server.siteresources.route.Route;
-import gribbit.server.siteresources.route.RouteInfo;
+import gribbit.route.Route;
+import gribbit.route.RouteInfo;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 public class RedirectResponse extends TextResponse {

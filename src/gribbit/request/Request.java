@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server;
+package gribbit.request;
 
 import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT;
 import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT_CHARSET;
@@ -35,8 +35,8 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaders.Names.REFERER;
 import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 import gribbit.auth.Cookie;
-import gribbit.server.response.flashmsg.FlashMessage;
-import gribbit.server.response.flashmsg.FlashMessage.FlashType;
+import gribbit.response.flashmsg.FlashMessage;
+import gribbit.response.flashmsg.FlashMessage.FlashType;
 import gribbit.util.StringUtils;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;

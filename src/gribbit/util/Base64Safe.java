@@ -25,9 +25,9 @@
  */
 package gribbit.util;
 
-import gribbit.thirdparty.Base64;
-import gribbit.thirdparty.UTF8;
-import gribbit.thirdparty.UTF8.UTF8Exception;
+import gribbit.util.thirdparty.Base64;
+import gribbit.util.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8.UTF8Exception;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;

@@ -28,7 +28,7 @@ package gribbit.handler.error;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.Response;
 import gribbit.response.TextResponse;
-import gribbit.server.siteresources.route.Route;
+import gribbit.route.Route;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**

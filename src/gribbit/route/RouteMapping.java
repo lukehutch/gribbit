@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server.siteresources.route;
+package gribbit.route;
 
 import gribbit.handler.error.BadRequest;
 import gribbit.handler.error.EmailNotValidated;
