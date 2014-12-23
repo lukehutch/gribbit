@@ -29,13 +29,13 @@ import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.ByteBufResponse;
 import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
-import gribbit.route.Route;
+import gribbit.route.AuthNotRequiredRoute;
 import gribbit.server.GribbitServer;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 @RouteOverride("/vulcanized-js")
-public interface VulcanizedJSHandler extends Route.AuthNotRequired {
+public interface VulcanizedJSHandler extends AuthNotRequiredRoute {
     public default Response get() throws Exception {
         long resourcesLoadedEpochSecond = GribbitServer.siteResources.getResourcesLoadedEpochSecond();
         if (getRequest().cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {

@@ -46,6 +46,8 @@ import gribbit.response.HTMLPageResponse;
 import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;
+import gribbit.route.AuthAndValidatedEmailRequiredRoute;
+import gribbit.route.AuthRequiredRoute;
 import gribbit.route.Route;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
@@ -298,7 +300,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                             GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class),
                                             request, user);
 
-                        } else if (Route.AuthRequired.class.isAssignableFrom(handler)) {
+                        } else if (AuthRequiredRoute.class.isAssignableFrom(handler)) {
 
                             // This handler requires authentication -- check if user is logged in
                             user = User.getLoggedInUser(request);
@@ -313,7 +315,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 // log in successfully
                                 request.setCookie(new Cookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME, reqURI, "/", 300));
 
-                            } else if (Route.AuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
+                            } else if (AuthAndValidatedEmailRequiredRoute.class.isAssignableFrom(handler)
                                     && !user.emailIsValidated()) {
 
                                 // User is logged in, but their email address has not been validated:

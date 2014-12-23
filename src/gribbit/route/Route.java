@@ -26,7 +26,6 @@
 package gribbit.route;
 
 import gribbit.auth.Cookie;
-import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
 
@@ -38,8 +37,9 @@ import java.util.Collection;
  */
 public interface Route {
 
-    // This is overridden in the InvokeHandler to return the actual request
+    /** Get the current request. */
     public default Request getRequest() {
+        // This is overridden in the InvokeHandler to return the actual request
         return null;
     }
 
@@ -53,8 +53,8 @@ public interface Route {
         getRequest().clearFlashMessages();
     }
 
-    /** Add a cookie to the response. */
-    public default void addCookie(Cookie cookie) {
+    /** Set a cookie in the response. */
+    public default void setCookie(Cookie cookie) {
         // (Cookies are stored in the request temporarily, but are moved to the response when the response is served)
         getRequest().setCookie(cookie);
     }
@@ -73,49 +73,5 @@ public interface Route {
     /** Get the String value of a specific cookie. */
     public default String getCookieValue(String cookieName) {
         return getRequest().getCookieValue(cookieName);
-    }
-
-    /**
-     * Auth required, but validated email NOT required.
-     */
-    public interface AuthRequired extends Route {
-        // This is overridden in the InvokeHandler to return the actual User object
-        public default User getUser() {
-            return null;
-        }
-
-        /**
-         * Delete the user's session cookies, and invalidate their login session in the database if they are currently
-         * logged in.
-         */
-        public default void logOutUser() {
-            User user = getUser();
-            if (user != null) {
-                // Invalidate user's session and CSRF token in the database if they are currently logged in 
-                user.logOut(getRequest());
-            } else {
-                // Otherwise just remove the session cookies
-                User.removeLoginCookies(getRequest());
-            }
-        }
-    }
-
-    /**
-     * Auth and validated email required.
-     */
-    public interface AuthAndValidatedEmailRequired extends AuthRequired {
-    }
-
-    /**
-     * Neither auth nor validated email required.
-     */
-    public interface AuthNotRequired extends Route {
-        /**
-         * Delete the user's session cookies, and invalidate their login session in the database if they are currently
-         * logged in.
-         */
-        public default void logOutUser() {
-            User.logOutUser(getRequest());
-        }
     }
 }

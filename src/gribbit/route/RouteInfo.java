@@ -231,12 +231,12 @@ public class RouteInfo {
      * @return
      */
     public Response callHandler(Request request, User user) throws Exception {
-        if (Route.AuthRequired.class.isAssignableFrom(routeClass)) {
+        if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
             if (user == null) {
                 // Should not happen (the user object should only be non-null if the user is authorized),
                 // but just to be safe, double check that user is authorized if they are calling an
                 // authorization-required handler
-                Log.error("Tried to call a " + Route.AuthRequired.class.getName() + " handler with a null user object");
+                Log.error("Tried to call a " + AuthRequiredRoute.class.getName() + " handler with a null user object");
                 return new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
             }
         }
@@ -306,7 +306,7 @@ public class RouteInfo {
         } else if (reqMethod == HttpMethod.POST) {
             // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
             // unathenticated route
-            if (Route.AuthRequired.class.isAssignableFrom(routeClass)) {
+            if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
                 String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
                 if (postToken == null || postToken.isEmpty()) {
                     throw new AppException("Missing CSRF token in POST request");

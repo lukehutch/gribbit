@@ -23,21 +23,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.route;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.response.Response;
-import gribbit.response.TextResponse;
-import gribbit.route.AuthNotRequiredRoute;
-import io.netty.handler.codec.http.HttpResponseStatus;
+import gribbit.auth.User;
 
 /**
- * Default handler called when user is not authorized to see a given resource.
+ * Neither auth nor validated email required.
  */
-@RouteOverride("/gribbit/err/unauthorized")
-public interface Unauthorized extends AuthNotRequiredRoute {
-    public default Response get() {
-        logOutUser();
-        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
+public interface AuthNotRequiredRoute extends Route {
+    /**
+     * Delete the user's session cookies, and invalidate their login session in the database if they are currently
+     * logged in.
+     */
+    public default void logOutUser() {
+        User.logOutUser(getRequest());
     }
 }

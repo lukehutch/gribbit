@@ -34,7 +34,7 @@ import gribbit.request.Request;
 import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
-import gribbit.route.Route;
+import gribbit.route.AuthNotRequiredRoute;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -47,7 +47,7 @@ import gribbit.util.RequestBuilder;
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
-public interface GoogleLogin extends Route.AuthNotRequired {
+public interface GoogleLogin extends AuthNotRequiredRoute {
 
     public static class AuthResponse {
         public String access_token, token_type, expires_in, id_token, refresh_token;
