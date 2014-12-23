@@ -28,8 +28,9 @@ package gribbit.server.siteresources;
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
-import gribbit.server.Route;
-import gribbit.server.RouteInfo;
+import gribbit.server.siteresources.route.Route;
+import gribbit.server.siteresources.route.RouteInfo;
+import gribbit.server.siteresources.route.RouteMapping;
 import gribbit.util.Reflection;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
@@ -239,7 +240,8 @@ public class SiteResources {
                 new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath,
                         "org/polymerproject" })
                 //
-                        .matchSubclassesOf(Route.class, matchingClass -> routeMapping.registerRoute(matchingClass))
+                        .matchSubinterfacesOf(Route.class,
+                                matchingClass -> routeMapping.registerRoute(matchingClass))
                         //
                         .matchSubclassesOf(DataModel.class,
                                 templateClass -> templateLoader.registerDataModel(templateClass))

@@ -113,7 +113,7 @@ public class TemplateLoader {
 
             // Make sure that the field types make sense given any constraint annotations on the fields
             DataModel.checkFieldTypesAgainstAnnotations(dataModelClass);
-
+            
             // Store a mapping between class name and DataModel subclass
             Class<? extends DataModel> oldVal =
                     classNameToDataModel.put(dataModelClass.getSimpleName(), dataModelClass);
@@ -134,10 +134,15 @@ public class TemplateLoader {
                     int modifiers = templateField.getModifiers();
                     if (Modifier.isStatic(modifiers) && Modifier.isPublic(modifiers)
                             && templateField.getType().equals(String.class)) {
+                        
                         // Got an inline template in the static field named "_template" of a DataModel class
                         inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "." + templateField.getName());
                         String templateStr = (String) templateField.get(null);
                         classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
+
+                        Log.fine("Registering inline template: " + dataModelClass.getName() + "."
+                                + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+                        
                     } else {
                         throw new RuntimeException("Field \"" + templateField.getName() + "\" in class "
                                 + dataModelClass.getName() + " must be both static and final");
@@ -153,7 +158,7 @@ public class TemplateLoader {
     }
 
     /** Got an HTML, CSS or JS file on the classpath. */
-    void registerWebResource(String absolutePath, String relativePath, InputStream inputStream) {
+    void registerWebResource(String absolutePath, String relativePath, InputStream inputStream) {        
         try {
             if (absolutePath.endsWith("/head-content.html")) {
                 // Load header HTML content from the classpath
@@ -170,7 +175,8 @@ public class TemplateLoader {
         } catch (Exception e) {
             throw new RuntimeException("Could not read web resource " + absolutePath, e);
         }
-        // Log.info("Found web resource: " + relativePath);
+        
+        Log.info("Registering web resource: " + relativePath);
     }
 
     /**

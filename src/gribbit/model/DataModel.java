@@ -41,11 +41,11 @@ import gribbit.model.field.visibility.annotation.OnlySend;
 import gribbit.model.field.visibility.annotation.Private;
 import gribbit.server.GribbitServer;
 import gribbit.server.Request;
-import gribbit.server.Route;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.SiteResources;
 import gribbit.server.siteresources.TemplateLoader;
+import gribbit.server.siteresources.route.Route;
 import gribbit.util.AppException;
 import gribbit.util.Log;
 import gribbit.util.StringUtils;
@@ -1156,7 +1156,7 @@ public abstract class DataModel {
         } else {
             Class<? extends Object> klass = obj.getClass();
             try {
-                boolean renderFieldsAsMap = true;
+                boolean renderFieldsAsMap = false;
                 if (DataModel.class.isAssignableFrom(klass)) {
                     renderFieldsAsMap = true;
 

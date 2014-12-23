@@ -31,12 +31,13 @@ import gribbit.exception.BadRequestException;
 import gribbit.exception.UnauthorizedException;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
-import gribbit.server.Route;
-import gribbit.server.RouteInfo;
+import gribbit.server.Request;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.response.RedirectResponse;
 import gribbit.server.response.Response;
 import gribbit.server.response.flashmsg.FlashMessage.FlashType;
+import gribbit.server.siteresources.route.Route;
+import gribbit.server.siteresources.route.RouteInfo;
 import gribbit.util.Log;
 import gribbit.util.RequestBuilder;
 
@@ -46,7 +47,7 @@ import gribbit.util.RequestBuilder;
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
-public class GoogleLogin extends Route.AuthNotRequired {
+public interface GoogleLogin extends Route.AuthNotRequired {
 
     public static class AuthResponse {
         public String access_token, token_type, expires_in, id_token, refresh_token;
@@ -55,14 +56,6 @@ public class GoogleLogin extends Route.AuthNotRequired {
     public static class UserInfo {
         public String id, email, name, given_name, family_name, link, picture, gender;
         public Boolean verified_email;
-    }
-
-    static {
-        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
-            throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
-        }
     }
 
     /**
@@ -124,11 +117,17 @@ public class GoogleLogin extends Route.AuthNotRequired {
     // TODO: Need to set up the image to show on the approval page in the API console, and the email address
     // to contact if something goes wrong
 
-    private static String callbackURI() {
+    public default String callbackURI() {
         return GribbitServer.uri + RouteInfo.forGet(GoogleLogin.class, "callback");
     }
 
-    private static String getAuthorizationCodeURL(boolean forceApprovalPrompt) {
+    public default String getAuthorizationCodeURL(boolean forceApprovalPrompt) {
+        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
+            throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
+        }
+
         return "https://accounts.google.com/o/oauth2/auth" //
                 // The client id from the API console
                 + "?client_id=" + GribbitProperties.OAUTH_GOOGLE_CLIENT_ID
@@ -152,9 +151,10 @@ public class GoogleLogin extends Route.AuthNotRequired {
     // This handler is initially called with "/login" appended to the URI, initiating the OAuth process.
     // The route of this same handler is given to Google with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
-    public Response get(String action) throws Exception {
+    public default Response get(String action) throws Exception {
         User user = null;
         Response response = null;
+        Request request = getRequest();
         String error = request.getQueryParam("error");
         if (error != null) {
             // If the user was denied access, we get back an error, e.g. "error=access_denied"
@@ -222,9 +222,7 @@ public class GoogleLogin extends Route.AuthNotRequired {
                             // time the user has logged in, according to the browser's cookies, but the
                             // user's database record has been deleted, deleting the refresh token.
                             // See: http://goo.gl/aUoDLl
-                            if (user != null) {
-                                user.logOut(request);
-                            }
+                            logOutUser();
                             response = new RedirectResponse(getAuthorizationCodeURL(/* forceApprovalPrompt = */true));
 
                         } else {
@@ -301,9 +299,7 @@ public class GoogleLogin extends Route.AuthNotRequired {
         }
         if (error != null || response == null) {
             Log.error("Error during Google OAuth2 login: " + error);
-            if (user != null) {
-                user.logOut(request);
-            }
+            logOutUser();
             request.clearFlashMessages();
             if (error.contains("Unauthorized")) {
                 request.addFlashMessage(FlashType.ERROR, "Error",

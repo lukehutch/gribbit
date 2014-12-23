@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server.siteresources;
+package gribbit.server.siteresources.route;
 
 import gribbit.handler.error.BadRequest;
 import gribbit.handler.error.EmailNotValidated;
@@ -38,8 +38,7 @@ import gribbit.handler.error.annotation.OnUnauthorized;
 import gribbit.handler.route.annotation.Disabled;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.model.DataModel;
-import gribbit.server.Route;
-import gribbit.server.RouteInfo;
+import gribbit.util.Log;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -47,7 +46,7 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-class RouteMapping {
+public class RouteMapping {
 
     // Routes
     private ArrayList<RouteInfo> allRoutes = new ArrayList<>();
@@ -138,6 +137,10 @@ class RouteMapping {
         if (handler.getAnnotation(Disabled.class) != null) {
             // Log.info("Found disabled handler: " + handler.getName());
 
+        } else if (handler == Route.class || handler == Route.AuthNotRequired.class
+                || handler == Route.AuthRequired.class || handler == Route.AuthAndValidatedEmailRequired.class) {
+            // Don't register handler for generic super-interfaces 
+
         } else {
             // Check if route has been overridden for this handler
             RouteOverride routeOverrideAnnotation = handler.getAnnotation(RouteOverride.class);
@@ -147,6 +150,11 @@ class RouteMapping {
                     throw new RuntimeException(RouteOverride.class.getName() + " annotation on class "
                             + handler.getName() + " has value \"" + routeOverride + "\" which is not a valid route");
                 }
+            }
+
+            if (!handler.isInterface()) {
+                throw new RuntimeException(handler.getName() + " is a class that extends " + Route.class.getName()
+                        + "; should instead be an interface that extends " + Route.class.getName());
             }
 
             RouteInfo route = new RouteInfo(handler, routeOverride);
@@ -173,6 +181,7 @@ class RouteMapping {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = unauthorizedRoute;
                     unauthorizedRoute = route;
+
                 } else if (annType == OnEmailNotValidated.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = emailNotValidatedRoute;
@@ -236,8 +245,7 @@ class RouteMapping {
                             + ", " + prev.getHandler().getName());
                 }
             }
-
-            // Log.info("Found handler: " + handler.getName() + " -> " + route.getRoutePath());
+            Log.fine("Registering route handler: " + handler.getName() + " -> " + route.getRoutePath());
         }
     }
 }

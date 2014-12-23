@@ -23,24 +23,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.auth;
+package gribbit.auth.all;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.Route;
 import gribbit.server.response.RedirectResponse;
 import gribbit.server.response.Response;
+import gribbit.server.siteresources.route.Route;
 
 /**
  * Default GET/POST handler for /logout URL. Logs the user out then redirects to the home page.
  */
 @RouteOverride("/logout")
-public class Logout extends Route.AuthNotRequired {
-    public Response get() {
-        User.logOutUser(request);
+public interface Logout extends Route.AuthNotRequired {
+    public default Response get() {
+        logOutUser();
         return new RedirectResponse("/");
     }
 
-    public Response post() {
+    public default Response post() {
         return get();
     }
 }

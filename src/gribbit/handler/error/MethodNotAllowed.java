@@ -26,9 +26,9 @@
 package gribbit.handler.error;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.Route;
 import gribbit.server.response.Response;
 import gribbit.server.response.TextResponse;
+import gribbit.server.siteresources.route.Route;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -36,8 +36,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * method.
  */
 @RouteOverride("/gribbit/err/method-not-allowed")
-public class MethodNotAllowed extends Route.AuthNotRequired {
-    public Response get() {
+public interface MethodNotAllowed extends Route.AuthNotRequired {
+    public default Response get() {
         return new TextResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
     }
 }

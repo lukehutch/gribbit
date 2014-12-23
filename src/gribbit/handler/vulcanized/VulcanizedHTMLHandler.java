@@ -27,18 +27,18 @@ package gribbit.handler.vulcanized;
 
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.server.GribbitServer;
-import gribbit.server.Route;
 import gribbit.server.response.ByteBufResponse;
 import gribbit.server.response.NotModifiedResponse;
 import gribbit.server.response.Response;
+import gribbit.server.siteresources.route.Route;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 @RouteOverride("/vulcanized-html")
-public class VulcanizedHTMLHandler extends Route.AuthNotRequired {
-    public Response get() throws Exception {
+public interface VulcanizedHTMLHandler extends Route.AuthNotRequired {
+    public default Response get() throws Exception {
         long resourcesLoadedEpochSecond = GribbitServer.siteResources.getResourcesLoadedEpochSecond();
-        if (request.cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {
+        if (getRequest().cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {
             // Classpath elements have changed since the last version fetched by the browser --
             // return the latest version of the vulcanized resources from GribbitServer.siteResources
             return new ByteBufResponse(HttpResponseStatus.OK, "text/html;charset=utf-8",

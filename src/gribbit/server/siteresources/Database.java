@@ -204,7 +204,7 @@ public class Database {
                 }
             }
 
-            // Log.info("Found " + DBModel.class.getSimpleName() + " class: " + matchingClass.getName());
+            Log.fine("Registering database model: " + dbModelClass.getName());
         }
     }
 

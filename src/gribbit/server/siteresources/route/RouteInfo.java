@@ -23,12 +23,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server;
+package gribbit.server.siteresources.route;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
 import gribbit.model.DataModel;
+import gribbit.server.GribbitServer;
+import gribbit.server.Request;
 import gribbit.server.response.ErrorResponse;
 import gribbit.server.response.Response;
 import gribbit.util.AppException;
@@ -39,21 +41,79 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 
 public class RouteInfo {
     private String routePath;
-    private Class<? extends Route> handlerClass;
+    private Class<? extends Route> routeClass;
     private Method getMethod, postMethod;
     private Class<?>[] getParamTypes;
     private Class<? extends DataModel> postParamType;
 
     // -----------------------------------------------------------------------------------------------------
 
+    /**
+     * See comments in:
+     * https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies
+     */
+    private static final Constructor<MethodHandles.Lookup> constructor;
+    static {
+        try {
+            constructor = MethodHandles.Lookup.class.getDeclaredConstructor(Class.class, int.class);
+        } catch (NoSuchMethodException | SecurityException e) {
+            throw new RuntimeException(e);
+        }
+        if (!constructor.isAccessible()) {
+            constructor.setAccessible(true);
+        }
+    }
+
+    /**
+     * InvocationHandler for dynamically invoking get()/post() methods in Route objects. See:
+     * https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies
+     */
+    private class MyInvocationHandler implements InvocationHandler {
+        Request request;
+        User user;
+
+        public MyInvocationHandler(Request request, User user) {
+            this.request = request;
+            this.user = user;
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            String methodName = method.getName();
+            if (methodName.equals("getRequest")) {
+                return request;
+            } else if (methodName.equals("getUser")) {
+                return user;
+            } else {
+                // Call default implementation of interface method with the given args
+                if (!method.isDefault()) {
+                    throw new RuntimeException("Method " + method.getName() + " in interface "
+                            + proxy.getClass().getName() + " is not a default method");
+                }
+                final Class<?> declaringClass = method.getDeclaringClass();
+                if (method.isDefault()) {
+                    return constructor.newInstance(declaringClass, MethodHandles.Lookup.PRIVATE)
+                            .unreflectSpecial(method, declaringClass).bindTo(proxy).invokeWithArguments(args);
+                } else {
+                    return MethodHandles.lookup().in(declaringClass).unreflectSpecial(method, declaringClass)
+                            .bindTo(proxy).invokeWithArguments(args);
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
     public RouteInfo(Class<? extends Route> handlerClass, String routeOverride) {
-        this.handlerClass = handlerClass;
+        this.routeClass = handlerClass;
         this.routePath = routeOverride != null ? routeOverride : routePathFromClassName(handlerClass);
 
         // Check for methods get() and post() in the handler class
@@ -67,15 +127,24 @@ public class RouteInfo {
                             + " should have a return type of " + Response.class.getName()
                             + " or a subclass, instead of " + method.getReturnType().getName());
                 }
+
+                if (!method.isDefault()) {
+                    throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
+                            + " needs to be default");
+                }
+            } else if (!method.isDefault() && (method.getModifiers() | Modifier.STATIC) == 0) {
+                throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
+                        + " needs to be default or static");
             }
 
             if (methodName.equals("get")) {
                 // Check method parameters are key value pairs, and that the keys are strings, and the
                 // values are String or Integer
                 for (int j = 0; j < paramTypes.length; j++) {
-                    if (paramTypes[j] != String.class && paramTypes[j] != Integer.class)
+                    if (paramTypes[j] != String.class && paramTypes[j] != Integer.class) {
                         throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
                                 + " has a param of type " + paramTypes[j].getName() + ", needs to be String or Integer");
+                    }
                 }
 
                 if (routePath.equals("/") && paramTypes.length != 0) {
@@ -133,7 +202,7 @@ public class RouteInfo {
      */
     private static String routePathFromClassName(Class<? extends Route> handler) {
         StringBuilder buf = new StringBuilder("/");
-        String name = handler.getName().replace('.', '/');
+        String name = handler.getName().replace('$', '.').replace('.', '/');
         int leaf = name.lastIndexOf('/') + 1;
         buf.append(name.substring(0, leaf));
         for (int i = leaf, n = name.length(); i < n; i++) {
@@ -141,28 +210,19 @@ public class RouteInfo {
                 buf.append('-');
             buf.append(Character.toLowerCase(name.charAt(i)));
         }
+        String path;
         if (buf.length() > 2
-                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(GribbitServer.appPackageName))
-            return buf.substring(GribbitServer.appPackageName.length() + 1);
-        else
-            return buf.toString();
+                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(GribbitServer.appPackageName)) {
+            path = buf.substring(GribbitServer.appPackageName.length() + 1);
+        } else {
+            path = buf.toString();
+        }
+        // In case of uppercase packagenames or inner classes, convert all to lowercase
+        path = path.toLowerCase();
+        return path;
     }
 
     // -----------------------------------------------------------------------------------------------------
-
-    /** Create a new RestHandler instance to handle a request. */
-    private Route newRestHandlerInstance(Request req, User user) throws InstantiationException,
-            IllegalAccessException {
-        Route restHandler = handlerClass.newInstance();
-        restHandler.request = req;
-        if (Route.AuthRequired.class.isAssignableFrom(handlerClass)) {
-            if (user == null) {
-                throw new RuntimeException("Can't call AuthRequired handlers without supplying non-null user object");
-            }
-            ((Route.AuthRequired) restHandler).user = user;
-        }
-        return restHandler;
-    }
 
     /**
      * Call the RestHandler corresponding to this route. Assumes user is sufficiently authorized to call this handler,
@@ -171,17 +231,29 @@ public class RouteInfo {
      * @return
      */
     public Response callHandler(Request request, User user) throws Exception {
-        // Construct a new RestHandler of the appropriate type for this route
-        Route restHandler = newRestHandlerInstance(request, user);
+        if (Route.AuthRequired.class.isAssignableFrom(routeClass)) {
+            if (user == null) {
+                // Should not happen (the user object should only be non-null if the user is authorized),
+                // but just to be safe, double check that user is authorized if they are calling an
+                // authorization-required handler
+                Log.error("Tried to call a " + Route.AuthRequired.class.getName() + " handler with a null user object");
+                return new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
+            }
+        }
+
+        // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
+        // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
+        InvocationHandler invocationHandler = new MyInvocationHandler(request, user);
+        Route proxy =
+                (Route) Proxy.newProxyInstance(routeClass.getClassLoader(), new Class[] { routeClass },
+                        invocationHandler);
 
         // Get param vals for RestHandler method
-        Object[] paramVals = null;
-        Method javaMethod = null;
         HttpMethod reqMethod = request.getMethod();
         String reqURI = request.getURI();
+        Response response = null;
         if (reqMethod == HttpMethod.GET) {
-            javaMethod = getMethod;
-            paramVals = getParamTypes.length == 0 ? null : new Object[getParamTypes.length];
+            Object[] paramVals = getParamTypes.length == 0 ? null : new Object[getParamTypes.length];
 
             if (!reqURI.startsWith(routePath)) {
                 // This is an error handler that has been called to replace the normal route handler;
@@ -202,9 +274,10 @@ public class RouteInfo {
                     String uriSegment = reqURI.substring(slashIdx + 1, nextSlashIdx);
                     if (getParamTypes[i] == Integer.class) {
                         try {
+                            // Specifically parse integers for int-typed method parameters 
                             paramVals[i] = Integer.parseInt(uriSegment);
                         } catch (NumberFormatException e) {
-                            throw new BadRequestException("Malformed URL parameter, expected integer");
+                            throw new BadRequestException("Malformed URL parameter, expected integer for URI parameter");
                         }
                     } else {
                         // N.B. the unescape is performed only once here, between '/' characters (the
@@ -223,12 +296,17 @@ public class RouteInfo {
                 }
             }
 
-        } else if (reqMethod == HttpMethod.POST) {
-            javaMethod = postMethod;
+            // Invoke the get() method with the parameter vals
+            try {
+                response = (Response) invocationHandler.invoke(proxy, getMethod, paramVals);
+            } catch (Throwable e) {
+                throw new RuntimeException("Exception while invoking get() method on route " + routeClass.getName(), e);
+            }
 
+        } else if (reqMethod == HttpMethod.POST) {
             // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
             // unathenticated route
-            if (Route.AuthRequired.class.isAssignableFrom(handlerClass)) {
+            if (Route.AuthRequired.class.isAssignableFrom(routeClass)) {
                 String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
                 if (postToken == null || postToken.isEmpty()) {
                     throw new AppException("Missing CSRF token in POST request");
@@ -249,6 +327,7 @@ public class RouteInfo {
 
             // If this is not a post() method that takes no params, then need to bind the param
             // object from POST param vals 
+            Object[] paramVal = null;
             if (postParamType != null) {
                 DataModel postParam;
                 try {
@@ -261,19 +340,22 @@ public class RouteInfo {
 
                 // Bind POST param object from request
                 postParam.bindFromPost(request);
-                paramVals = new Object[1];
-                paramVals[0] = postParam;
+                paramVal = new Object[1];
+                paramVal[0] = postParam;
+            }
+
+            // Invoke the post() method with the bound parameter val, if any
+            try {
+                response = (Response) invocationHandler.invoke(proxy, postMethod, paramVal);
+            } catch (Throwable e) {
+                throw new RuntimeException("Exception while invoking post() method on route " + routeClass.getName(), e);
             }
         }
 
-        // User has sufficient (CSRF token) authorization to run this method and parameters are of the right type.
-        // Call Java method corresponding to the requested HTTP method on this route.
-        Response response = (Response) javaMethod.invoke(restHandler, paramVals);
-
         // The Response object returned by the RestHandler should not be null, but if it is, respond with No Content
         if (response == null) {
-            Log.warning("Handler " + restHandler.getClass().getName() + " returned null from its "
-                    + (reqMethod == HttpMethod.POST ? "post" : "get") + "() method -- responding with 204: No Content");
+            Log.warning(routeClass.getName() + (reqMethod == HttpMethod.GET ? ".get()" : ".post()")
+                    + " returned a null response -- responding with 204: No Content");
             response = new ErrorResponse(HttpResponseStatus.NO_CONTENT, "");
         }
         return response;
@@ -298,8 +380,7 @@ public class RouteInfo {
      * params in the varargs. URL params can be any type, and their toString() method will be called. Param values will
      * be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not safe).
      */
-    private static String forMethod(HttpMethod httpMethod, Class<? extends Route> handlerClass,
-            Object... urlParams) {
+    private static String forMethod(HttpMethod httpMethod, Class<? extends Route> handlerClass, Object... urlParams) {
         RouteInfo handler = GribbitServer.siteResources.routeForHandler(handlerClass);
 
         if (httpMethod == HttpMethod.GET) {
@@ -368,7 +449,7 @@ public class RouteInfo {
     }
 
     public Class<? extends Route> getHandler() {
-        return handlerClass;
+        return routeClass;
     }
 
     public boolean hasGetMethod() {
