@@ -106,7 +106,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
     private boolean closeAfterWrite = false;
     private boolean addKeepAliveHeader = false;
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     // Use disk for HTTP data if size >16kB 
     private static final HttpDataFactory factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE);
@@ -120,7 +120,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         DiskAttribute.baseDirectory = null;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     private HttpPostRequestDecoder decoder;
 
@@ -142,7 +142,46 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /** Call the route handler for the given route. */
+    private static Response getResponseForRoute(RouteInfo route, Request req, User user) throws Exception {
+        Response response;
+        try {
+            // Call the RestHandler for the route
+            response = route.callHandler(req, user);
+
+        } catch (Exception e) {
+            Log.exception("Exception while handling URI " + req.getURI(), e);
+            try {
+                // Call Internal Server Error handler on exception
+                response = GribbitServer.siteResources.getInternalServerErrorRoute().callHandler(req, user);
+            } catch (Exception e1) {
+                // Fallback in case there's an exception in the Internal Server Error handler
+                Log.exception("Error in internal server error handler while handling URI " + req.getURI(), e1);
+                response = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
+            }
+        }
+        return response;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /** Call the given error handler route. */
+    private static Response getResponseForErrorHandlerRoute(RouteInfo route, Request req, User user) throws Exception {
+        // Temporarily replace the method on the original route with a GET request on the error handler's route
+        String origURI = req.getURI();
+        HttpMethod origMethod = req.getMethod();
+        req.setURI(route.getRoutePath());
+        req.setMethod(HttpMethod.GET);
+        // Call the error handler
+        Response response = getResponseForRoute(route, req, user);
+        req.setURI(origURI);
+        req.setMethod(origMethod);
+        return response;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     /** Decode an HTTP message. */
     @Override
@@ -242,7 +281,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             // ------------------------------------------------------------------------------
 
             if (requestComplete) {
-                
+
                 // All POST chunks have been received (or there are no chunks); ready to start handling the request
 
                 String reqURI = request.getURI();
@@ -285,8 +324,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             // We only support GET and POST at this point
                             Log.error("Unsupported HTTP method " + request.getMethod().name() + " for path " + reqURI);
                             response =
-                                    getErrorResponse(
-                                            GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class),
+                                    getResponseForErrorHandlerRoute(
+                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class),
                                             request, user);
 
                         } else if ((request.getMethod() == HttpMethod.GET && !route.hasGetMethod())
@@ -296,8 +335,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             Log.error("HTTP method " + request.getMethod().name() + " not implemented in handler "
                                     + handler.getName());
                             response =
-                                    getErrorResponse(
-                                            GribbitServer.siteResources.routeForHandler(MethodNotAllowed.class),
+                                    getResponseForErrorHandlerRoute(
+                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class),
                                             request, user);
 
                         } else if (AuthRequiredRoute.class.isAssignableFrom(handler)) {
@@ -308,9 +347,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
                                 // User is not logged in: handle request with OnUnauthorized handler instead
                                 response =
-                                        getErrorResponse(GribbitServer.siteResources.getUnauthorizedRoute(), request,
-                                                user);
-                                
+                                        getResponseForErrorHandlerRoute(
+                                                GribbitServer.siteResources.getUnauthorizedRoute(), request, user);
+
                                 // Redirect the user back to the page they were trying to get to once they do manage to
                                 // log in successfully
                                 request.setCookie(new Cookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME, reqURI, "/", 300));
@@ -321,8 +360,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 // User is logged in, but their email address has not been validated:
                                 // handle request with EmailNotValidated handler instead
                                 response =
-                                        getErrorResponse(GribbitServer.siteResources.getEmailNotValidatedRoute(),
-                                                request, user);
+                                        getResponseForErrorHandlerRoute(
+                                                GribbitServer.siteResources.getEmailNotValidatedRoute(), request, user);
 
                             } else {
 
@@ -352,7 +391,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     if (staticResourceFile == null) {
 
                         // Neither a route handler nor a static resource matched the request URI => 404
-                        response = getErrorResponse(GribbitServer.siteResources.getNotFoundRoute(), request, user);
+                        response =
+                                getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(),
+                                        request, user);
 
                     } else {
 
@@ -382,7 +423,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 // Should not happen, file was just barely found to exist by the getStaticResource()
                                 // call above, but if it disappeared between then and now, return 404
                                 response =
-                                        getErrorResponse(GribbitServer.siteResources.getNotFoundRoute(), request, user);
+                                        getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(),
+                                                request, user);
 
                             }
                             if (fileToServe != null) {
@@ -464,7 +506,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // If a static file was not served above, and there has been no error response, then handle the request.
                 if (response == null && authorizedRoute != null) {
                     // Call the route handler for this request
-                    response = getResponse(authorizedRoute, request, user);
+                    response = getResponseForRoute(authorizedRoute, request, user);
                 }
 
                 // ----------------------------------------------------------------------------------
@@ -616,42 +658,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         }
     }
 
-    /** Call the route handler for the given route. */
-    private static Response getResponse(RouteInfo route, Request req, User user) throws Exception {
-        Response response;
-        try {
-            // Call the RestHandler for the route
-            response = route.callHandler(req, user);
-
-        } catch (Exception e) {
-            Log.exception("Exception while handling URI " + req.getURI(), e);
-            try {
-                // Call Internal Server Error handler on exception
-                response = GribbitServer.siteResources.getInternalServerErrorRoute().callHandler(req, user);
-            } catch (Exception e1) {
-                // Fallback in case there's an exception in the Internal Server Error handler
-                Log.exception("Error in internal server error handler while handling URI " + req.getURI(), e1);
-                response = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
-            }
-        }
-        return response;
-    }
-
-    /** Call the given error handler route. */
-    private static Response getErrorResponse(RouteInfo route, Request req, User user) throws Exception {
-        // Temporarily replace the method on the original route with a GET request on the error handler's route
-        String origURI = req.getURI();
-        HttpMethod origMethod = req.getMethod();
-        req.setURI(route.getRoutePath());
-        req.setMethod(HttpMethod.GET);
-        // Call the error handler
-        Response response = getResponse(route, req, user);
-        req.setURI(origURI);
-        req.setMethod(origMethod);
-        return response;
-    }
-
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

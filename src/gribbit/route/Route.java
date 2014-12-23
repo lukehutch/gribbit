@@ -32,8 +32,10 @@ import gribbit.response.flashmsg.FlashMessage.FlashType;
 import java.util.Collection;
 
 /**
- * A route handler. Implement the get() method with optional params to accept URL params, and/or the post() method with
- * one optional param of type DataModel to populate the DataModel values from POST param values.
+ * A route handler. Override the public default get() method with optional params to accept URL params, and/or the
+ * public default post() method with one optional param of type DataModel to populate the DataModel values from POST
+ * param values. Note: you should normally implement one of the sub-interfaces of Route (AuthNotRequiredRoute,
+ * AuthRequiredRoute, AuthAndValidatedEmailRequiredRoute), and not Route itself.
  */
 public interface Route {
 

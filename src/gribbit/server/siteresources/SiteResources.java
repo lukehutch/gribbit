@@ -90,7 +90,7 @@ public class SiteResources {
     /**
      * Get the Route corresponding to a given RestHandler class.
      */
-    public RouteInfo routeForHandler(Class<? extends Route> handlerClass) {
+    public RouteInfo routeForClass(Class<? extends Route> handlerClass) {
         return routeMapping.routeForHandler(handlerClass);
     }
 

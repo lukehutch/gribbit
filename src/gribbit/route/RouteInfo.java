@@ -381,7 +381,7 @@ public class RouteInfo {
      * be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not safe).
      */
     private static String forMethod(HttpMethod httpMethod, Class<? extends Route> handlerClass, Object... urlParams) {
-        RouteInfo handler = GribbitServer.siteResources.routeForHandler(handlerClass);
+        RouteInfo handler = GribbitServer.siteResources.routeForClass(handlerClass);
 
         if (httpMethod == HttpMethod.GET) {
             if (handler.getMethod == null) {

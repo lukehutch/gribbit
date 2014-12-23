@@ -1526,7 +1526,7 @@ public abstract class DataModel {
                         // name, or from the RouteOverride annotation, which is checked for validity)
                         @SuppressWarnings("unchecked")
                         Class<? extends Route> routeClass = (Class<? extends Route>) concreteClass;
-                        String uriForClass = GribbitServer.siteResources.routeForHandler(routeClass).getRoutePath();
+                        String uriForClass = GribbitServer.siteResources.routeForClass(routeClass).getRoutePath();
                         buf.append(uriForClass);
 
                     } else {
