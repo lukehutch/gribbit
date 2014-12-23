@@ -23,14 +23,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server.response;
+package gribbit.response;
 
+import gribbit.auth.User;
+import gribbit.thirdparty.UTF8;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-public class NotModifiedResponse extends TextResponse {
-    public NotModifiedResponse(long lastModifiedEpochSecond) {
-        super(HttpResponseStatus.NOT_MODIFIED, "");
-        setLastModifiedEpochSecond(lastModifiedEpochSecond);
-    }
-}
+public class TextResponse extends Response {
 
+    private String content;
+    
+    public TextResponse(HttpResponseStatus status, String content) {
+        super(status, "text/plain;charset=utf-8");
+        this.content = content;
+    }
+
+    @Override
+    public ByteBuf getContent(User user, boolean isGetModelRequest) {
+        return Unpooled.wrappedBuffer(UTF8.stringToUTF8(content));
+    }
+
+}

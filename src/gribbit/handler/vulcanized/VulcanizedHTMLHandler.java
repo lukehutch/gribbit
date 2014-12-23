@@ -26,10 +26,10 @@
 package gribbit.handler.vulcanized;
 
 import gribbit.handler.route.annotation.RouteOverride;
+import gribbit.response.ByteBufResponse;
+import gribbit.response.NotModifiedResponse;
+import gribbit.response.Response;
 import gribbit.server.GribbitServer;
-import gribbit.server.response.ByteBufResponse;
-import gribbit.server.response.NotModifiedResponse;
-import gribbit.server.response.Response;
 import gribbit.server.siteresources.route.Route;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;

@@ -1,4 +1,4 @@
-package gribbit.server.response;
+package gribbit.response;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
 

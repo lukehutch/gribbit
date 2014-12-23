@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.server.response;
+package gribbit.response;
 
 import gribbit.auth.Cookie;
 import gribbit.auth.Cookie.EncodingType;

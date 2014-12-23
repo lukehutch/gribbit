@@ -26,8 +26,8 @@
 package gribbit.auth.all;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.server.response.RedirectResponse;
-import gribbit.server.response.Response;
+import gribbit.response.RedirectResponse;
+import gribbit.response.Response;
 import gribbit.server.siteresources.route.Route;
 
 /**
