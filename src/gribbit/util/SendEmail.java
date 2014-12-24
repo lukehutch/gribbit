@@ -40,7 +40,7 @@ public class SendEmail {
     public static void sendEmail(final String toName, final String to, final String subject, final DataModel message,
             final String messagePlainText) {
         // Queue sending of email in a new thread
-        GribbitServer.scheduledTaskGroup.execute(new Runnable() {
+        GribbitServer.backgroundTaskGroup.execute(new Runnable() {
             @Override
             public void run() {
                 if (GribbitProperties.SMTP_SERVER == null || GribbitProperties.SEND_EMAIL_ADDRESS == null

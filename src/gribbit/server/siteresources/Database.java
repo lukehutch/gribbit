@@ -334,7 +334,7 @@ public class Database {
 
     /** Find a database object by key. */
     @SuppressWarnings("unchecked")
-    public static <T extends DBModel, K> T findById(Class<T> dbModelClass, K id) {
+    public static <T extends DBModel, K> T findOneById(Class<T> dbModelClass, K id) {
         return (T) collectionForDBModel(dbModelClass).findOneById(id);
     }
 
@@ -345,13 +345,6 @@ public class Database {
         JacksonDBCollection<DBModel, Object> coll =
                 (JacksonDBCollection<DBModel, Object>) collectionForDBModel(object.getClass());
         return coll.save(object);
-    }
-
-    /** Find an object by id. */
-    @SuppressWarnings("unchecked")
-    public static <T extends DBModel> T findOneById(Class<T> type, Object id) {
-        JacksonDBCollection<DBModel, Object> coll = (JacksonDBCollection<DBModel, Object>) collectionForDBModel(type);
-        return (T) coll.findOneById(id);
     }
 
     /** Check that a field exists, that it is accessible, and that it is indexed in the database. */
@@ -406,7 +399,7 @@ public class Database {
             String fieldValue) {
         JacksonDBCollection<T, Object> coll = collectionForDBModel(type);
         checkFieldIsIndexed(coll, type, fieldName);
-        ArrayList<T> results = new ArrayList<T>();
+        ArrayList<T> results = new ArrayList<>();
         DBCursor<T> cursor = null;
         try {
             cursor = coll.find(new BasicDBObject(fieldName, fieldValue));

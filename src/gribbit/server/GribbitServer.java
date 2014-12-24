@@ -61,7 +61,10 @@ public class GribbitServer {
 
     public static SiteResources siteResources;
 
-    public static EventLoopGroup scheduledTaskGroup;
+    /** Task group for handling background tasks, like classpath scanning, file hashing, sending emails etc. */
+    public static EventLoopGroup backgroundTaskGroup;
+
+    public static final int BACKGROUND_TASK_THREADS = 4;
 
     public static String SERVER_IDENTIFIER = "Gribbit/1.0";
 
@@ -85,20 +88,6 @@ public class GribbitServer {
     }
 
     // -----------------------------------------------------------------------------------------------------
-
-    /**
-     * Checks to see if a specific port is available. See
-     * http://stackoverflow.com/questions/434718/sockets-discover-port-availability-using-java
-     */
-    private static boolean portAvailable(int port) {
-        try (ServerSocket ss = new ServerSocket(port); DatagramSocket ds = new DatagramSocket(port)) {
-            ss.setReuseAddress(true);
-            ds.setReuseAddress(true);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
 
     private static void loadSiteResources(String appPackageName, String staticResourceRoot) {
         try {
@@ -126,6 +115,20 @@ public class GribbitServer {
     // -----------------------------------------------------------------------------------------------------
 
     /**
+     * Checks to see if a specific port is available. See
+     * http://stackoverflow.com/questions/434718/sockets-discover-port-availability-using-java
+     */
+    private static boolean portAvailable(int port) {
+        try (ServerSocket ss = new ServerSocket(port); DatagramSocket ds = new DatagramSocket(port)) {
+            ss.setReuseAddress(true);
+            ds.setReuseAddress(true);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
      * after all routes and handlers have been added.
      */
@@ -151,7 +154,8 @@ public class GribbitServer {
         // Make sure we can connect to database server
         Database.checkDatabaseIsConnected();
 
-        GribbitServer.scheduledTaskGroup = new NioEventLoopGroup(4);
+        // Task group for handling background tasks
+        GribbitServer.backgroundTaskGroup = new NioEventLoopGroup(BACKGROUND_TASK_THREADS);
 
         try {
             // Scan classpath for handlers, templates etc.
@@ -176,11 +180,11 @@ public class GribbitServer {
                             // replace GribbitServer.siteResources
                             loadSiteResources(appPackageName, staticResourceRoot);
                         }
-                        GribbitServer.scheduledTaskGroup.schedule(this,
+                        GribbitServer.backgroundTaskGroup.schedule(this,
                                 GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
                     }
                 };
-                GribbitServer.scheduledTaskGroup.schedule(classpathChangeDetector,
+                GribbitServer.backgroundTaskGroup.schedule(classpathChangeDetector,
                         GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             }
 

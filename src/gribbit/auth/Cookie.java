@@ -67,8 +67,8 @@ public class Cookie {
     /** The name of the flash cookie. */
     public static final String FLASH_COOKIE_NAME = "_flash";
 
-    /** Cookie that records the origin of a redirect. */
-    public static final String REDIRECT_ORIGIN_COOKIE_NAME = "_redir";
+    /** The name of the cookie that indicates the auth-required URI the user was trying to visit before logging in. */
+    public static final String REDIRECT_AFTER_LOGIN_COOKIE_NAME = "_redir";
 
     // -----------------------------------------------------------------------------------------------------
 

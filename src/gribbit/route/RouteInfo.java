@@ -47,6 +47,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 
+/** The metadata about a Route. */
 public class RouteInfo {
     private String routePath;
     private Class<? extends Route> routeClass;
@@ -54,7 +55,10 @@ public class RouteInfo {
     private Class<?>[] getParamTypes;
     private Class<? extends DataModel> postParamType;
 
-    // -----------------------------------------------------------------------------------------------------
+    private ClassLoader routeClassLoader;
+    private Class<?>[] proxyParams;
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * See comments in:
@@ -75,16 +79,23 @@ public class RouteInfo {
     /**
      * InvocationHandler for dynamically invoking get()/post() methods in Route objects. See:
      * https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies
+     * 
+     * Wraps the Request and User objects so that Route.getRequest() and Route.getUser() methods can be intercepted and
+     * have the right values returned for the current request.
      */
-    private class MyInvocationHandler implements InvocationHandler {
+    private class MethodInvocationHandler implements InvocationHandler {
         Request request;
         User user;
 
-        public MyInvocationHandler(Request request, User user) {
+        public MethodInvocationHandler(Request request, User user) {
             this.request = request;
             this.user = user;
         }
 
+        /**
+         * Invoke a method in a Route subinterface, intercepting getRequest() and getUser() method calls to return the
+         * appropriate values.
+         */
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             String methodName = method.getName();
@@ -110,34 +121,57 @@ public class RouteInfo {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    /** Invoke a default method in a Route subinterface. */
+    private Object invokeMethod(Request request, User user, Method method, Object[] methodParamVals) {
+        // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
+        // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
+        InvocationHandler invocationHandler = new MethodInvocationHandler(request, user);
+        Route proxy = (Route) Proxy.newProxyInstance(routeClassLoader, proxyParams, invocationHandler);
+
+        try {
+            // Invoke the method
+            return invocationHandler.invoke(proxy, method, methodParamVals);
+
+        } catch (Throwable e) {
+            throw new RuntimeException("Exception while invoking the method " + routeClass.getName() + "."
+                    + method.getName(), e);
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     public RouteInfo(Class<? extends Route> handlerClass, String routeOverride) {
         this.routeClass = handlerClass;
+        this.routeClassLoader = routeClass.getClassLoader();
+        this.proxyParams = new Class[] { routeClass };
+
         this.routePath = routeOverride != null ? routeOverride : routePathFromClassName(handlerClass);
 
         // Check for methods get() and post() in the handler class
         for (Method method : handlerClass.getMethods()) {
             String methodName = method.getName();
             Class<?>[] paramTypes = method.getParameterTypes();
+            boolean isGet = methodName.equals("get"), isPost = methodName.equals("post");
 
-            if (methodName.equals("get") || methodName.equals("post")) {
-                if (!Response.class.isAssignableFrom(method.getReturnType())) {
-                    throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                            + " should have a return type of " + Response.class.getName()
-                            + " or a subclass, instead of " + method.getReturnType().getName());
-                }
-
-                if (!method.isDefault()) {
-                    throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                            + " needs to be default");
-                }
-            } else if (!method.isDefault() && (method.getModifiers() | Modifier.STATIC) == 0) {
+            // Check method modifiers
+            if ((isGet || isPost) && !method.isDefault()) {
+                throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
+                        + " needs to be default");
+            } else if (!(isGet || isPost) && !method.isDefault()
+                    && (method.getModifiers() | Modifier.STATIC) == 0) {
                 throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
                         + " needs to be default or static");
             }
 
-            if (methodName.equals("get")) {
+            // Check return type
+            if ((isGet || isPost) && !Response.class.isAssignableFrom(method.getReturnType())) {
+                throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
+                        + " should have a return type of " + Response.class.getName() + " or a subclass, instead of "
+                        + method.getReturnType().getName());
+            }
+            
+            // Get method parameter types
+            if (isGet) {
                 // Check method parameters are key value pairs, and that the keys are strings, and the
                 // values are String or Integer
                 for (int j = 0; j < paramTypes.length; j++) {
@@ -153,7 +187,7 @@ public class RouteInfo {
                     // general it's not a problem because URLs are determined from the RestHandler's full
                     // classname). If we allowed the root URL to take params, then the params would match
                     // URL path components.
-                    throw new RuntimeException("Class " + handlerClass.getName()
+                    throw new RuntimeException("Interface " + handlerClass.getName()
                             + " has a route override of \"/\", so it serves the root URL, "
                             + "but the get() method takes one or more parameters. "
                             + "(The root URL cannot take URL parameters, because they "
@@ -167,7 +201,7 @@ public class RouteInfo {
                 getMethod = method;
                 getParamTypes = paramTypes;
 
-            } else if (methodName.equals("post")) {
+            } else if (isPost) {
                 if (paramTypes.length > 1) {
                     throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
                             + " needs zero parameters or one parameter of type " + DataModel.class.getSimpleName()
@@ -176,7 +210,7 @@ public class RouteInfo {
 
                 if (paramTypes.length == 1) {
                     if (!DataModel.class.isAssignableFrom(paramTypes[0])) {
-                        throw new RuntimeException("The parameter of method " + handlerClass.getName() + "."
+                        throw new RuntimeException("The single parameter of method " + handlerClass.getName() + "."
                                 + methodName + " needs to be a subclass of " + DataModel.class.getName());
                     }
                     @SuppressWarnings("unchecked")
@@ -186,14 +220,14 @@ public class RouteInfo {
 
                 if (postMethod != null) {
                     // Make sure there is only one method of each name
-                    throw new RuntimeException("Class " + handlerClass.getName() + " has two post() methods");
+                    throw new RuntimeException("Interface " + handlerClass.getName() + " has two post() methods");
                 }
                 postMethod = method;
             }
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Convert class name to route path. For example:
@@ -222,45 +256,53 @@ public class RouteInfo {
         return path;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /** If a post() method takes exactly one parameter, then bind the param value from the POST data. */
+    private Object[] bindPostParamFromPOSTData(Request request) throws AppException {
+        if (postParamType == null) {
+            // post() takes no params
+            return null;
+
+        } else {
+            // post() takes one param
+            DataModel postParam;
+            try {
+                postParam = Reflection.instantiateWithDefaultConstructor(postParamType);
+            } catch (InstantiationException e) {
+                // Should never happen, we already tried instantiating all DataModel subclasses
+                // that are bound to POST request handlers when site resources were loaded
+                throw new AppException("Could not instantiate POST parameter of type " + postParamType.getName(), e);
+            }
+
+            // Bind POST param object from request
+            postParam.bindFromPost(request);
+
+            // Wrap bound object Object[1]
+            Object[] paramVal = new Object[1];
+            paramVal[0] = postParam;
+            return paramVal;
+        }
+    }
 
     /**
-     * Call the RestHandler corresponding to this route. Assumes user is sufficiently authorized to call this handler,
-     * i.e. assumes login checks have been performed etc.
-     * 
-     * @return
+     * If a get() method takes one or more parameters, bind the parameters from URI segments after the end of the
+     * route's base URI, e.g. /person/53 for a route of /person gives one Integer-typed param value of 53
      */
-    public Response callHandler(Request request, User user) throws Exception {
-        if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
-            if (user == null) {
-                // Should not happen (the user object should only be non-null if the user is authorized),
-                // but just to be safe, double check that user is authorized if they are calling an
-                // authorization-required handler
-                Log.error("Tried to call a " + AuthRequiredRoute.class.getName() + " handler with a null user object");
-                return new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
-            }
-        }
+    private Object[] bindGetParamsFromURI(String reqURI) throws BadRequestException {
+        if (getParamTypes.length == 0) {
+            // get() takes no params
+            return null;
 
-        // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
-        // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
-        InvocationHandler invocationHandler = new MyInvocationHandler(request, user);
-        Route proxy =
-                (Route) Proxy.newProxyInstance(routeClass.getClassLoader(), new Class[] { routeClass },
-                        invocationHandler);
-
-        // Get param vals for RestHandler method
-        HttpMethod reqMethod = request.getMethod();
-        String reqURI = request.getURI();
-        Response response = null;
-        if (reqMethod == HttpMethod.GET) {
-            Object[] paramVals = getParamTypes.length == 0 ? null : new Object[getParamTypes.length];
-
+        } else {
+            // get() takes one or more params
+            Object[] getParamVals = new Object[getParamTypes.length];
             if (!reqURI.startsWith(routePath)) {
                 // This is an error handler that has been called to replace the normal route handler;
-                // don't try to parse URL params
+                // don't try to parse URL params (leave them all as null)
+
             } else {
-                // GET params come from URL after end of route, e.g. /person/53 for a route of /person
-                // gives one Integer-typed param value of 53
+                // Parse URI params
                 int slashIdx = routePath.length();
                 for (int i = 0; i < getParamTypes.length; i++) {
                     int nextSlashIdx = slashIdx < reqURI.length() - 1 ? reqURI.indexOf('/', slashIdx + 1) : -1;
@@ -275,7 +317,7 @@ public class RouteInfo {
                     if (getParamTypes[i] == Integer.class) {
                         try {
                             // Specifically parse integers for int-typed method parameters 
-                            paramVals[i] = Integer.parseInt(uriSegment);
+                            getParamVals[i] = Integer.parseInt(uriSegment);
                         } catch (NumberFormatException e) {
                             throw new BadRequestException("Malformed URL parameter, expected integer for URI parameter");
                         }
@@ -285,25 +327,51 @@ public class RouteInfo {
                         // and the unescaped string is stored directly as a parameter value. Parameter
                         // values should not be unescaped again after this, to prevent double-encoding
                         // attacks: see https://www.owasp.org/index.php/Double_Encoding
-                        paramVals[i] = WebUtils.unescapeURISegment(uriSegment);
+                        getParamVals[i] = WebUtils.unescapeURISegment(uriSegment);
                     }
                     slashIdx = nextSlashIdx;
                 }
-
                 if (slashIdx < reqURI.length() - 1) {
                     // Still at least one URL param left
                     throw new BadRequestException("Too many URL parameters");
                 }
             }
+            return getParamVals;
+        }
+    }
 
-            // Invoke the get() method with the parameter vals
-            try {
-                response = (Response) invocationHandler.invoke(proxy, getMethod, paramVals);
-            } catch (Throwable e) {
-                throw new RuntimeException("Exception while invoking get() method on route " + routeClass.getName(), e);
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Call the get() or post() method for the Route subinterface corresponding to the request URI.
+     * 
+     * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed etc.
+     */
+    public Response callHandler(Request request, User user) throws Exception {
+        if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
+            if (user == null) {
+                // Should not happen (the user object should only be non-null if the user is authorized),
+                // but just to be safe, double check that user is authorized if they are calling an
+                // authorization-required handler
+                Log.error("Tried to call a " + AuthRequiredRoute.class.getName() + " handler with a null user object");
+                return new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
             }
+        }
+
+        // Get param vals for RestHandler method
+        HttpMethod reqMethod = request.getMethod();
+        String reqURI = request.getURI();
+        Response response = null;
+        if (reqMethod == HttpMethod.GET) {
+
+            // Bind URI params
+            Object[] getParamVals = bindGetParamsFromURI(reqURI);
+
+            // Invoke the get() method with URI params
+            response = (Response) invokeMethod(request, user, getMethod, getParamVals);
 
         } else if (reqMethod == HttpMethod.POST) {
+
             // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
             // unathenticated route
             if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
@@ -325,31 +393,11 @@ public class RouteInfo {
                 }
             }
 
-            // If this is not a post() method that takes no params, then need to bind the param
-            // object from POST param vals 
-            Object[] paramVal = null;
-            if (postParamType != null) {
-                DataModel postParam;
-                try {
-                    postParam = Reflection.instantiateWithDefaultConstructor(postParamType);
-                } catch (InstantiationException e) {
-                    // Should never happen, we already tried instantiating all DataModel subclasses
-                    // that are bound to POST request handlers when site resources were loaded
-                    throw new AppException("Could not instantiate POST parameter of type " + postParamType.getName(), e);
-                }
+            // Bind the post() method's single parameter (if it has one) from the POST data in the request
+            Object[] postParamVal = bindPostParamFromPOSTData(request);
 
-                // Bind POST param object from request
-                postParam.bindFromPost(request);
-                paramVal = new Object[1];
-                paramVal[0] = postParam;
-            }
-
-            // Invoke the post() method with the bound parameter val, if any
-            try {
-                response = (Response) invocationHandler.invoke(proxy, postMethod, paramVal);
-            } catch (Throwable e) {
-                throw new RuntimeException("Exception while invoking post() method on route " + routeClass.getName(), e);
-            }
+            // Invoke the post() method
+            response = (Response) invokeMethod(request, user, postMethod, postParamVal);
         }
 
         // The Response object returned by the RestHandler should not be null, but if it is, respond with No Content
@@ -370,7 +418,7 @@ public class RouteInfo {
         return (Response) callHandler(req, null);
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Get the route annotated with the given HTTP method on the given RestHandler, substituting the key/value pairs
@@ -433,7 +481,7 @@ public class RouteInfo {
         return RouteInfo.forMethod(HttpMethod.GET, handlerClass, (Object[]) urlParams);
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     public String getRoutePath() {
         return routePath;
@@ -476,7 +524,7 @@ public class RouteInfo {
         return getMethod == null ? 0 : getParamTypes.length;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Check if the passed URI matches this route, i.e. returns true if the handler corresponding to this route should

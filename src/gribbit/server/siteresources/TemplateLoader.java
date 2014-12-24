@@ -30,11 +30,13 @@ import gribbit.model.DBModelLongKey;
 import gribbit.model.DBModelObjectIdKey;
 import gribbit.model.DBModelStringKey;
 import gribbit.model.DataModel;
+import gribbit.model.field.annotation.IsURL;
 import gribbit.util.Log;
 import gribbit.util.StringUtils;
 
 import java.io.File;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -113,7 +115,7 @@ public class TemplateLoader {
 
             // Make sure that the field types make sense given any constraint annotations on the fields
             DataModel.checkFieldTypesAgainstAnnotations(dataModelClass);
-            
+
             // Store a mapping between class name and DataModel subclass
             Class<? extends DataModel> oldVal =
                     classNameToDataModel.put(dataModelClass.getSimpleName(), dataModelClass);
@@ -127,24 +129,25 @@ public class TemplateLoader {
 
             // If the DataModel contains a "_template" field, load the inline template as if it were in an
             // HTML file of the same name as the class
-            Field templateField;
+            Field inlineTemplateField;
             try {
-                templateField = dataModelClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
-                if (templateField != null) {
-                    int modifiers = templateField.getModifiers();
+                inlineTemplateField = dataModelClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+                if (inlineTemplateField != null) {
+                    int modifiers = inlineTemplateField.getModifiers();
                     if (Modifier.isStatic(modifiers) && Modifier.isPublic(modifiers)
-                            && templateField.getType().equals(String.class)) {
-                        
+                            && inlineTemplateField.getType().equals(String.class)) {
+
                         // Got an inline template in the static field named "_template" of a DataModel class
-                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "." + templateField.getName());
-                        String templateStr = (String) templateField.get(null);
+                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "."
+                                + inlineTemplateField.getName());
+                        String templateStr = (String) inlineTemplateField.get(null);
                         classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
 
                         Log.fine("Registering inline template: " + dataModelClass.getName() + "."
                                 + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
-                        
+
                     } else {
-                        throw new RuntimeException("Field \"" + templateField.getName() + "\" in class "
+                        throw new RuntimeException("Field \"" + inlineTemplateField.getName() + "\" in class "
                                 + dataModelClass.getName() + " must be both static and final");
                     }
                 }
@@ -154,11 +157,20 @@ public class TemplateLoader {
                 Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class "
                         + dataModelClass + ": " + e);
             }
+            
+            // Look for fields labeled with IsURL annotation
+            for (Field field : dataModelClass.getFields()) {
+                for (Annotation annotation : field.getAnnotations()) {
+                    if (annotation.annotationType() == IsURL.class) {
+                        
+                    }
+                }
+            }
         }
     }
 
     /** Got an HTML, CSS or JS file on the classpath. */
-    void registerWebResource(String absolutePath, String relativePath, InputStream inputStream) {        
+    void registerWebResource(String absolutePath, String relativePath, InputStream inputStream) {
         try {
             if (absolutePath.endsWith("/head-content.html")) {
                 // Load header HTML content from the classpath
@@ -175,7 +187,7 @@ public class TemplateLoader {
         } catch (Exception e) {
             throw new RuntimeException("Could not read web resource " + absolutePath, e);
         }
-        
+
         Log.info("Registering web resource: " + relativePath);
     }
 

@@ -56,7 +56,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class Request {
-    private long reqReceivedTimeMillis;
+    private long reqReceivedTimeEpochMillis;
     private HttpMethod method;
     private String requestor;
     private String host;
@@ -105,7 +105,7 @@ public class Request {
     // -----------------------------------------------------------------------------------------------------
 
     public Request(HttpRequest httpReq) {
-        this.reqReceivedTimeMillis = System.currentTimeMillis();
+        this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
         HttpHeaders headers = httpReq.headers();
 
         // Parse and decode/decrypt cookies
@@ -277,11 +277,11 @@ public class Request {
     public String getRedirectOrigin() {
         //TODO: test this
         // Get where redirected from, if present, and reset cookie
-        Cookie cookie = getCookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME);
+        Cookie cookie = getCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
         if (cookie != null) {
             String redirectedFrom = cookie.getValue();
             if (redirectedFrom != null) {
-                cookiesToDelete.add(Cookie.REDIRECT_ORIGIN_COOKIE_NAME);
+                cookiesToDelete.add(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
                 return redirectedFrom;
             } else {
                 return null;
@@ -297,12 +297,12 @@ public class Request {
      * Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see if
      * the resource is newer than any cached version.
      */
-    public boolean cachedVersionIsOlderThan(long resourceTimestampEpochSecond) {
-        return resourceTimestampEpochSecond > ifModifiedSinceEpochSecond;
+    public boolean cachedVersionIsOlderThan(long resourceTimestampEpochMillis) {
+        return resourceTimestampEpochMillis / 1000 > ifModifiedSinceEpochSecond;
     }
 
-    public long getReqReceivedTimeMillis() {
-        return reqReceivedTimeMillis;
+    public long getReqReceivedTimeEpochMillis() {
+        return reqReceivedTimeEpochMillis;
     }
 
     // -----------------------------------------------------------------------------------------------------------------

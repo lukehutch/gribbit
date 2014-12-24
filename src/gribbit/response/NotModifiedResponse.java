@@ -28,9 +28,9 @@ package gribbit.response;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 public class NotModifiedResponse extends TextResponse {
-    public NotModifiedResponse(long lastModifiedEpochSecond) {
+    public NotModifiedResponse(long lastModifiedEpochMillis) {
         super(HttpResponseStatus.NOT_MODIFIED, "");
-        setLastModifiedEpochSecond(lastModifiedEpochSecond);
+        setLastModifiedEpochMillis(lastModifiedEpochMillis);
     }
 }
 

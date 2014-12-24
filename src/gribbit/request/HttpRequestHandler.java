@@ -44,6 +44,7 @@ import gribbit.handler.error.MethodNotAllowed;
 import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLPageResponse;
 import gribbit.response.NotModifiedResponse;
+import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.route.AuthAndValidatedEmailRequiredRoute;
@@ -52,6 +53,7 @@ import gribbit.route.Route;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
+import gribbit.server.siteresources.CacheExtension;
 import gribbit.util.Log;
 import gribbit.util.WebUtils;
 import gribbit.util.thirdparty.UTF8;
@@ -65,6 +67,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -87,6 +90,7 @@ import io.netty.handler.stream.ChunkedFile;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -140,6 +144,39 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             } catch (Exception e) {
             }
         }
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    private void setCacheHeaders(HttpHeaders httpHeaders, long lastModifiedEpochMillis, boolean isHashURI) {
+        if (lastModifiedEpochMillis > 0) {
+            // Add last modified header to cacheable resources. This is needed because Chrome sends
+            // "Cache-Control: max-age=0" when the user types in a URL and hits enter, or hits refresh.
+            // In these circumstances, sending back "Cache-Control: public, max-age=31536000" does
+            // no good, because the browser has already requested the resource rather than relying on
+            // its cache. By setting the last modified header for all cacheable resources, we can
+            // at least send "Not Modified" as a response if the resource has not been modified,
+            // which doesn't save on roundtrips, but at least saves on re-transferring the resources
+            // to the browser when they're already in the browser's cache.
+            httpHeaders.set(LAST_MODIFIED,
+                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochMillis / 1000), ZoneId.of("UTC"))
+                            .format(DateTimeFormatter.RFC_1123_DATE_TIME));
+        }
+        // TODO: add etag header too? see
+        // See http://www.mobify.com/blog/beginners-guide-to-http-cache-headers/
+        if (isHashURI) {
+            // Cache hash URIs for one year
+            httpHeaders.set(CACHE_CONTROL, "public, max-age=31536000");
+            httpHeaders.set(EXPIRES, ZonedDateTime.now().plusDays(365).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+        }
+
+        if (!isHashURI && lastModifiedEpochMillis == 0) {
+            // Disable caching for all other resources -- see http://goo.gl/yXGd2x
+            httpHeaders.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate");
+            httpHeaders.add(PRAGMA, "no-cache");
+            httpHeaders.add(EXPIRES, 0);
+        }
+
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -286,6 +323,14 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
                 String reqURI = request.getURI();
 
+                // If this is a hash URI, look up original URI whose served resource was hashed to give this hash URI.
+                // This causes a database hit, but we only need to do this once per resource per client, since resources
+                // served from hash URIs are indefinitely cached in the browser.
+                boolean isHashURI = CacheExtension.isHashURI(reqURI);
+                if (isHashURI) {
+                    reqURI = CacheExtension.getOrigURI(reqURI);
+                }
+
                 InetSocketAddress requestor = (InetSocketAddress) ctx.channel().remoteAddress();
                 if (requestor != null) {
                     InetAddress address = requestor.getAddress();
@@ -313,6 +358,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // or until we run out of handlers
                 User user = null;
                 RouteInfo authorizedRoute = null;
+                boolean redirectAfterLogin = false;
                 for (RouteInfo route : GribbitServer.siteResources.getAllRoutes()) {
 
                     // If the request URI matches this route path
@@ -325,8 +371,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             Log.error("Unsupported HTTP method " + request.getMethod().name() + " for path " + reqURI);
                             response =
                                     getResponseForErrorHandlerRoute(
-                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class),
-                                            request, user);
+                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class), request,
+                                            user);
 
                         } else if ((request.getMethod() == HttpMethod.GET && !route.hasGetMethod())
                                 || (request.getMethod() == HttpMethod.POST && !route.hasPostMethod())) {
@@ -336,8 +382,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                     + handler.getName());
                             response =
                                     getResponseForErrorHandlerRoute(
-                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class),
-                                            request, user);
+                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class), request,
+                                            user);
 
                         } else if (AuthRequiredRoute.class.isAssignableFrom(handler)) {
 
@@ -350,9 +396,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                         getResponseForErrorHandlerRoute(
                                                 GribbitServer.siteResources.getUnauthorizedRoute(), request, user);
 
-                                // Redirect the user back to the page they were trying to get to once they do manage to
-                                // log in successfully
-                                request.setCookie(new Cookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME, reqURI, "/", 300));
+                                // Redirect the user back to the page they were trying to get to once they do
+                                // manage to log in successfully
+                                redirectAfterLogin = true;
 
                             } else if (AuthAndValidatedEmailRequiredRoute.class.isAssignableFrom(handler)
                                     && !user.emailIsValidated()) {
@@ -398,36 +444,19 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     } else {
 
                         // A static resource matched the request URI, check last-modified timestamp
-                        // against the If-Modified-Since header timestamp in the request. Unfortunately
-                        // the resolution of the last modified timestamp is one second.
-                        long lastModifiedEpochSecond = staticResourceFile.lastModified() / 1000;
+                        // against the If-Modified-Since header timestamp in the request.
+                        long lastModifiedEpochMillis = staticResourceFile.lastModified();
                         String filePath = staticResourceFile.getPath();
-                        if (!request.cachedVersionIsOlderThan(lastModifiedEpochSecond)) {
-
+                        if (!request.cachedVersionIsOlderThan(lastModifiedEpochMillis)) {
                             // File has not been modified since it was last cached -- return Not Modified
-                            response = new NotModifiedResponse(lastModifiedEpochSecond);
-
-                            // Even in Not Modified responses, we have to send the Last-Modified header 
-                            response.setLastModifiedEpochSecond(lastModifiedEpochSecond);
+                            response = new NotModifiedResponse(lastModifiedEpochMillis);
 
                         } else {
-                            // If file is newer than what is in browser cache, or is not in cache
+                            // If file is newer than what is in the browser cache, or is not in cache, serve the file
                             RandomAccessFile fileToServe = null;
                             try {
-
                                 // Create new RandomAccessFile (which allows us to find file length etc.)
                                 fileToServe = new RandomAccessFile(staticResourceFile, "r");
-
-                            } catch (FileNotFoundException e) {
-
-                                // Should not happen, file was just barely found to exist by the getStaticResource()
-                                // call above, but if it disappeared between then and now, return 404
-                                response =
-                                        getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(),
-                                                request, user);
-
-                            }
-                            if (fileToServe != null) {
 
                                 // -----------------------------------------
                                 // Serve a static file (not authenticated)
@@ -454,21 +483,18 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 }
                                 httpRes.headers().set(CONTENT_TYPE, contentType);
 
-                                // TODO: Are there other headers that should be set to ensure the file is cached
-                                // TODO: forever as long as the last modified date doesn't change?
-                                httpRes.headers().set(
-                                        LAST_MODIFIED,
-                                        ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSecond),
-                                                ZoneId.of("UTC")).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                                setCacheHeaders(httpRes.headers(), lastModifiedEpochMillis, isHashURI);
 
                                 if (addKeepAliveHeader) {
                                     httpRes.headers().add(CONNECTION, KEEP_ALIVE);
                                 }
 
-                                // Write headers
+                                // Write HTTP headers to channel
                                 ctx.write(httpRes);
 
-                                // Write file content
+                                // Write file content to channel.
+                                // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
+                                // progress (e.g. to update user's UI over a web socket to show download progress.)
                                 @SuppressWarnings("unused")
                                 ChannelFuture sendFileFuture;
                                 if (ctx.pipeline().get(SslHandler.class) == null) {
@@ -482,18 +508,48 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                                     fileLength, 8192)), ctx.newProgressivePromise());
                                 }
 
-                                // Flush write, write the end marker, and close channel if needed
+                                // Write the end marker and flush the channel
                                 ChannelFuture lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
-                                if (closeAfterWrite) {
-                                    // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
-                                    // progress (e.g. to update user's UI over a web socket to show download progress?),
-                                    // but for now, just close connection after flush 
-                                    lastContentFuture.addListener(ChannelFutureListener.CLOSE);
-                                }
+
+                                // Close connection after flush if needed, and close file 
+                                final RandomAccessFile fileToClose = fileToServe;
+                                lastContentFuture.addListener(new ChannelFutureListener() {
+                                    @Override
+                                    public void operationComplete(ChannelFuture future) {
+                                        if (closeAfterWrite) {
+                                            future.channel().close();
+                                        }
+                                        try {
+                                            fileToClose.close();
+                                        } catch (IOException e) {
+                                        }
+                                    }
+                                });
+
+                                // Hash the file contents in the background so that the file's URI can include a
+                                // hashcode, allowing the browser to cache the file indefinitely until it changes
+                                CacheExtension.updateHashURI(reqURI, staticResourceFile);
 
                                 Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
                                         + filePath + "\t" + HttpResponseStatus.OK + "\t"
-                                        + (System.currentTimeMillis() - request.getReqReceivedTimeMillis()) + " msec");
+                                        + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+
+                            } catch (FileNotFoundException e) {
+
+                                // Should not happen, file was just barely found to exist by the getStaticResource()
+                                // call above, but if it disappeared between then and now, return 404
+                                response =
+                                        getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(),
+                                                request, user);
+
+                            } catch (Exception e) {
+                                if (fileToServe != null) {
+                                    try {
+                                        fileToServe.close();
+                                    } catch (IOException e1) {
+                                    }
+                                }
+                                throw new RuntimeException("Exception serving static file", e);
                             }
                         }
                     }
@@ -502,6 +558,16 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // ------------------------------------------------------------------------------
                 // Handle GET or POST requests
                 // ------------------------------------------------------------------------------
+
+                if (isHashURI) {
+                    Long lastModifiedEpochMillis = CacheExtension.getLastModifiedEpochMillis(reqURI);
+                    if (lastModifiedEpochMillis != null) {
+                        if (!request.cachedVersionIsOlderThan(lastModifiedEpochMillis)) {
+                            // File has not been modified since it was last cached -- return Not Modified
+                            response = new NotModifiedResponse(lastModifiedEpochMillis);
+                        }
+                    }
+                }
 
                 // If a static file was not served above, and there has been no error response, then handle the request.
                 if (response == null && authorizedRoute != null) {
@@ -553,26 +619,22 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
                     httpRes.headers().set(DATE, ZonedDateTime.now().format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
-                    long lastModified = response.getLastModifiedEpochSecond();
-                    if (lastModified > 0) {
-                        // Cache resources that don't change (e.g. the vulcanized Polymer resources).
-                        // Not Modified responses also need to set this header.
-                        // TODO: Are there other headers that should be set to ensure the file is cached
-                        // TODO: as long as the last modified date doesn't change?
-                        httpRes.headers().set(LAST_MODIFIED,
-                                ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModified), //
-                                        ZoneId.of("UTC")).format(DateTimeFormatter.RFC_1123_DATE_TIME));
-                    } else {
-                        // Disable caching -- see http://goo.gl/yXGd2x
-                        httpRes.headers().add(CACHE_CONTROL, "no-cache, no-store, must-revalidate");
-                        httpRes.headers().add(PRAGMA, "no-cache");
-                        httpRes.headers().add(EXPIRES, 0);
-                    }
+                    // Set headers for caching
+                    setCacheHeaders(httpRes.headers(), response.getLastModifiedEpochMillis(), isHashURI);
 
                     if (isHEAD) {
                         // Don't return a body for HEAD requests (but still return the content length,
                         // set in the header above)
                         httpRes.content().clear();
+                    }
+
+                    if (redirectAfterLogin) {
+                        // Redirect to the requested URI after successful login.
+                        // Auth providers should redirect to this cookie's URI, if present, after on successful login. 
+                        request.setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, reqURI, "/", 300));
+                    } else if (response instanceof RedirectResponse) {
+                        // Clear the redirect cookie after a redirect has been performed
+                        request.deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
                     }
 
                     // Transfer cookies from the request to the response. Some of these may have been modified
@@ -633,7 +695,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     String logMsg =
                             request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI
                                     + (request.getMethod() == origReqMethod ? "" : "\t" + request.getMethod()) + "\t"
-                                    + status + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeMillis())
+                                    + status + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis())
                                     + " msec";
                     if (status == HttpResponseStatus.OK || status == HttpResponseStatus.NOT_MODIFIED
                             || status == HttpResponseStatus.FOUND || (status == HttpResponseStatus.NOT_FOUND //

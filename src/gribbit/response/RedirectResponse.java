@@ -25,7 +25,6 @@
  */
 package gribbit.response;
 
-import gribbit.auth.Cookie;
 import gribbit.route.Route;
 import gribbit.route.RouteInfo;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -36,61 +35,42 @@ public class RedirectResponse extends TextResponse {
 
     /**
      * Redirect to a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the other
-     * constructors that takes a RestHandler subclass as a parameter. If redirectFromURI is non-null, then the
-     * Cookie.REDIRECT_ORIGIN_COOKIE_NAME cookie will be set to the URI that the user was redirected from.
+     * constructors that takes a Route as a parameter.
      */
-    public RedirectResponse(String redirectFromURI, String redirectToURI) {
+    public RedirectResponse(String redirectToURI) {
         super(HttpResponseStatus.FOUND, "");
         addCustomHeader("Location", redirectToURI);
         this.redirectToURI = redirectToURI;
-
-        if (redirectFromURI != null) {
-            setCookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME, redirectFromURI, "/", 60);
-        } else {
-            deleteCookie(Cookie.REDIRECT_ORIGIN_COOKIE_NAME);
-        }
     }
 
     /**
-     * Redirect to a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the other
-     * constructors that takes a RestHandler subclass as a parameter.
+     * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
-    public RedirectResponse(String redirectToURI) {
-        this(null, redirectToURI);
+    public RedirectResponse(Class<? extends Route> redirectToHandler) {
+        this(RouteInfo.forGet(redirectToHandler));
     }
 
     /**
-     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
-     * params into the URL for the handler. Can call with zero urlParams if the handler takes no URI params. If
-     * redirectFromURI is non-null, then the RestHandler.REDIRECT_ORIGIN_COOKIE_NAME cookie will be set to the URI that
-     * the user was redirected from.
+     * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
-    public RedirectResponse(String redirectFromURI, Class<? extends Route> redirectToHandler, Object... urlParams) {
-        this(redirectFromURI, RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
+    public RedirectResponse(RouteInfo redirectToRoute) {
+        this(redirectToRoute.getRoutePath());
     }
 
     /**
      * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
      * params into the URL for the handler. Can call with zero urlParams if the handler takes no URI params.
      */
-    public RedirectResponse(Class<? extends Route> redirectToHandler, Object... urlParams) {
-        this(null, RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
+    public static RedirectResponse redirectWithParams(Class<? extends Route> redirectToHandler, Object... urlParams) {
+        return new RedirectResponse(RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
     }
 
     /**
      * Redirect to a given route, substituting URL params into the URL for the handler. Can call with zero urlParams if
      * the handler takes no URI params.
      */
-    public RedirectResponse(RouteInfo redirectToRoute, Object... urlParams) {
-        this(null, RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
-    }
-
-    /**
-     * Redirect to a given route, substituting URL params into the URL for the handler. Can call with zero urlParams if
-     * the handler takes no URI params.
-     */
-    public RedirectResponse(String redirectFromURI, RouteInfo redirectToRoute, Object... urlParams) {
-        this(redirectFromURI, RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
+    public static RedirectResponse redirectWithParams(RouteInfo redirectToRoute, Object... urlParams) {
+        return new RedirectResponse(RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
     }
 
     public String getRedirectURI() {

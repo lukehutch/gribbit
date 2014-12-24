@@ -46,7 +46,7 @@ public abstract class Response extends DataModel {
     protected HttpResponseStatus status = HttpResponseStatus.OK;
     protected String mimeType;
     protected HashMap<String, Cookie> cookies = null;
-    protected long lastModifiedEpochSecond;
+    protected long lastModifiedEpochMillis;
     protected HashMap<String, String> customHeaders;
 
     public Response(HttpResponseStatus status, String mimeType) {
@@ -54,8 +54,8 @@ public abstract class Response extends DataModel {
         this.mimeType = mimeType;
     }
 
-    public long getLastModifiedEpochSecond() {
-        return lastModifiedEpochSecond;
+    public long getLastModifiedEpochMillis() {
+        return lastModifiedEpochMillis;
     }
 
     public HttpResponseStatus getStatus() {
@@ -74,8 +74,8 @@ public abstract class Response extends DataModel {
         this.mimeType = mimeType;
     }
 
-    public void setLastModifiedEpochSecond(long lastModifiedEpochSecond) {
-        this.lastModifiedEpochSecond = lastModifiedEpochSecond;
+    public void setLastModifiedEpochMillis(long lastModifiedEpochMillis) {
+        this.lastModifiedEpochMillis = lastModifiedEpochMillis;
     }
 
     public void addCustomHeader(String key, String value) {

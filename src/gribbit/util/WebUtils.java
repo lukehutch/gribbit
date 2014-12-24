@@ -119,6 +119,18 @@ public class WebUtils {
     }
 
     /**
+     * Add a URL-typed attribute (used for adding attributes from custom elements or Polymer elements that take a URL
+     * parameter, and therefore should be checked for URI validity).
+     */
+    public static void addCustomURLAttr(String customElementName, String attrName) {
+        HashSet<String> set = URL_ELT_ATTRS.get(customElementName);
+        if (set == null) {
+            URL_ELT_ATTRS.put(customElementName, set = new HashSet<>());
+        }
+        set.add(attrName);
+    }
+
+    /**
      * Whitelisted attributes that can't be exploited in an XSS attack -- source: https://www.owasp.org/index.
      * php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#XSS_Prevention_Rules_Summary
      */
@@ -352,11 +364,12 @@ public class WebUtils {
         // caught by the URI parser, but just to be safe we also manually check here.
         for (int i = 0; i < uriStr.length(); i++) {
             char c = uriStr.charAt(i);
-            if (c < (char) 33 || c > (char) 126 || c == '<' || c == '>' || c == '\'' || c == '"') {
+            if (c < (char) 33 || c > (char) 126 || c == '<' || c == '>' || c == '\'' || c == '"' || c == '\\') {
                 return null;
             }
         }
         try {
+            // Returns new URI object if URI parses OK
             return new URI(uriStr);
         } catch (URISyntaxException e) {
             return null;
@@ -462,7 +475,7 @@ public class WebUtils {
             }
         }
     }
-    
+
     /**
      * Encodes HTML-unsafe characters as HTML entities.
      * 
@@ -528,7 +541,7 @@ public class WebUtils {
         //            }
         //        }
     }
-    
+
     /**
      * Encodes HTML-attr-unsafe chars (all non-alphanumeric chars less than 0xff) as hex codes or entities.
      */

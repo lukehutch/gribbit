@@ -28,6 +28,7 @@ package gribbit.model;
 import gribbit.auth.CSRF;
 import gribbit.model.field.annotation.DBIndex;
 import gribbit.model.field.annotation.Email;
+import gribbit.model.field.annotation.IsURL;
 import gribbit.model.field.annotation.MaxIntegerValue;
 import gribbit.model.field.annotation.MaxLength;
 import gribbit.model.field.annotation.MinIntegerValue;
@@ -44,6 +45,7 @@ import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.Database;
+import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.SiteResources;
 import gribbit.server.siteresources.TemplateLoader;
 import gribbit.util.AppException;
@@ -154,7 +156,7 @@ public abstract class DataModel {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     private static boolean isRequired(Field f) {
         return f.getAnnotation(Required.class) != null || f.getAnnotation(DBIndex.class) != null
@@ -284,7 +286,7 @@ public abstract class DataModel {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Bind formModelInstance data object from an HTTP request. The name of each field in formModelInstance object is
@@ -461,7 +463,7 @@ public abstract class DataModel {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Add constraints to an HTML form given the constraint annotations on the fields of the given DataModel object.
@@ -693,7 +695,7 @@ public abstract class DataModel {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Fields annotated with @Private in a DataModel instance, or id fields of a DBModel instance, cannot be rendered
@@ -722,10 +724,15 @@ public abstract class DataModel {
         return false;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
-    /** Check if a field of the same name as the param exists and is accessible. */
-    private static void checkFieldAccessible(String templateName, Class<? extends DataModel> templateClass,
+    /**
+     * Check if a field of the same name as the param exists and is accessible. Throws an exception if the field cannot
+     * be substituted into the template parameter for any reason.
+     * 
+     * @return Returns the field corresponding with fieldName in the class matching templateName.
+     */
+    private static Field checkFieldAccessible(String templateName, Class<? extends DataModel> templateClass,
             String fieldName, String attrName) {
         try {
             // Check field exists (will throw NoSuchFieldException if not)
@@ -741,11 +748,11 @@ public abstract class DataModel {
                         + " subclass " + templateClass.getName() + " is not public or is abstract");
             }
 
-            // If this field is to be used in an HTML attribute value, need to also make sure that the
-            // field is not of DataModel, List or array type, since those are rendered into HTML, not
-            // escaped string form
             boolean isAttr = attrName != null;
             if (isAttr) {
+                // If this field is to be used in an HTML attribute value, need to also make sure that the
+                // field is not of DataModel, List or array type, since those are rendered into HTML, not
+                // escaped string form. Attribute values can take only strings, not rendered HTML.  
                 Class<?> fieldType = field.getType();
                 if (DataModel.class.isAssignableFrom(fieldType) || List.class.isAssignableFrom(fieldType)
                         || Array.class.isAssignableFrom(fieldType)) {
@@ -754,6 +761,7 @@ public abstract class DataModel {
                             + "\", but you can't insert HTML content into an HTML attribute, " + "only String content");
                 }
             }
+            return field;
 
         } catch (NoSuchFieldException e) {
             try {
@@ -773,7 +781,7 @@ public abstract class DataModel {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Recursively cross-check HTML template parameters against fields in the correspondingly-named DataModel subclass.
@@ -801,6 +809,7 @@ public abstract class DataModel {
                 // Look for template params in attribute values
                 Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(attrValue);
                 boolean attrValueContainsParam = false;
+                boolean isCustomURLAttr = false;
                 int firstMatchStart = 0, lastMatchEnd = 0;
                 while (matcher.find()) {
                     if (!attrValueContainsParam) {
@@ -814,8 +823,13 @@ public abstract class DataModel {
                     // Check that the field in the DataModel class with the same name as the parameter
                     // is publicly accessible
                     String paramName = matcher.group(1);
-                    checkFieldAccessible(templateName, templateDataModel, paramName, attrName);
+                    Field field = checkFieldAccessible(templateName, templateDataModel, /* fieldName = */paramName, attrName);
                     paramNamesUsedInHTMLOut.add(paramName);
+                    
+                    // Check if the field is to be substituted into a custom URL attribute
+                    if (field.isAnnotationPresent(IsURL.class)) {
+                        isCustomURLAttr = true;
+                    }
                 }
                 attrValueWithoutParams.append(attrValue.subSequence(lastMatchEnd, attrValue.length()));
 
@@ -849,7 +863,7 @@ public abstract class DataModel {
                 if (attrValueContainsParam) {
                     // OWASP Rule #2:
                     //     Only place untrusted data into a whitelist of safe attributes.
-                    if (WebUtils.isURLAttr(tagName, attrName)) {
+                    if (isCustomURLAttr || WebUtils.isURLAttr(tagName, attrName)) {
                         // URLs will be tested for validity later
                     } else if (attrName.equals("id") || attrName.equals("name")) {
                         // name and id are XSS-unsafe, because injected text can be made to 
@@ -1142,7 +1156,7 @@ public abstract class DataModel {
         }
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Recursively render JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects.
@@ -1290,7 +1304,7 @@ public abstract class DataModel {
                     // Some other class -- render fields as a JSON associative array using introspection
                     renderFieldsAsMap = true;
                 }
-                    
+
                 if (renderFieldsAsMap) {
                     // DataModel, DBModel, or some other class -- render fields as a JSON associative array
                     ArrayList<Field> fieldsToInclude = new ArrayList<>();
@@ -1391,7 +1405,7 @@ public abstract class DataModel {
         return buf.toString();
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Templates with context-aware escaping for near-complete protection against stored and reflected XSS attacks.
@@ -1411,10 +1425,9 @@ public abstract class DataModel {
      */
 
     /** Escape text for an HTML attribute value or for an HTML text node. */
-    private static void encodeParamText(String tagName, String attrName, String unsafeStr, StringBuilder buf) {
-        boolean isAttrVal = attrName != null;
+    private static void encodeParamText(boolean isAttrVal, boolean isURLAttr, String unsafeStr, StringBuilder buf) {
         if (isAttrVal) {
-            if (WebUtils.isURLAttr(tagName, attrName)) {
+            if (isURLAttr) {
                 // This parameter may be just one part of a URI, so we need to check the whole composed URI string
                 // for validity after all params have been substituted -- just insert unsafe param string directly
                 // for now. URI attributes are checked after all parameters have been substituted. 
@@ -1448,8 +1461,8 @@ public abstract class DataModel {
     }
 
     /** Escape and render a field value (recursively rendering any lists or arrays). */
-    private boolean recursivelyRender(String tagName, String attrName, boolean isAttrVal, Object fieldValue,
-            boolean prettyPrint, int indentLevel, StringBuilder buf) {
+    private boolean recursivelyRender(boolean isAttrVal, boolean isURLAttr, Object fieldValue, boolean prettyPrint,
+            int indentLevel, StringBuilder buf) {
         boolean wasIndented = false;
         if (fieldValue != null) {
             Class<?> fieldType = fieldValue.getClass();
@@ -1459,7 +1472,7 @@ public abstract class DataModel {
                 String unsafeStr = (String) fieldValue;
                 if (unsafeStr != null && !unsafeStr.isEmpty()) {
                     // Parameter is being expanded in non-URI attribute, or in a text node -- use regular HTML escaping
-                    encodeParamText(tagName, attrName, unsafeStr, buf);
+                    encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
                 }
 
             } else if (DataModel.class.isAssignableFrom(fieldType)) {
@@ -1495,8 +1508,7 @@ public abstract class DataModel {
                                 // For any other list or array element type, recursively render
                                 // list/array elements
                                 wasIndented |=
-                                        recursivelyRender(tagName, attrName, isAttrVal, elt, prettyPrint, indentLevel,
-                                                buf);
+                                        recursivelyRender(isAttrVal, isURLAttr, elt, prettyPrint, indentLevel, buf);
 
                                 if (!prettyPrint && i > 0) {
                                     // Insert a space between adjacent values stringified from a list or array
@@ -1542,7 +1554,7 @@ public abstract class DataModel {
                 try {
                     if (fieldType.getMethod("toString").getDeclaringClass() != Object.class) {
                         String unsafeStr = fieldValue.toString();
-                        encodeParamText(tagName, attrName, unsafeStr, buf);
+                        encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
                     } else {
                         throw new RuntimeException("The class " + fieldType.getName()
                                 + " does not override Object.toString(), and is not a subclass of "
@@ -1590,6 +1602,7 @@ public abstract class DataModel {
             boolean prettyPrint, int indentLevel, StringBuilder buf) {
         boolean wasIndented = false;
         boolean isAttrVal = attrName != null;
+        boolean isURLAttr = isAttrVal && WebUtils.isURLAttr(tagName, attrName);
 
         Matcher matcher = TemplateLoader.TEMPLATE_PARAM_PATTERN.matcher(textWithParams);
         int prevMatchIdx = 0;
@@ -1614,7 +1627,7 @@ public abstract class DataModel {
                 Field field = this.getClass().getField(paramName);
 
                 // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields
-                // cannot be sent to the user
+                // cannot be sent to the user, just ignore them
                 if (!fieldIsPrivate(this.getClass(), field) && field.getAnnotation(OnlyReceive.class) == null) {
 
                     // Turn primitive types into strings, they have their own getter methods
@@ -1640,6 +1653,12 @@ public abstract class DataModel {
                         // Render non-primitive type in recursivelyRender() according to its class
                         fieldVal = field.get(this);
                     }
+
+                    // If this attribute contains a param that is bound to a field that has the IsURL annotation,
+                    // then the whole attr val becomes URL-typed
+                    if (field.isAnnotationPresent(IsURL.class)) {
+                        isURLAttr = true;
+                    }
                 }
             } catch (NoSuchFieldException | SecurityException | IllegalAccessException e1) {
                 // Should not happen, NoSuchFieldException and SecurityException were checked for when
@@ -1650,7 +1669,7 @@ public abstract class DataModel {
             // Recursively render content into params contained within text nodes
             if (fieldVal != null) {
                 // Escape and render a field value (recursively rendering any lists or arrays) 
-                wasIndented |= recursivelyRender(tagName, attrName, isAttrVal, fieldVal, prettyPrint, indentLevel, buf);
+                wasIndented |= recursivelyRender(isAttrVal, isURLAttr, fieldVal, prettyPrint, indentLevel, buf);
             }
         }
         // Append last unmatched text
@@ -1665,7 +1684,7 @@ public abstract class DataModel {
         // for URL attributes
         CharSequence escapedTextWithSubstitutedParams = buf.subSequence(bufLenOnEntry, buf.length());
         if (escapedTextWithSubstitutedParams.length() > 0) {
-            if (isAttrVal && WebUtils.isURLAttr(tagName, attrName)) {
+            if (isURLAttr) {
                 // This is a URI attribute -- check URL contains only valid characters
                 // (URIs must already be escaped)
                 String uriStr = escapedTextWithSubstitutedParams.toString();
@@ -1683,6 +1702,7 @@ public abstract class DataModel {
                             + "\" is not a valid URI: " + uriStr);
                 }
 
+                String replacementURI = null;
                 String scheme = uri.getScheme();
                 if (scheme != null) {
                     scheme = scheme.toLowerCase();
@@ -1695,20 +1715,34 @@ public abstract class DataModel {
                     // attributes, it should be validated to make sure it does not point to an unexpected
                     // protocol, especially Javascript links."
                     // See also: http://goo.gl/UcO36V
-                    if (scheme.equals("javascript") || scheme.equals("data") || scheme.equals("mhtml")) {
+                    if (scheme.equals("javascript") || scheme.equals("data") || scheme.equals("mhtml")
+                            || scheme.equals("file")) {
                         throw new RuntimeException("URI " + uriStr + " uses an unsafe protocol");
-                    }
 
-                    if (scheme.equals("mailto") || scheme.equals("tel")) {
+                    } else if (scheme.equals("mailto") || scheme.equals("tel")) {
                         // OWASP Rule #6:
                         //     See http://goo.gl/cqealh
                         if (!(tagName.equals("a") && isAttrVal && attrName.equals("href"))) {
                             throw new RuntimeException("URL " + uriStr + " should be used in an a.href attribute");
                         }
+
                     } else if (!(scheme.equals("http") || scheme.equals("https"))) {
                         // If it's not http: or https:, it's probably unsafe
                         throw new RuntimeException("URI " + uriStr + " uses an unsupported URL protocol");
                     }
+
+                } else if (uri.getHost() == null && uri.getPort() == -1) {
+                    // For local URIs, see if there is an MD5-hashed version of the URI, and if so,
+                    // replace the URI with the hashed version.
+                    // TODO: extend URI-rewriting to CSS image resources 
+                    replacementURI = CacheExtension.getHashURI(uriStr);
+                }
+
+                // Replace the URI that was rendered into the buffer with the hashed version, if there is a hashed
+                // version of the resource
+                if (replacementURI != null) {
+                    buf.setLength(bufLenOnEntry);
+                    buf.append(replacementURI);
                 }
 
                 // SVG script injection attacks: See http://goo.gl/cx16TR
@@ -2052,7 +2086,7 @@ public abstract class DataModel {
         return nodeWasIndented;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Get the template document associated with this DataModel, or null if there is no associated template.

@@ -140,7 +140,10 @@ public class SiteResources {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /** Return a File reference to a static resource, if it exists within the static resource root. */
+    /**
+     * Returns a File reference to a static resource, if it exists within the static resource root. Returns null if the
+     * file with this URI does not exist under the static resource root.
+     */
     public File getStaticResource(String reqURI) {
         // Request URI must start with "/"
         if (!reqURI.startsWith("/")) {
@@ -174,7 +177,7 @@ public class SiteResources {
                 // Do down one dir
                 File subDir = new File(currFileOrDir, subdirName);
                 if (!subDir.exists() || subDir.isHidden()) {
-                    // This subdirectory does not exist, or is hidden
+                    // This subdirectory or file does not exist, or is hidden
                     return null;
                 } else {
                     // Traverse into subdirectory
@@ -240,8 +243,7 @@ public class SiteResources {
                 new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath,
                         "org/polymerproject" })
                 //
-                        .matchSubinterfacesOf(Route.class,
-                                matchingClass -> routeMapping.registerRoute(matchingClass))
+                        .matchSubinterfacesOf(Route.class, matchingClass -> routeMapping.registerRoute(matchingClass))
                         //
                         .matchSubclassesOf(DataModel.class,
                                 templateClass -> templateLoader.registerDataModel(templateClass))
