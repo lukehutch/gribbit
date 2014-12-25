@@ -157,12 +157,12 @@ public class TemplateLoader {
                 Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class "
                         + dataModelClass + ": " + e);
             }
-            
+
             // Look for fields labeled with IsURL annotation
             for (Field field : dataModelClass.getFields()) {
                 for (Annotation annotation : field.getAnnotations()) {
                     if (annotation.annotationType() == IsURL.class) {
-                        
+
                     }
                 }
             }
@@ -187,7 +187,6 @@ public class TemplateLoader {
         } catch (Exception e) {
             throw new RuntimeException("Could not read web resource " + absolutePath, e);
         }
-
         Log.info("Registering web resource: " + relativePath);
     }
 

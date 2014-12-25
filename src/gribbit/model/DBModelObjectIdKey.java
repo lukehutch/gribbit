@@ -25,50 +25,23 @@
  */
 package gribbit.model;
 
-import gribbit.server.siteresources.Database;
-
 import org.bson.types.ObjectId;
-import org.mongojack.Id;
 import org.mongojack.WriteResult;
 
-public abstract class DBModelObjectIdKey extends DBModel {
-
-    @Id
-    public ObjectId id;
+public abstract class DBModelObjectIdKey extends DBModel<ObjectId> {
 
     public DBModelObjectIdKey() {
     }
 
-    /**
-     * Save (upsert) this object into the database.
-     */
-    public WriteResult<DBModel, Object> save() {
+    @Override
+    public WriteResult<DBModel<ObjectId>, ObjectId> save() {
         if (id == null) {
-            // Create new ObjectId if this object was not previously retrieved from the database
             id = new ObjectId();
         }
-
-        // Check that values in the object fields satisfy any constraint annotations
-        try {
-            checkFieldValuesAgainstConstraints();
-        } catch (Exception e) {
-            throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: "
-                    + e.getMessage());
-        }
-
-        return Database.save(this);
-    }
-
-    /** Remove this object from the database. */
-    public WriteResult<DBModel, Object> remove() {
-        if (id == null) {
-            throw new RuntimeException("id is null, so object cannot be removed (object was not previously "
-                    + "saved in or retrieved from database)");
-        }
-        return Database.removeById(getClass(), id);
+        return super.save();
     }
 
     public ObjectId getId() {
-        return id;
+        return (ObjectId) id;
     }
 }

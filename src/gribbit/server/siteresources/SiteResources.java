@@ -31,11 +31,11 @@ import gribbit.route.Route;
 import gribbit.route.RouteInfo;
 import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
-import gribbit.util.Reflection;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 
 import java.io.File;
+import java.io.InputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -44,6 +44,9 @@ import java.util.List;
 import org.jsoup.nodes.Node;
 
 import com.lukehutch.fastclasspathscanner.FastClasspathScanner;
+import com.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
+import com.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
+import com.lukehutch.fastclasspathscanner.matchprocessor.SubinterfaceMatchProcessor;
 
 public class SiteResources {
 
@@ -54,8 +57,6 @@ public class SiteResources {
     private final FastClasspathScanner classpathScanner;
 
     private RouteMapping routeMapping;
-
-    public Database db;
 
     private TemplateLoader templateLoader;
 
@@ -235,25 +236,46 @@ public class SiteResources {
         }
 
         routeMapping = new RouteMapping();
-        db = new Database();
         templateLoader = new TemplateLoader(this, polymerModuleRootDir);
 
         // Set up classpath scanner
-        classpathScanner =
-                new FastClasspathScanner(new String[] { "gribbit", appPackageName, staticResourceRootPath,
-                        "org/polymerproject" })
+        classpathScanner = new FastClasspathScanner(//
+                new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
+        //
+                .matchSubinterfacesOf(Route.class, new SubinterfaceMatchProcessor<Route>() {
+                    @Override
+                    public void processMatch(Class<? extends Route> matchingInterface) {
+                        routeMapping.registerRoute(matchingInterface);
+                    }
+                })
                 //
-                        .matchSubinterfacesOf(Route.class, matchingClass -> routeMapping.registerRoute(matchingClass))
-                        //
-                        .matchSubclassesOf(DataModel.class,
-                                templateClass -> templateLoader.registerDataModel(templateClass))
-                        //
-                        .matchSubclassesOf(DBModel.class, matchingClass -> db.registerDBModel(matchingClass))
-                        //
-                        .matchFilenamePattern(
-                                ".*\\.(html|js|css)",
-                                (absolutePath, relativePath, inputStream) -> templateLoader.registerWebResource(
-                                        absolutePath, relativePath, inputStream));
+                .matchSubclassesOf(DataModel.class, new SubclassMatchProcessor<DataModel>() {
+                    @Override
+                    public void processMatch(Class<? extends DataModel> matchingClass) {
+                        templateLoader.registerDataModel(matchingClass);
+                    }
+                })
+                //
+                .matchSubclassesOf(DBModel.TYPE, new SubclassMatchProcessor<DBModel<?>>() {
+                    @Override
+                    public void processMatch(Class<? extends DBModel<?>> matchingClass) {
+                        Database.registerDBModel(matchingClass);
+                    }
+                })
+                //
+                //                .matchSubclassesOf(DBModel.class, new SubclassMatchProcessor<DBModel>() {
+                //                    @Override
+                //                    public void processMatch(Class<? extends DBModel> matchingClass) {
+                //                        db.registerDBModel((Class<? extends DBModel<?>>)matchingClass);
+                //                    }
+                //                })
+                //
+                .matchFilenamePattern(".*\\.(html|js|css)", new FileMatchProcessor() {
+                    @Override
+                    public void processMatch(String absolutePath, String relativePath, InputStream inputStream) {
+                        templateLoader.registerWebResource(absolutePath, relativePath, inputStream);
+                    }
+                });
 
         // If this is the second or subsequent loading of site resources, directly load constant literal
         // values of static fields that contain inline templates, so that we can dynamically pick up these
@@ -273,25 +295,6 @@ public class SiteResources {
         classpathScanner.scan();
 
         templateLoader.initializeTemplates();
-
-        // Make sure that all DataModel classes that are bound by POST requests or that are subclasses of
-        // DBModel can be initialized with a zero-argument constructor
-        HashSet<Class<? extends DataModel>> classesThatNeedZeroArgConstructor =
-                new HashSet<>(routeMapping.getAllFormDataModels());
-        classesThatNeedZeroArgConstructor.addAll(db.getAllDBModelClasses());
-        for (Class<? extends DataModel> classThatNeedsZeroArgConstructor : classesThatNeedZeroArgConstructor) {
-            // Try instantiating DataModel with default constructor to make sure there will be no problems
-            // instantiating it later 
-            try {
-                Reflection.instantiateWithDefaultConstructor(classThatNeedsZeroArgConstructor);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not instantiate " + DataModel.class.getSimpleName() + " subclass "
-                        + classThatNeedsZeroArgConstructor.getName()
-                        + " -- it needs to have a default (zero-argument) constructor if there "
-                        + "is any other non-default constructor defined, and the class must be "
-                        + "static if it is an inner class");
-            }
-        }
 
         resourcesLoadedEpochSecond = ZonedDateTime.now().toEpochSecond();
     }

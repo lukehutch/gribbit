@@ -67,21 +67,25 @@ public class CacheExtension {
     private static ConcurrentHashMap<String, Object> scheduledURIsToHash = new ConcurrentHashMap<>();
 
     /** Add or update the mapping between orig URI and hash key. */
-    private static void updateURIMappingAndTimestamp(String origURI, String hashKey, long lastModifiedEpochMillis) {
-        if (lastModifiedEpochMillis > 0) {
-            // Update mapping from orig URI to hash key and last modified time.
-            // If we end up beaten my another thread with a hash with a newer timestamp,
-            // we need to put the newer mapping back into the map, looping until the
-            // time in the map is the most recent time.
-            HashInfo newHashInfo = new HashInfo(hashKey, lastModifiedEpochMillis);
-            for (;;) {
-                HashInfo oldHashInfo = origURIToHashInfo.put(origURI, newHashInfo);
-                if (oldHashInfo == null || oldHashInfo.lastModifiedEpochMillis <= lastModifiedEpochMillis) {
-                    break;
-                }
-                // The previous HashInfo object had a newer timestamp, use it instead
-                newHashInfo = oldHashInfo;
+    private static void updateURIHashAndTimestamp(String origURI, HashInfo newHashInfo) {
+        // Update mapping from orig URI to hash key and last modified time.
+        // If we end up beaten my another thread with a hash with a newer timestamp,
+        // we need to put the newer mapping back into the map, looping until the
+        // time in the map is the most recent time.
+        for (;;) {
+            HashInfo oldHashInfo = origURIToHashInfo.put(origURI, newHashInfo);
+            if (oldHashInfo == null || oldHashInfo.lastModifiedEpochMillis <= newHashInfo.lastModifiedEpochMillis) {
+                break;
             }
+            // The previous HashInfo object had a newer timestamp, use it instead
+            newHashInfo = oldHashInfo;
+        }
+    }
+
+    /** Add or update the mapping between orig URI and hash key. */
+    private static void updateURIHashAndTimestamp(String origURI, String hashKey, long lastModifiedEpochMillis) {
+        if (lastModifiedEpochMillis > 0) {
+            updateURIHashAndTimestamp(origURI, new HashInfo(hashKey, lastModifiedEpochMillis));
         }
     }
 
@@ -131,7 +135,7 @@ public class CacheExtension {
                     String hashKey = hasher.computeHashKey();
 
                     // Save mapping between origURI and hash key
-                    updateURIMappingAndTimestamp(origURI, hashKey, lastModifiedEpochMillis);
+                    updateURIHashAndTimestamp(origURI, hashKey, lastModifiedEpochMillis);
 
                     Log.fine("Hashing resource at URI: " + origURI + " -> " + hashKey + " -- took "
                             + (System.currentTimeMillis() - startTime) + " msec");
@@ -155,7 +159,9 @@ public class CacheExtension {
      *
      * This method can be called by any route handler that stores or returns database objects. It should be called both
      * when storing objects and when returning them, since the hash URI cache is held in RAM and is empty when the
-     * server starts, so it needs to be built as requests start to come in.
+     * server starts, so it needs to be built as requests start to come in. IMPORTANT NOTE: If the database can be
+     * written to by other database clients, then this method must also be called when those changes are detected,
+     * otherwise web clients connected to this web server will continue to serve old linked resources.
      * 
      * This method should only be used when the total keyspace of URIs that map to database objects easily fits in RAM,
      * and when the objects that need to be hashed are not large (i.e. tens of MB is OK, hundreds of MB is probably not,
@@ -181,7 +187,9 @@ public class CacheExtension {
      *
      * This method can be called by any route handler that stores or returns database objects. It should be called both
      * when storing objects and when returning them, since the hash URI cache is held in RAM and is empty when the
-     * server starts, so it needs to be built as requests start to come in.
+     * server starts, so it needs to be built as requests start to come in. IMPORTANT NOTE: If the database can be
+     * written to by other database clients, then this method must also be called when those changes are detected,
+     * otherwise web clients connected to this web server will continue to serve old linked resources.
      * 
      * This method defers object hashing to the caller, so it can be used in cases where there is another machine on the
      * network somewhere that hashes objects in the database.

@@ -25,54 +25,12 @@
  */
 package gribbit.model;
 
-import gribbit.server.siteresources.Database;
-
-import org.mongojack.Id;
-import org.mongojack.WriteResult;
-
-public abstract class DBModelStringKey extends DBModel {
-
-    @Id
-    public String id;
+public abstract class DBModelStringKey extends DBModel<String> {
 
     public DBModelStringKey() {
     }
 
     public DBModelStringKey(String id) {
-        this.id = id;
-    }
-
-    /**
-     * Save (upsert) this object into the database.
-     */
-    public WriteResult<DBModel, Object> save() {
-        if (id == null) {
-            throw new RuntimeException("id cannot be null");
-        }
-
-        // Check that values in the object fields satisfy any constraint annotations
-        try {
-            checkFieldValuesAgainstConstraints();
-        } catch (Exception e) {
-            throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: "
-                    + e.getMessage());
-        }
-
-        return Database.save(this);
-    }
-
-    /**
-     * Remove this object from the database.
-     */
-    public WriteResult<DBModel, Object> remove() {
-        if (id == null) {
-            throw new RuntimeException("id is null, so object cannot be removed (object was not previously "
-                    + "saved in or retrieved from database)");
-        }
-        return Database.removeById(getClass(), id);
-    }
-
-    public String getId() {
-        return id;
+        super(id);
     }
 }

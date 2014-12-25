@@ -44,7 +44,6 @@ import gribbit.request.Request;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.SiteResources;
 import gribbit.server.siteresources.TemplateLoader;
@@ -97,8 +96,9 @@ public abstract class DataModel {
      * @throws RuntimeException
      *             if constraints don't match field types.
      */
-    public static void checkFieldTypesAgainstAnnotations(Class<? extends DataModel> klass) throws RuntimeException {
-        for (Field field : klass.getFields()) {
+    public static void checkFieldTypesAgainstAnnotations(Class<? extends DataModel> dataModelClass)
+            throws RuntimeException {
+        for (Field field : dataModelClass.getFields()) {
             Annotation[] fieldAnnotations = field.getAnnotations();
             Class<?> fieldType = field.getType();
             String fieldName = field.getName();
@@ -113,11 +113,11 @@ public abstract class DataModel {
                     hasConstraintAnnotations = true;
                 }
             }
-            boolean isPrivate = fieldIsPrivate(klass, field);
+            boolean isPrivate = fieldIsPrivate(dataModelClass, field);
             if (isPrivate && hasConstraintAnnotations) {
                 // Private fields cannot be bound from forms, so shouldn't have data constraint annotations,
                 // because data constraints are only checked when binding from a POST request.
-                throw new RuntimeException("Field " + fieldName + " in class " + klass.getName()
+                throw new RuntimeException("Field " + fieldName + " in class " + dataModelClass.getName()
                         + " is annotated with @" + Private.class.getSimpleName()
                         + " or is a DBModel id field, so it cannot have other data constraint "
                         + "annotations, because it cannot be bound from a POST request");
@@ -131,13 +131,13 @@ public abstract class DataModel {
                     if ((annotationType == Email.class || annotationType == MinLength.class
                             || annotationType == MaxLength.class || annotationType == Regex.class)
                             && fieldType != String.class) {
-                        throw new RuntimeException("Field " + fieldName + " in class " + klass.getName()
+                        throw new RuntimeException("Field " + fieldName + " in class " + dataModelClass.getName()
                                 + " must be of type String");
 
                     } else if ((annotationType == MinIntegerValue.class || //
                             annotationType == MaxIntegerValue.class)
                             && !(fieldType == Integer.class || fieldType == Integer.TYPE)) {
-                        throw new RuntimeException("Field " + fieldName + " in class " + klass.getName()
+                        throw new RuntimeException("Field " + fieldName + " in class " + dataModelClass.getName()
                                 + " must be of type int or Integer");
 
                     }
@@ -148,7 +148,7 @@ public abstract class DataModel {
                         } catch (PatternSyntaxException e) {
                             throw new RuntimeException("@" + annotation.annotationType().getName() + "(\""
                                     + ((Regex) annotation).regex() + "\") annotation on field " + fieldName
-                                    + " in class " + klass.getName() + " is not a valid regular expression");
+                                    + " in class " + dataModelClass.getName() + " is not a valid regular expression");
                         }
                     }
                 }
@@ -702,12 +702,10 @@ public abstract class DataModel {
      * into a template, served as JSON or bound from a POST request, to ensure the value is never revealed to the user
      * and cannot be set by the user.
      */
-    @SuppressWarnings("unchecked")
     private static boolean fieldIsPrivate(Class<? extends DataModel> enclosingType, Field field) {
         if (field == null || //
                 field.getAnnotation(Private.class) != null || //
-                (DBModel.class.isAssignableFrom(enclosingType) && field.equals(Database
-                        .getIdFieldForDBModel((Class<? extends DBModel>) enclosingType)))) {
+                (DBModel.class.isAssignableFrom(enclosingType) && field.getName().equals("id"))) {
             // Has @Private annotation or is the id field of a DBModel => treat as private
             return true;
         } else {
@@ -823,9 +821,10 @@ public abstract class DataModel {
                     // Check that the field in the DataModel class with the same name as the parameter
                     // is publicly accessible
                     String paramName = matcher.group(1);
-                    Field field = checkFieldAccessible(templateName, templateDataModel, /* fieldName = */paramName, attrName);
+                    Field field =
+                            checkFieldAccessible(templateName, templateDataModel, /* fieldName = */paramName, attrName);
                     paramNamesUsedInHTMLOut.add(paramName);
-                    
+
                     // Check if the field is to be substituted into a custom URL attribute
                     if (field.isAnnotationPresent(IsURL.class)) {
                         isCustomURLAttr = true;

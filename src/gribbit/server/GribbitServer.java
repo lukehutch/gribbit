@@ -141,6 +141,9 @@ public class GribbitServer {
      * after all routes and handlers have been added.
      */
     public static void init(String domain, int port, String appPackageName, String staticResourceRoot) {
+        // Initialize logger
+        Log.info("Initializing Gribbit");
+
         GribbitServer.domain = domain;
 
         if (!portAvailable(port)) {

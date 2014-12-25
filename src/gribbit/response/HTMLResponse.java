@@ -39,17 +39,17 @@ import java.util.ArrayList;
 public class HTMLResponse extends Response {
 
     public Object content;
-    
+
     public HTMLResponse(HttpResponseStatus status, DataModel content) {
         super(status, "text/html;charset=utf-8");
         this.content = content;
     }
-    
+
     public HTMLResponse(HttpResponseStatus status, ArrayList<? extends DataModel> content) {
         super(status, "text/html;charset=utf-8");
         this.content = content;
     }
-    
+
     public HTMLResponse(HttpResponseStatus status, DataModel[] content) {
         super(status, "text/html;charset=utf-8");
         this.content = content;
@@ -59,7 +59,7 @@ public class HTMLResponse extends Response {
     protected String renderContentTemplates() {
         return DataModel.renderTemplate(content, GribbitProperties.PRETTY_PRINT_HTML);
     }
-    
+
     @Override
     public ByteBuf getContent(User user, boolean isGetModelRequest) {
         String contentStr = isGetModelRequest //

@@ -46,6 +46,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
+import java.time.ZonedDateTime;
 
 /** The metadata about a Route. */
 public class RouteInfo {
@@ -122,7 +123,7 @@ public class RouteInfo {
     }
 
     /** Invoke a default method in a Route subinterface. */
-    private Object invokeMethod(Request request, User user, Method method, Object[] methodParamVals) {
+    private Response invokeMethod(Request request, User user, Method method, Object[] methodParamVals) {
         // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
         // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
         InvocationHandler invocationHandler = new MethodInvocationHandler(request, user);
@@ -130,7 +131,33 @@ public class RouteInfo {
 
         try {
             // Invoke the method
-            return invocationHandler.invoke(proxy, method, methodParamVals);
+            Response response = (Response) invocationHandler.invoke(proxy, method, methodParamVals);
+
+            // The Response object should not be null, but if it is, respond with No Content
+            if (response == null) {
+                Log.warning(routeClass.getName() + "." + method.getName()
+                        + " returned a null response -- responding with 204: No Content");
+                response = new ErrorResponse(HttpResponseStatus.NO_CONTENT, "");
+
+            } else {
+                // If last modified time was not filled in in the response, fill it in with the current time,
+                // but only if the result code was OK (so that the last modified header is not set on error
+                // responses)
+                if (response.getStatus() == HttpResponseStatus.OK) {
+                    if (response.getLastModifiedEpochMillis() == 0) {
+                        response.setLastModifiedEpochMillis(ZonedDateTime.now().toInstant().toEpochMilli());
+                    }
+                } else {
+                    // For errors, clear the last modified time field in case it was accidentally set
+                    if (response.getLastModifiedEpochMillis() > 0) {
+                        response.setLastModifiedEpochMillis(0);
+                    }
+                }
+            }
+
+            // TODO: set a "max_age" field in the response for classes with a @Cached(max_age = N) annotation
+
+            return response;
 
         } catch (Throwable e) {
             throw new RuntimeException("Exception while invoking the method " + routeClass.getName() + "."
@@ -157,8 +184,7 @@ public class RouteInfo {
             if ((isGet || isPost) && !method.isDefault()) {
                 throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
                         + " needs to be default");
-            } else if (!(isGet || isPost) && !method.isDefault()
-                    && (method.getModifiers() | Modifier.STATIC) == 0) {
+            } else if (!(isGet || isPost) && !method.isDefault() && (method.getModifiers() | Modifier.STATIC) == 0) {
                 throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
                         + " needs to be default or static");
             }
@@ -169,7 +195,7 @@ public class RouteInfo {
                         + " should have a return type of " + Response.class.getName() + " or a subclass, instead of "
                         + method.getReturnType().getName());
             }
-            
+
             // Get method parameter types
             if (isGet) {
                 // Check method parameters are key value pairs, and that the keys are strings, and the
@@ -348,74 +374,62 @@ public class RouteInfo {
      * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed etc.
      */
     public Response callHandler(Request request, User user) throws Exception {
-        if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
-            if (user == null) {
-                // Should not happen (the user object should only be non-null if the user is authorized),
-                // but just to be safe, double check that user is authorized if they are calling an
-                // authorization-required handler
-                Log.error("Tried to call a " + AuthRequiredRoute.class.getName() + " handler with a null user object");
-                return new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
+        Response response;
+        if (AuthRequiredRoute.class.isAssignableFrom(routeClass) && user == null) {
+            // Should not happen (the user object should only be non-null if the user is authorized),
+            // but just to be safe, double check that user is authorized if they are calling an
+            // authorization-required handler
+            Log.error("Tried to call a " + AuthRequiredRoute.class.getName() + " handler with a null user object");
+            response = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
+
+        } else {
+            // Determine param vals for method
+
+            HttpMethod reqMethod = request.getMethod();
+            if (reqMethod == HttpMethod.GET) {
+
+                // Bind URI params
+                Object[] getParamVals = bindGetParamsFromURI(request.getURI());
+
+                // Invoke the get() method with URI params
+                response = invokeMethod(request, user, getMethod, getParamVals);
+
+            } else if (reqMethod == HttpMethod.POST) {
+
+                // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
+                // unathenticated route
+                if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
+                    String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
+                    if (postToken == null || postToken.isEmpty()) {
+                        throw new AppException("Missing CSRF token in POST request");
+                    }
+                    String userCSRFToken = null;
+                    if (user != null && user.csrfTok != null) {
+                        // If user is logged in and this is an authenticated route, use the CSRF token
+                        // saved along with the session in the User object
+                        userCSRFToken = user.csrfTok;
+                    } else {
+                        throw new AppException("User not logged in, could not check CSRF token");
+                    }
+                    if (!userCSRFToken.equals(postToken) || postToken.equals(CSRF.CSRF_TOKEN_PLACEHOLDER)
+                            || postToken.equals(CSRF.CSRF_TOKEN_UNKNOWN)) {
+                        throw new AppException("CSRF token mismatch");
+                    }
+                }
+
+                // Bind the post() method's single parameter (if it has one) from the POST data in the request
+                Object[] postParamVal = bindPostParamFromPOSTData(request);
+
+                // Invoke the post() method
+                response = invokeMethod(request, user, postMethod, postParamVal);
+
+            } else {
+                // Method not allowed
+                response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
             }
         }
 
-        // Get param vals for RestHandler method
-        HttpMethod reqMethod = request.getMethod();
-        String reqURI = request.getURI();
-        Response response = null;
-        if (reqMethod == HttpMethod.GET) {
-
-            // Bind URI params
-            Object[] getParamVals = bindGetParamsFromURI(reqURI);
-
-            // Invoke the get() method with URI params
-            response = (Response) invokeMethod(request, user, getMethod, getParamVals);
-
-        } else if (reqMethod == HttpMethod.POST) {
-
-            // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
-            // unathenticated route
-            if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
-                String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
-                if (postToken == null || postToken.isEmpty()) {
-                    throw new AppException("Missing CSRF token in POST request");
-                }
-                String userCSRFToken = null;
-                if (user != null && user.csrfTok != null) {
-                    // If user is logged in and this is an authenticated route, use the CSRF token
-                    // saved along with the session in the User object
-                    userCSRFToken = user.csrfTok;
-                } else {
-                    throw new AppException("User not logged in, could not check CSRF token");
-                }
-                if (!userCSRFToken.equals(postToken) || postToken.equals(CSRF.CSRF_TOKEN_PLACEHOLDER)
-                        || postToken.equals(CSRF.CSRF_TOKEN_UNKNOWN)) {
-                    throw new AppException("CSRF token mismatch");
-                }
-            }
-
-            // Bind the post() method's single parameter (if it has one) from the POST data in the request
-            Object[] postParamVal = bindPostParamFromPOSTData(request);
-
-            // Invoke the post() method
-            response = (Response) invokeMethod(request, user, postMethod, postParamVal);
-        }
-
-        // The Response object returned by the RestHandler should not be null, but if it is, respond with No Content
-        if (response == null) {
-            Log.warning(routeClass.getName() + (reqMethod == HttpMethod.GET ? ".get()" : ".post()")
-                    + " returned a null response -- responding with 204: No Content");
-            response = new ErrorResponse(HttpResponseStatus.NO_CONTENT, "");
-        }
         return response;
-    }
-
-    /**
-     * Call the RestHandler corresponding to this route, with user set to null.
-     * 
-     * @return
-     */
-    public Response callHandler(Request req) throws Exception {
-        return (Response) callHandler(req, null);
     }
 
     // -----------------------------------------------------------------------------------------------------------------

@@ -34,7 +34,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 public class TextResponse extends Response {
 
     private String content;
-    
+
     public TextResponse(HttpResponseStatus status, String content) {
         super(status, "text/plain;charset=utf-8");
         this.content = content;

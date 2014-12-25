@@ -39,6 +39,7 @@ import gribbit.handler.route.annotation.Disabled;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.model.DataModel;
 import gribbit.util.Log;
+import gribbit.util.Reflection;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -238,6 +239,18 @@ public class RouteMapping {
             // handles the POST request)
             Class<? extends DataModel> postParamType = route.getPostParamType();
             if (postParamType != null) {
+                // Try instantiating DataModel with default constructor to make sure there will be no problems
+                // instantiating it later 
+                try {
+                    Reflection.instantiateWithDefaultConstructor(postParamType);
+                } catch (Exception e) {
+                    throw new RuntimeException("Could not instantiate " + DataModel.class.getSimpleName()
+                            + " subclass " + postParamType.getName()
+                            + " -- it needs to have a default (zero-argument) constructor if there "
+                            + "is any other non-default constructor defined, and the class must be "
+                            + "static if it is an inner class");
+                }
+
                 RouteInfo prev = formModelToRoute.put(postParamType, route);
                 if (prev != null) {
                     throw new RuntimeException(DataModel.class.getName() + " subclass " + postParamType.getName()

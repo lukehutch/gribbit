@@ -25,12 +25,58 @@
  */
 package gribbit.model;
 
+import gribbit.server.siteresources.Database;
+
+import java.lang.reflect.ParameterizedType;
+
+import org.mongojack.Id;
 import org.mongojack.WriteResult;
 
-public abstract class DBModel extends DataModel {
-    /** Save (upsert) this object into the database. */
-    public abstract WriteResult<DBModel, Object> save();
+public class DBModel<K> extends DataModel {
+    // The only way to get a generic class reference is to get a subtype's generic supertype. Ugh.
+    @SuppressWarnings("unchecked")
+    public static final Class<DBModel<?>> TYPE = (Class<DBModel<?>>) ((ParameterizedType) DBModelLongKey.class
+            .getGenericSuperclass()).getRawType();
 
-    /** Remove this object from the database. */
-    public abstract WriteResult<DBModel, Object> remove();
+    @Id
+    public K id;
+
+    public DBModel() {
+    }
+
+    public DBModel(K id) {
+        this.id = id;
+    }
+
+    /**
+     * Save (upsert) this object into the database.
+     */
+    public WriteResult<DBModel<K>, K> save() {
+        if (id == null) {
+            throw new RuntimeException("id cannot be null");
+        }
+
+        // Check that values in the object fields satisfy any constraint annotations
+        try {
+            checkFieldValuesAgainstConstraints();
+        } catch (Exception e) {
+            throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: "
+                    + e.getMessage());
+        }
+
+        return Database.save(this);
+    }
+
+    /**
+     * Remove this object from the database.
+     */
+    public WriteResult<DBModel<K>, K> remove() {
+        if (id == null) {
+            throw new RuntimeException("id is null, so object cannot be removed (object was not previously "
+                    + "saved in or retrieved from database)");
+        }
+        @SuppressWarnings("unchecked")
+        WriteResult<DBModel<K>, K> result = Database.removeById(getClass(), id);
+        return result;
+    }
 }

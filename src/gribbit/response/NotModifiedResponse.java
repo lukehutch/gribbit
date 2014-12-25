@@ -33,4 +33,3 @@ public class NotModifiedResponse extends TextResponse {
         setLastModifiedEpochMillis(lastModifiedEpochMillis);
     }
 }
-

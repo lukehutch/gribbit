@@ -40,7 +40,6 @@ import static io.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 import gribbit.auth.Cookie;
 import gribbit.auth.Cookie.EncodingType;
 import gribbit.auth.User;
-import gribbit.handler.error.MethodNotAllowed;
 import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLPageResponse;
 import gribbit.response.NotModifiedResponse;
@@ -370,9 +369,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             // We only support GET and POST at this point
                             Log.error("Unsupported HTTP method " + request.getMethod().name() + " for path " + reqURI);
                             response =
-                                    getResponseForErrorHandlerRoute(
-                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class), request,
-                                            user);
+                                    new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
 
                         } else if ((request.getMethod() == HttpMethod.GET && !route.hasGetMethod())
                                 || (request.getMethod() == HttpMethod.POST && !route.hasPostMethod())) {
@@ -381,9 +378,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             Log.error("HTTP method " + request.getMethod().name() + " not implemented in handler "
                                     + handler.getName());
                             response =
-                                    getResponseForErrorHandlerRoute(
-                                            GribbitServer.siteResources.routeForClass(MethodNotAllowed.class), request,
-                                            user);
+                                    new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
 
                         } else if (AuthRequiredRoute.class.isAssignableFrom(handler)) {
 
@@ -532,7 +527,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
                                 Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
                                         + filePath + "\t" + HttpResponseStatus.OK + "\t"
-                                        + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+                                        + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis())
+                                        + " msec");
 
                             } catch (FileNotFoundException e) {
 
@@ -560,6 +556,17 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // ------------------------------------------------------------------------------
 
                 if (isHashURI) {
+                    // For hashed *non-file* URIs, the actual last modified timestamp can't be read directly,
+                    // so read the last modified timestamp stored in the CacheExtension class, and see if this
+                    // is the same age as the version cached in the browser. The important ramification of this
+                    // is that when the resource identified by the non-file URI changes, the CacheExtension
+                    // class must be notified of that change (including in cases where the database is modified
+                    // by another database client), otherwise the web client connected to this web server will
+                    // continue to serve old resources.
+                    // TODO: fix this by adding a lastModified method to Routes that takes the same params as GET,
+                    // but returns in less time?
+                    // FIXME: or just call the get method as normal, but check last modified in the response object on return -- and if it has changed, update the cache automatically. Then we can auto-cache these objects too by adding an annotation.
+                    // FIXME: this won't reduce the time to read the object from the database, but it will eliminate the need to send the object over the network, because a Not Modified will be returned instead. Not a perfect solution.
                     Long lastModifiedEpochMillis = CacheExtension.getLastModifiedEpochMillis(reqURI);
                     if (lastModifiedEpochMillis != null) {
                         if (!request.cachedVersionIsOlderThan(lastModifiedEpochMillis)) {
@@ -695,8 +702,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                     String logMsg =
                             request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI
                                     + (request.getMethod() == origReqMethod ? "" : "\t" + request.getMethod()) + "\t"
-                                    + status + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis())
-                                    + " msec";
+                                    + status + "\t"
+                                    + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec";
                     if (status == HttpResponseStatus.OK || status == HttpResponseStatus.NOT_MODIFIED
                             || status == HttpResponseStatus.FOUND || (status == HttpResponseStatus.NOT_FOUND //
                             && (reqURI.equals("favicon.ico") || reqURI.endsWith("/favicon.ico")))) {
