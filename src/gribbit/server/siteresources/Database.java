@@ -38,8 +38,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.mongojack.DBCursor;
 import org.mongojack.JacksonDBCollection;
@@ -54,19 +54,21 @@ public class Database {
 
     /** A mapping from DBModel subclass to the corresponding MongoDB collection. */
     @SuppressWarnings("rawtypes")
-    private static HashMap<Class<? extends DBModel>, JacksonDBCollection<? extends DBModel<?>, ?>> dbModelClassToCollection =
-            new HashMap<>();
+    private static ConcurrentHashMap<Class<? extends DBModel>, JacksonDBCollection<? extends DBModel<?>, ?>> //
+    dbModelClassToCollection = new ConcurrentHashMap<>();
 
     /** All registered collection names, used to make sure two classes don't map to the same collection name. */
-    private static HashSet<String> usedCollectionNames = new HashSet<>();
+    private static ConcurrentHashMap<String, Boolean> usedCollectionNames = new ConcurrentHashMap<>();
 
     /** The id field for each DBModel. */
     @SuppressWarnings("rawtypes")
-    private static HashMap<Class<? extends DBModel>, Class<?>> dbModelClassToIdType = new HashMap<>();
+    private static ConcurrentHashMap<Class<? extends DBModel>, Class<?>> dbModelClassToIdType =
+            new ConcurrentHashMap<>();
 
     /** The set of names of indexed fields for each DBModel. */
     @SuppressWarnings("rawtypes")
-    private static HashMap<Class<? extends DBModel>, HashSet<String>> dbModelClassToIndexedFieldNames = new HashMap<>();
+    private static ConcurrentHashMap<Class<? extends DBModel>, HashSet<String>> dbModelClassToIndexedFieldNames =
+            new ConcurrentHashMap<>();
 
     // ------------------------------------------------------------------------------------------------------------------------------------
 
@@ -187,7 +189,7 @@ public class Database {
                     //         + " annotation; using \"" + collectionName + "\" as collection name");
                 }
 
-                if (!usedCollectionNames.add(collectionName)) {
+                if (usedCollectionNames.put(collectionName, Boolean.TRUE) != null) {
                     throw new RuntimeException("Two " + DBModel.class.getName()
                             + " subclasses are mapped to the same collection name \"" + collectionName + "\"");
                 }
