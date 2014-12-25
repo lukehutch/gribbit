@@ -261,13 +261,12 @@ public class Database {
      * Wrap a MongoDB collection in a JacksonDBCollection wrapper and return it. Can be called manually by utilities
      * that want to access database collections without starting up the web server.
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static <T extends DBModel<K>, U extends DBModel, K> JacksonDBCollection<T, K> collectionForDBModel(
-            Class<U> dbModelClass) {
+    @SuppressWarnings({ "unchecked" })
+    public static <T extends DBModel<K>, K> JacksonDBCollection<T, K> collectionForDBModel(Class<T> dbModelClass) {
         // Look up cached mapping from DBModel class to collection 
         JacksonDBCollection<T, K> coll = (JacksonDBCollection<T, K>) dbModelClassToCollection.get(dbModelClass);
         if (coll == null) {
-            // If collection has not yet been mapped, create the mapping
+            // If collection has not yet been mapped, register the model and then get the mapping
             registerDBModel(dbModelClass);
             coll = (JacksonDBCollection<T, K>) dbModelClassToCollection.get(dbModelClass);
         }
@@ -344,17 +343,17 @@ public class Database {
     /**
      * Save (upsert) this object into the database.
      */
+    @SuppressWarnings("unchecked")
     public static <T extends DBModel<K>, K> WriteResult<T, K> save(T object) {
-        JacksonDBCollection<T, K> coll = collectionForDBModel(object.getClass());
-        return coll.save(object);
+        return collectionForDBModel(object.getClass()).save(object);
     }
 
     /**
      * Remove this object from the database.
      */
+    @SuppressWarnings("unchecked")
     public static <T extends DBModel<K>, K> WriteResult<T, K> remove(T object) {
-        JacksonDBCollection<T, K> coll = collectionForDBModel(object.getClass());
-        return coll.removeById(object.id);
+        return collectionForDBModel(object.getClass()).removeById(object.id);
     }
 
     /**
@@ -364,8 +363,7 @@ public class Database {
      * @return
      */
     public static <T extends DBModel<K>, K> WriteResult<T, K> removeById(Class<T> dbModelClass, K id) {
-        JacksonDBCollection<T, K> coll = collectionForDBModel(dbModelClass);
-        return coll.removeById(id);
+        return collectionForDBModel(dbModelClass).removeById(id);
     }
 
     /**

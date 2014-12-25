@@ -38,6 +38,7 @@ import gribbit.handler.error.annotation.OnUnauthorized;
 import gribbit.handler.route.annotation.Disabled;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.model.DataModel;
+import gribbit.server.GribbitServer;
 import gribbit.util.Log;
 import gribbit.util.Reflection;
 
@@ -124,6 +125,35 @@ public class RouteMapping {
 
     // -----------------------------------------------------------------------------------------------------
 
+    /**
+     * Convert class name to route path. For example:
+     * 
+     * app.action.HandleEmailValidationLink -> /app/action/handle-email-validation-link
+     */
+    private static String routePathFromClassName(Class<? extends Route> handler) {
+        StringBuilder buf = new StringBuilder("/");
+        String name = handler.getName().replace('$', '.').replace('.', '/');
+        int leaf = name.lastIndexOf('/') + 1;
+        buf.append(name.substring(0, leaf));
+        for (int i = leaf, n = name.length(); i < n; i++) {
+            if (i > leaf && Character.isUpperCase(name.charAt(i)) && !Character.isUpperCase(name.charAt(i - 1)))
+                buf.append('-');
+            buf.append(Character.toLowerCase(name.charAt(i)));
+        }
+        String path;
+        if (buf.length() > 2
+                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(GribbitServer.appPackageName)) {
+            path = buf.substring(GribbitServer.appPackageName.length() + 1);
+        } else {
+            path = buf.toString();
+        }
+        // In case of uppercase packagenames or inner classes, convert all to lowercase
+        path = path.toLowerCase();
+        return path;
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
     public void removeRoute(RouteInfo route) {
         if (route != null) {
             routeForHandler.remove(route.getHandler());
@@ -158,7 +188,13 @@ public class RouteMapping {
                         + "; should instead be an interface that extends " + Route.class.getName());
             }
 
-            RouteInfo route = new RouteInfo(handler, routeOverride);
+            String routePath = routeOverride != null ? routeOverride : routePathFromClassName(handler);
+            if (routePath.startsWith("/_/")) {
+                throw new RuntimeException("Cannot register routes with URIs starting with \"/_/\", "
+                        + "these route prefixes are reserved for hash URIs. Got URI: " + routePath);
+            }
+
+            RouteInfo route = new RouteInfo(handler, routePath);
 
             // Check for error handler annotations
             for (Annotation ann : handler.getAnnotations()) {

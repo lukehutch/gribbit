@@ -25,18 +25,19 @@
  */
 package gribbit.model;
 
+import gribbit.server.siteresources.DataModelLoader;
 import gribbit.server.siteresources.Database;
-
-import java.lang.reflect.ParameterizedType;
 
 import org.mongojack.Id;
 import org.mongojack.WriteResult;
 
 public class DBModel<K> extends DataModel {
-    // The only way to get a generic class reference is to get a subtype's generic supertype. Ugh.
+    /**
+     * Generic parameterized class reference. DBModel.class has type Class<DBModel>, and that can't be cast to
+     * Class<DBModel<?>>, so use this reference instead if you need Class<DBModel<?>>.
+     */
     @SuppressWarnings("unchecked")
-    public static final Class<DBModel<?>> TYPE = (Class<DBModel<?>>) ((ParameterizedType) DBModelLongKey.class
-            .getGenericSuperclass()).getRawType();
+    public static final Class<DBModel<?>> TYPE = (Class<DBModel<?>>) new DBModel<Object>().getClass();
 
     @Id
     public K id;
@@ -58,7 +59,7 @@ public class DBModel<K> extends DataModel {
 
         // Check that values in the object fields satisfy any constraint annotations
         try {
-            checkFieldValuesAgainstConstraints();
+            DataModelLoader.checkFieldValuesAgainstConstraints(this);
         } catch (Exception e) {
             throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: "
                     + e.getMessage());

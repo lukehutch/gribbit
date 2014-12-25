@@ -45,6 +45,7 @@ import org.jsoup.nodes.Node;
 
 import com.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import com.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
+import com.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
 import com.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
 import com.lukehutch.fastclasspathscanner.matchprocessor.SubinterfaceMatchProcessor;
 
@@ -59,6 +60,8 @@ public class SiteResources {
     private RouteMapping routeMapping;
 
     private TemplateLoader templateLoader;
+
+    private DataModelLoader dataModelLoader;
 
     private long resourcesLoadedEpochSecond;
 
@@ -236,7 +239,8 @@ public class SiteResources {
         }
 
         routeMapping = new RouteMapping();
-        templateLoader = new TemplateLoader(this, polymerModuleRootDir);
+        dataModelLoader = new DataModelLoader();
+        templateLoader = new TemplateLoader(this, polymerModuleRootDir, dataModelLoader);
 
         // Set up classpath scanner
         classpathScanner = new FastClasspathScanner(//
@@ -252,7 +256,7 @@ public class SiteResources {
                 .matchSubclassesOf(DataModel.class, new SubclassMatchProcessor<DataModel>() {
                     @Override
                     public void processMatch(Class<? extends DataModel> matchingClass) {
-                        templateLoader.registerDataModel(matchingClass);
+                        dataModelLoader.registerDataModel(matchingClass);
                     }
                 })
                 //
@@ -283,12 +287,15 @@ public class SiteResources {
         // Full hot code swap / dynamic class reloading is problematic, see 
         // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
         HashSet<String> staticFieldNames =
-                GribbitServer.siteResources == null ? null : GribbitServer.siteResources.templateLoader
+                GribbitServer.siteResources == null ? null : GribbitServer.siteResources.dataModelLoader
                         .getInlineTemplateStaticFieldNames();
         if (staticFieldNames != null) {
-            classpathScanner.matchStaticFinalFieldNames(staticFieldNames, (String className, String fieldName,
-                    Object fieldConstantValue) -> templateLoader.registerTemplateStaticFieldValue(className,
-                    (String) fieldConstantValue));
+            classpathScanner.matchStaticFinalFieldNames(staticFieldNames, new StaticFinalFieldMatchProcessor() {
+                @Override
+                public void processMatch(String className, String fieldName, Object fieldConstantValue) {
+                    dataModelLoader.registerTemplateStaticFieldValue(className, (String) fieldConstantValue);
+                }
+            });
         }
 
         // Scan classpath for handlers, models and templates

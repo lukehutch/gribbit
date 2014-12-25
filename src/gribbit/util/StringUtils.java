@@ -122,8 +122,20 @@ public class StringUtils {
         return i <= j ? cs.subSequence(i, j + 1) : cs.subSequence(0, 0);
     }
 
-    public static final String unicodeTrim(CharSequence str) {
+    public static final String unicodeTrim(String str) {
+        if (str == null || str.length() == 0
+                || (!isUnicodeWhitespace(str.charAt(0)) && !isUnicodeWhitespace(str.charAt(str.length() - 1)))) {
+            return str;
+        }
         return unicodeTrimCharSequence(str).toString();
+    }
+
+    public static final CharSequence unicodeTrim(CharSequence str) {
+        if (str == null || str.length() == 0
+                || (!isUnicodeWhitespace(str.charAt(0)) && !isUnicodeWhitespace(str.charAt(str.length() - 1)))) {
+            return str;
+        }
+        return unicodeTrimCharSequence(str);
     }
 
     /**

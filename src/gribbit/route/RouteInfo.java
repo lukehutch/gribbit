@@ -167,12 +167,11 @@ public class RouteInfo {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    public RouteInfo(Class<? extends Route> handlerClass, String routeOverride) {
+    public RouteInfo(Class<? extends Route> handlerClass, String routePath) {
         this.routeClass = handlerClass;
         this.routeClassLoader = routeClass.getClassLoader();
         this.proxyParams = new Class[] { routeClass };
-
-        this.routePath = routeOverride != null ? routeOverride : routePathFromClassName(handlerClass);
+        this.routePath = routePath;
 
         // Check for methods get() and post() in the handler class
         for (Method method : handlerClass.getMethods()) {
@@ -251,35 +250,6 @@ public class RouteInfo {
                 postMethod = method;
             }
         }
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /**
-     * Convert class name to route path. For example:
-     * 
-     * app.action.HandleEmailValidationLink -> /app/action/handle-email-validation-link
-     */
-    private static String routePathFromClassName(Class<? extends Route> handler) {
-        StringBuilder buf = new StringBuilder("/");
-        String name = handler.getName().replace('$', '.').replace('.', '/');
-        int leaf = name.lastIndexOf('/') + 1;
-        buf.append(name.substring(0, leaf));
-        for (int i = leaf, n = name.length(); i < n; i++) {
-            if (i > leaf && Character.isUpperCase(name.charAt(i)) && !Character.isUpperCase(name.charAt(i - 1)))
-                buf.append('-');
-            buf.append(Character.toLowerCase(name.charAt(i)));
-        }
-        String path;
-        if (buf.length() > 2
-                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(GribbitServer.appPackageName)) {
-            path = buf.substring(GribbitServer.appPackageName.length() + 1);
-        } else {
-            path = buf.toString();
-        }
-        // In case of uppercase packagenames or inner classes, convert all to lowercase
-        path = path.toLowerCase();
-        return path;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
