@@ -267,13 +267,6 @@ public class SiteResources {
                     }
                 })
                 //
-                //                .matchSubclassesOf(DBModel.class, new SubclassMatchProcessor<DBModel>() {
-                //                    @Override
-                //                    public void processMatch(Class<? extends DBModel> matchingClass) {
-                //                        db.registerDBModel((Class<? extends DBModel<?>>)matchingClass);
-                //                    }
-                //                })
-                //
                 .matchFilenamePattern(".*\\.(html|js|css)", new FileMatchProcessor() {
                     @Override
                     public void processMatch(String absolutePath, String relativePath, InputStream inputStream) {
