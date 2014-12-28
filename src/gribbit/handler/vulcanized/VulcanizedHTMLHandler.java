@@ -31,6 +31,7 @@ import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
 import gribbit.route.AuthNotRequiredRoute;
 import gribbit.server.GribbitServer;
+import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 @RouteOverride("/vulcanized-html")
@@ -43,9 +44,11 @@ public interface VulcanizedHTMLHandler extends AuthNotRequiredRoute {
         } else {
             // Classpath elements have changed since the last version fetched by the browser --
             // return the latest version of the vulcanized resources from GribbitServer.siteResources
+            ByteBuf vulcanizedHTML = GribbitServer.siteResources.getVulcanizedHTML();
+            // Have to increase refcount each time the resource is served
+            vulcanizedHTML.retain();
             ByteBufResponse response =
-                    new ByteBufResponse(HttpResponseStatus.OK, "text/html;charset=utf-8",
-                            GribbitServer.siteResources.getVulcanizedHTML());
+                    new ByteBufResponse(HttpResponseStatus.OK, "text/html;charset=utf-8", vulcanizedHTML);
             response.setLastModifiedEpochSeconds(resourcesLoadedEpochSeconds);
             return response;
         }

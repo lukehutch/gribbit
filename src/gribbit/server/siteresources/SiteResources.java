@@ -302,7 +302,7 @@ public class SiteResources {
 
         byte[] vulcanizedHTMLBytes = templateLoader.getVulcanizedHTMLBytes();
         vulcanizedHTML = Unpooled.wrappedBuffer(vulcanizedHTMLBytes == null ? new byte[0] : vulcanizedHTMLBytes);
-        byte[] vulcanizedJSBytes = templateLoader.getVulcanizedHTMLBytes();
+        byte[] vulcanizedJSBytes = templateLoader.getVulcanizedJSBytes();
         vulcanizedJS = Unpooled.wrappedBuffer(vulcanizedJSBytes == null ? new byte[0] : vulcanizedJSBytes);
 
         resourcesLoadedEpochSeconds = ZonedDateTime.now().toEpochSecond();

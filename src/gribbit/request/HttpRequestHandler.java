@@ -39,7 +39,6 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.SET_COOKIE;
 import static io.netty.handler.codec.http.HttpHeaders.Values.CLOSE;
 import static io.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 import gribbit.auth.Cookie;
-import gribbit.auth.Cookie.EncodingType;
 import gribbit.auth.User;
 import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLPageResponse;
@@ -301,6 +300,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             @SuppressWarnings("unused")
             ChannelFuture sendFileFuture;
             if (ctx.pipeline().get(SslHandler.class) == null) {
+                // Use FileRegions if possible, which supports zero-copy / mmio
                 sendFileFuture =
                         ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
                                 ctx.newProgressivePromise());
@@ -355,17 +355,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             if (flashMessages != null) {
                 ((HTMLPageResponse) response).setFlashMessages(flashMessages);
                 // Clear pending flash messages
-                request.deleteCookie(Cookie.FLASH_COOKIE_NAME);
+                request.clearFlashMessages();
             }
         } else {
             // If flash messages were produced while generating response, but the response type
             // is not an HTMLPageResponse, store them in a cookie so they will show up next time
             // there is an HTMLPageResponse-typed response generated
-            String pendingFlashMessagesStr = request.getFlashMessageCookieString();
-            if (pendingFlashMessagesStr != null) {
-                request.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, pendingFlashMessagesStr, "/", 60,
-                        EncodingType.PLAIN));
-            }
+            request.saveFlashMessagesInCookie();
         }
 
         // Get the content of the response as a byte buffer.
@@ -383,9 +379,15 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         }
         HttpResponseStatus status = response.getStatus();
 
+        // closeAfterWrite = true;  // FIXME: test this, it doesn't seem to work ====================================================================
+
         // Create a FullHttpResponse object that wraps the response status and content
         DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, content);
         httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
+
+        // FIXME: the refcount of the ByteBufs for vulcanized content decreases to 0 at some point, how does this happen? 
+        // FIXME: need to probably add a future after writing the output that de-refs the ByteBuffers? Netty sometimes does this, sometimes doesn't. 
+        // System.out.println("* " + content.refCnt() + " " + reqURI);
 
         httpRes.headers().set(CONTENT_LENGTH, content.readableBytes());
         httpRes.headers().set(CONTENT_TYPE, contentType);
@@ -449,7 +451,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // TODO: Apache closes KeepAlive connections after a few seconds,
                 // see http://en.wikipedia.org/wiki/HTTP_persistent_connection
                 // TODO: implement a stale connection tracker
-                if (closeAfterWrite || status != HttpResponseStatus.OK) {
+                if (closeAfterWrite /* || status != HttpResponseStatus.OK */) {  // FIXME: should I close the channel for redirects? (probably not...)
                     future.addListener(ChannelFutureListener.CLOSE);
                 }
 
@@ -511,7 +513,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 decoder = new HttpPostRequestDecoder(factory, httpReq);
 
             } else {
-                // Non-POST (probably GET), start handling the request
+                // Non-POST (probably GET) -- start handling the request
                 requestComplete = true;
             }
         }
@@ -832,6 +834,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             // Release HTTP decoder resources, including any file uploads that were received in a POST
             // request and stored in /tmp
             destroyDecoder();
+            
             throw new RuntimeException(e);
         }
     }

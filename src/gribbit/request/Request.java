@@ -35,6 +35,7 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaders.Names.REFERER;
 import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 import gribbit.auth.Cookie;
+import gribbit.auth.Cookie.EncodingType;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
 import gribbit.util.StringUtils;
@@ -333,6 +334,7 @@ public class Request {
     /** Clear flash messages. */
     public void clearFlashMessages() {
         flashMessageCookieString = null;
+        deleteCookie(Cookie.FLASH_COOKIE_NAME);
     }
 
     /** Get any flash message cookie value produced by calling addFlashMessage() during the handling of this request. */
@@ -352,9 +354,15 @@ public class Request {
         }
     }
 
-    /** Get flash messages in cookie string format. */
-    public String getFlashMessageCookieString() {
-        return flashMessageCookieString;
+    /**
+     * Transfer any pending flash messages back into the flash cookie so that they can be served in subsequent
+     * responses.
+     */
+    public void saveFlashMessagesInCookie() {
+        if (flashMessageCookieString != null) {
+            setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, flashMessageCookieString, "/", 60, EncodingType.PLAIN));
+            flashMessageCookieString = null;
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------

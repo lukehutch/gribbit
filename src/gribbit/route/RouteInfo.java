@@ -160,7 +160,7 @@ public class RouteInfo {
 
                 // If handlers return HTML content, their response cannot be indefinitely cached, otherwise the
                 // hash URIs of their linked resources cannot be updated when their linked resources change.
-                if (response instanceof HTMLResponse) {
+                if (maxAgeSeconds > 0 && response instanceof HTMLResponse) {
                     Log.warning(handlerClass.getName() + " has annotation " + Cached.class.getName()
                             + " but returns HTML content, which cannot be indefinitely cached -- ignoring annotation");
                 } else {
