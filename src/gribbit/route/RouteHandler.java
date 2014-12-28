@@ -37,7 +37,7 @@ import java.util.Collection;
  * param values. Note: you should normally implement one of the sub-interfaces of Route (AuthNotRequiredRoute,
  * AuthRequiredRoute, AuthAndValidatedEmailRequiredRoute), and not Route itself.
  */
-public interface Route {
+public interface RouteHandler {
 
     /** Get the current request. */
     public default Request getRequest() {

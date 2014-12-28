@@ -28,9 +28,11 @@ package gribbit.route;
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
+import gribbit.handler.route.annotation.Cached;
 import gribbit.model.DataModel;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
+import gribbit.response.HTMLResponse;
 import gribbit.response.Response;
 import gribbit.server.GribbitServer;
 import gribbit.util.AppException;
@@ -51,18 +53,22 @@ import java.time.ZonedDateTime;
 /** The metadata about a Route. */
 public class RouteInfo {
     private String routePath;
-    private Class<? extends Route> routeClass;
-    private Method getMethod, postMethod;
+    private Class<? extends RouteHandler> handlerClass;
+
+    private Method getMethod;
     private Class<?>[] getParamTypes;
+    private long maxAgeSeconds;
+
+    private Method postMethod;
     private Class<? extends DataModel> postParamType;
 
-    private ClassLoader routeClassLoader;
+    private ClassLoader handlerClassLoader;
     private Class<?>[] proxyParams;
 
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * See comments in:
+     * See comments listed under the following post:
      * https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies
      */
     private static final Constructor<MethodHandles.Lookup> constructor;
@@ -127,7 +133,7 @@ public class RouteInfo {
         // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
         // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
         InvocationHandler invocationHandler = new MethodInvocationHandler(request, user);
-        Route proxy = (Route) Proxy.newProxyInstance(routeClassLoader, proxyParams, invocationHandler);
+        RouteHandler proxy = (RouteHandler) Proxy.newProxyInstance(handlerClassLoader, proxyParams, invocationHandler);
 
         try {
             // Invoke the method
@@ -135,45 +141,69 @@ public class RouteInfo {
 
             // The Response object should not be null, but if it is, respond with No Content
             if (response == null) {
-                Log.warning(routeClass.getName() + "." + method.getName()
+                Log.warning(handlerClass.getName() + "." + method.getName()
                         + " returned a null response -- responding with 204: No Content");
                 response = new ErrorResponse(HttpResponseStatus.NO_CONTENT, "");
 
-            } else {
-                // If last modified time was not filled in in the response, fill it in with the current time,
-                // but only if the result code was OK (so that the last modified header is not set on error
-                // responses)
-                if (response.getStatus() == HttpResponseStatus.OK) {
-                    if (response.getLastModifiedEpochMillis() == 0) {
-                        response.setLastModifiedEpochMillis(ZonedDateTime.now().toInstant().toEpochMilli());
-                    }
-                } else {
-                    // For errors, clear the last modified time field in case it was accidentally set
-                    if (response.getLastModifiedEpochMillis() > 0) {
-                        response.setLastModifiedEpochMillis(0);
-                    }
-                }
             }
 
-            // TODO: set a "max_age" field in the response for classes with a @Cached(max_age = N) annotation
+            // For non-error responses
+            if (response.getStatus() == HttpResponseStatus.OK) {
+                
+                // Add the user's CSRF token to the response, if available
+                response.setCsrfTok(user != null ? user.csrfTok : null);
+
+                // If last modified time was not filled in in the response, fill it in with the current time
+                if (response.getLastModifiedEpochSeconds() == 0) {
+                    response.setLastModifiedEpochSeconds(ZonedDateTime.now().toEpochSecond());
+                }
+
+                // If handlers return HTML content, their response cannot be indefinitely cached, otherwise the
+                // hash URIs of their linked resources cannot be updated when their linked resources change.
+                if (response instanceof HTMLResponse) {
+                    Log.warning(handlerClass.getName() + " has annotation " + Cached.class.getName()
+                            + " but returns HTML content, which cannot be indefinitely cached -- ignoring annotation");
+                } else {
+                    if (maxAgeSeconds > 0) {
+                        response.setMaxAgeSeconds(maxAgeSeconds);
+                    }
+                }
+
+            } else {
+                // For errors, clear the cache time fields in case they were accidentally set
+                response.setLastModifiedEpochSeconds(0);
+                response.setMaxAgeSeconds(0);
+            }
 
             return response;
 
         } catch (Throwable e) {
-            throw new RuntimeException("Exception while invoking the method " + routeClass.getName() + "."
+            throw new RuntimeException("Exception while invoking the method " + handlerClass.getName() + "."
                     + method.getName(), e);
         }
     }
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    public RouteInfo(Class<? extends Route> handlerClass, String routePath) {
-        this.routeClass = handlerClass;
-        this.routeClassLoader = routeClass.getClassLoader();
-        this.proxyParams = new Class[] { routeClass };
+    public RouteInfo(Class<? extends RouteHandler> handlerClass, String routePath) {
+        this.handlerClass = handlerClass;
+        this.handlerClassLoader = handlerClass.getClassLoader();
+        this.proxyParams = new Class[] { handlerClass };
         this.routePath = routePath;
 
-        // Check for methods get() and post() in the handler class
+        // Check for a Cached annotation on the handler subinterface
+        Cached cachedAnnotation = handlerClass.getAnnotation(Cached.class);
+        if (cachedAnnotation != null) {
+            int maxAgeSeconds = cachedAnnotation.maxAgeSeconds();
+            if (maxAgeSeconds < 0) {
+                // Negative maxAgeSeconds => 1 year (effectively cached indefinitely)
+                this.maxAgeSeconds = 31536000;
+            } else {
+                this.maxAgeSeconds = maxAgeSeconds;
+            }
+        }
+
+        // Check for methods get() and post() in the handler subinterface
         for (Method method : handlerClass.getMethods()) {
             String methodName = method.getName();
             Class<?>[] paramTypes = method.getParameterTypes();
@@ -345,11 +375,12 @@ public class RouteInfo {
      */
     public Response callHandler(Request request, User user) throws Exception {
         Response response;
-        if (AuthRequiredRoute.class.isAssignableFrom(routeClass) && user == null) {
+        if (AuthRequiredRoute.class.isAssignableFrom(handlerClass) && user == null) {
             // Should not happen (the user object should only be non-null if the user is authorized),
             // but just to be safe, double check that user is authorized if they are calling an
             // authorization-required handler
-            Log.error("Tried to call a " + AuthRequiredRoute.class.getName() + " handler with a null user object");
+            Log.error("Tried to call handler of type " + AuthRequiredRoute.class.getName()
+                    + " with a null user object -- unauthorized");
             response = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
 
         } else {
@@ -368,7 +399,7 @@ public class RouteInfo {
 
                 // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
                 // unathenticated route
-                if (AuthRequiredRoute.class.isAssignableFrom(routeClass)) {
+                if (AuthRequiredRoute.class.isAssignableFrom(handlerClass)) {
                     String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
                     if (postToken == null || postToken.isEmpty()) {
                         throw new AppException("Missing CSRF token in POST request");
@@ -412,7 +443,8 @@ public class RouteInfo {
      * params in the varargs. URL params can be any type, and their toString() method will be called. Param values will
      * be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not safe).
      */
-    private static String forMethod(HttpMethod httpMethod, Class<? extends Route> handlerClass, Object... urlParams) {
+    private static String forMethod(HttpMethod httpMethod, Class<? extends RouteHandler> handlerClass,
+            Object... urlParams) {
         RouteInfo handler = GribbitServer.siteResources.routeForClass(handlerClass);
 
         if (httpMethod == HttpMethod.GET) {
@@ -454,14 +486,14 @@ public class RouteInfo {
     /**
      * Return the route path for the POST method handler of a RestHandler class.
      */
-    public static String forPost(Class<? extends Route> handlerClass) {
+    public static String forPost(Class<? extends RouteHandler> handlerClass) {
         return RouteInfo.forMethod(HttpMethod.POST, handlerClass);
     }
 
     /**
      * Return the route path for the GET method handler of a RestHandler class, appending URL params.
      */
-    public static String forGet(Class<? extends Route> handlerClass, Object... urlParams) {
+    public static String forGet(Class<? extends RouteHandler> handlerClass, Object... urlParams) {
         return RouteInfo.forMethod(HttpMethod.GET, handlerClass, (Object[]) urlParams);
     }
 
@@ -480,8 +512,8 @@ public class RouteInfo {
         this.routePath = routePath;
     }
 
-    public Class<? extends Route> getHandler() {
-        return routeClass;
+    public Class<? extends RouteHandler> getHandler() {
+        return handlerClass;
     }
 
     public boolean hasGetMethod() {
@@ -508,6 +540,11 @@ public class RouteInfo {
         return getMethod == null ? 0 : getParamTypes.length;
     }
 
+    /** Get the maxAgeSeconds parameter from the Cached annotation on the handler class, or 0 if none. */
+    public long getMaxAgeSeconds() {
+        return maxAgeSeconds;
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
@@ -515,9 +552,10 @@ public class RouteInfo {
      * handle the request.
      */
     public boolean matches(String reqURI) {
-        // Check if reqURI.equals(routePath) || reqURI.startsWith(routePath + "/")
-        return reqURI.equals(routePath)
-                || (reqURI.startsWith(routePath) && reqURI.length() > routePath.length() && reqURI.charAt(routePath
-                        .length()) == '/');
+        // Check if reqURI.equals(routePath) || reqURI.startsWith(routePath + "/"), without creating an intermediate
+        // object for (routePath + "/")
+        return reqURI.startsWith(routePath) && //
+                (reqURI.length() == routePath.length() || //
+                (reqURI.length() > routePath.length() && reqURI.charAt(routePath.length()) == '/'));
     }
 }

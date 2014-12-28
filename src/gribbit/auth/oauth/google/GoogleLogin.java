@@ -41,6 +41,8 @@ import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
 import gribbit.util.RequestBuilder;
 
+import java.time.ZonedDateTime;
+
 /**
  * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login (i.e. the
  * route for this handler is "/oauth/google", but the additional URI param "login" should be provided after the route,
@@ -48,6 +50,10 @@ import gribbit.util.RequestBuilder;
  */
 @RouteOverride("/oauth/google")
 public interface GoogleLogin extends AuthNotRequiredRoute {
+
+    public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth.gX";
+    public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth.gT";
+    public static final String GOOGLE_REFRESH_TOKEN_KEY = "auth.gRT";
 
     public static class AuthResponse {
         public String access_token, token_type, expires_in, id_token, refresh_token;
@@ -60,7 +66,7 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
 
     /**
      * Check if a user's access token has expired or is about to expire, and if so, generate a new access token using
-     * the user's refresh token.
+     * the user's refresh token. Can be used by a web socket connection to keep a user's login alive.
      * 
      * @throws BadRequestException
      *             if the user is null, or doesn't have a refresh token, or if the token refresh fails.
@@ -69,11 +75,12 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
         if (user == null) {
             throw new BadRequestException("User is null");
         }
-        String refreshToken = user.getData("googleRefreshToken");
-        String accessToken = user.getData("googleAccessToken");
-        String accessTokenExpiresMillisStr = user.getData("googleAccessTokenExpiresMillis");
-        if (accessToken == null || accessTokenExpiresMillisStr == null
-                || Long.parseLong(accessTokenExpiresMillisStr) - System.currentTimeMillis() <= 60000L) {
+        String refreshToken = user.getData(GOOGLE_REFRESH_TOKEN_KEY);
+        String accessToken = user.getData(GOOGLE_ACCESS_TOKEN_KEY);
+        String accessTokenExpiresStr = user.getData(GOOGLE_ACCESS_TOKEN_EXPIRES_KEY);
+        long currentTimeEpochSeconds = ZonedDateTime.now().toEpochSecond();
+        if (accessToken == null || accessTokenExpiresStr == null
+                || Long.parseLong(accessTokenExpiresStr) - currentTimeEpochSeconds <= 60L) {
             // Access token missing or expired, or will expire in <= 60 seconds --
             // generate a new access token from the refresh token
 
@@ -93,18 +100,17 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
 
             // The access token obtained from the refresh token.
             accessToken = auth.access_token;
-            long accessTokenExpiresMillis =
-                    System.currentTimeMillis()
-                            + (auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in) * 1000L);
+            long accessTokenExpiresSeconds =
+                    currentTimeEpochSeconds + (auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in));
 
             // Replace refresh token with the new one, if provided (although in general, we won't be given
             // a new refresh token if we already have one)
             refreshToken = auth.refresh_token != null ? auth.refresh_token : refreshToken;
 
             // Update token values in user object
-            user.putData("googleRefreshToken", refreshToken);
-            user.putData("googleAccessToken", accessToken);
-            user.putData("googleAccessTokenExpiresMillis", Long.toString(accessTokenExpiresMillis));
+            user.putData(GOOGLE_REFRESH_TOKEN_KEY, refreshToken);
+            user.putData(GOOGLE_ACCESS_TOKEN_KEY, accessToken);
+            user.putData(GOOGLE_ACCESS_TOKEN_EXPIRES_KEY, Long.toString(accessTokenExpiresSeconds));
             user.save();
 
         } else {
@@ -182,14 +188,15 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
 
                     // The access token obtained from the authorization code
                     String accessToken = auth.access_token;
-                    long accessTokenExpiresIn = auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in);
-                    if (accessToken == null || accessTokenExpiresIn <= 0) {
+                    long accessTokenExpiresInSeconds = auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in);
+                    if (accessToken == null || accessTokenExpiresInSeconds <= 0) {
                         // Should not happen, should always get an access token.
                         // On any result code other than 200 OK (e.g. 400 Bad Request / 401 Not Authorized),
                         // the POST request above will have already thrown an exception.
                         throw new BadRequestException("Could not fetch access token");
                     }
-                    long accessTokenExpiresMillis = System.currentTimeMillis() + accessTokenExpiresIn * 1000;
+                    long timeNowEpochSeconds = ZonedDateTime.now().toEpochSecond();
+                    long accessTokenExpiresSeconds = timeNowEpochSeconds + accessTokenExpiresInSeconds;
 
                     // Get user's email address, name, gender, profile pic URL etc.
                     // Throws BadRequestException if the access token is bad. 
@@ -213,7 +220,7 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                         String refreshToken = auth.refresh_token;
                         if (refreshToken == null && user != null) {
                             // See: https://developers.google.com/drive/web/credentials
-                            refreshToken = user.getData("googleRefreshToken");
+                            refreshToken = user.getData(GOOGLE_REFRESH_TOKEN_KEY);
                         }
 
                         if (refreshToken == null) {
@@ -244,11 +251,11 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                                 }
                                 user.putData("name", userInfo.name);
                                 user.putData("givenName", userInfo.given_name);
-                                user.putData("familyName", userInfo.family_name);
+                                user.putData("surname", userInfo.family_name);
                                 user.putData("gender", userInfo.gender);
-                                user.putData("gPlusID", userInfo.id);
-                                user.putData("gPlusProfile", userInfo.link);
-                                user.putData("gPlusPhotoURL", userInfo.picture); // TODO: fetch and cache?
+                                user.putData("g+id", userInfo.id);
+                                user.putData("g+profile", userInfo.link);
+                                user.putData("g+photo", userInfo.picture); // TODO: fetch and cache?
 
                                 // res.clearFlashMessages();
                                 // res.addFlashMessage(FlashType.INFO, "Welcome",
@@ -271,9 +278,9 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                             }
 
                             // Store tokens in user record
-                            user.putData("googleRefreshToken", refreshToken);
-                            user.putData("googleAccessToken", accessToken);
-                            user.putData("googleAccessTokenExpiresMillis", Long.toString(accessTokenExpiresMillis));
+                            user.putData(GOOGLE_REFRESH_TOKEN_KEY, refreshToken);
+                            user.putData(GOOGLE_ACCESS_TOKEN_KEY, accessToken);
+                            user.putData(GOOGLE_ACCESS_TOKEN_EXPIRES_KEY, Long.toString(accessTokenExpiresSeconds));
                             user.save();
 
                             // User has successfully logged in. See if they were originally trying to reach a specific

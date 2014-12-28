@@ -25,7 +25,6 @@
  */
 package gribbit.response;
 
-import gribbit.auth.User;
 import gribbit.util.thirdparty.UTF8;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -41,7 +40,7 @@ public class TextResponse extends Response {
     }
 
     @Override
-    public ByteBuf getContent(User user, boolean isGetModelRequest) {
+    public ByteBuf getContent() {
         return Unpooled.wrappedBuffer(UTF8.stringToUTF8(content));
     }
 

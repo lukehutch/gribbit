@@ -28,10 +28,11 @@ package gribbit.model;
 import gribbit.auth.CSRF;
 import gribbit.model.field.annotation.IsURL;
 import gribbit.request.Request;
-import gribbit.route.Route;
+import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
+import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.server.siteresources.DataModelLoader;
 import gribbit.server.siteresources.TemplateLoader;
 import gribbit.util.AppException;
@@ -618,7 +619,7 @@ public abstract class DataModel {
                 // RestHandler's route as a string, so that routes can be inserted into href attributes
                 Class<?> concreteClass = (Class<?>) fieldValue;
                 if (concreteClass != null) {
-                    if (Route.class.isAssignableFrom(concreteClass)) {
+                    if (RouteHandler.class.isAssignableFrom(concreteClass)) {
                         // URI routes can be inserted into URI attributes by defining a field in a DataModel
                         // like: "public Class<? extends RestHandler> myUrl = MyURLHandler.class;"
                         // then including a parameter in HTML like: "<a href='${myUrl}'>Click here</a>"
@@ -627,14 +628,14 @@ public abstract class DataModel {
                         // should all be valid without escaping (they are either safely derived from the class
                         // name, or from the RouteOverride annotation, which is checked for validity)
                         @SuppressWarnings("unchecked")
-                        Class<? extends Route> routeClass = (Class<? extends Route>) concreteClass;
+                        Class<? extends RouteHandler> routeClass = (Class<? extends RouteHandler>) concreteClass;
                         String uriForClass = GribbitServer.siteResources.routeForClass(routeClass).getRoutePath();
                         buf.append(uriForClass);
 
                     } else {
                         // Due to type erasure, can't check until runtime if the right class type is passed in.
                         throw new RuntimeException("Got template parameter of type Class<" + concreteClass.getName()
-                                + ">, but should be of type Class<? extends " + Route.class.getName() + ">");
+                                + ">, but should be of type Class<? extends " + RouteHandler.class.getName() + ">");
                     }
                 }
 
@@ -826,7 +827,8 @@ public abstract class DataModel {
                     // For local URIs, see if there is an MD5-hashed version of the URI, and if so,
                     // replace the URI with the hashed version.
                     // TODO: extend URI-rewriting to CSS image resources 
-                    replacementURI = CacheExtension.getHashURI(uriStr);
+                    HashInfo hashInfo = CacheExtension.getHashInfo(uriStr);
+                    replacementURI = hashInfo == null ? null : hashInfo.getHashURI();
                 }
 
                 // Replace the URI that was rendered into the buffer with the hashed version, if there is a hashed

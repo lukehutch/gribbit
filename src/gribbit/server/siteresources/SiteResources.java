@@ -27,12 +27,14 @@ package gribbit.server.siteresources;
 
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
-import gribbit.route.Route;
+import gribbit.route.RouteHandler;
 import gribbit.route.RouteInfo;
 import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 import java.io.File;
 import java.io.InputStream;
@@ -61,9 +63,11 @@ public class SiteResources {
 
     private TemplateLoader templateLoader;
 
+    private ByteBuf vulcanizedHTML, vulcanizedJS;
+
     private DataModelLoader dataModelLoader;
 
-    private long resourcesLoadedEpochSecond;
+    private long resourcesLoadedEpochSeconds;
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -94,14 +98,14 @@ public class SiteResources {
     /**
      * Get the Route corresponding to a given RestHandler class.
      */
-    public RouteInfo routeForClass(Class<? extends Route> handlerClass) {
+    public RouteInfo routeForClass(Class<? extends RouteHandler> handlerClass) {
         return routeMapping.routeForHandler(handlerClass);
     }
 
     /**
      * Get the path (URI) for the Route corresponding to a given RestHandler class.
      */
-    public String routeURIForHandler(Class<? extends Route> handlerClass) {
+    public String routeURIForHandler(Class<? extends RouteHandler> handlerClass) {
         return routeMapping.routeForHandler(handlerClass).getRoutePath();
     }
 
@@ -114,12 +118,12 @@ public class SiteResources {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public byte[] getVulcanizedHTMLBytes() {
-        return templateLoader.getVulcanizedHTMLBytes();
+    public ByteBuf getVulcanizedHTML() {
+        return vulcanizedHTML;
     }
 
-    public byte[] getVulcanizedJSBytes() {
-        return templateLoader.getVulcanizedJSBytes();
+    public ByteBuf getVulcanizedJS() {
+        return vulcanizedJS;
     }
 
     /**
@@ -130,8 +134,8 @@ public class SiteResources {
         return templateLoader.getTemplateDocument(templateClass);
     }
 
-    public long getResourcesLoadedEpochSecond() {
-        return resourcesLoadedEpochSecond;
+    public long getResourcesLoadedEpochSeconds() {
+        return resourcesLoadedEpochSeconds;
     }
 
     /**
@@ -246,9 +250,9 @@ public class SiteResources {
         classpathScanner = new FastClasspathScanner(//
                 new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
         //
-                .matchSubinterfacesOf(Route.class, new SubinterfaceMatchProcessor<Route>() {
+                .matchSubinterfacesOf(RouteHandler.class, new SubinterfaceMatchProcessor<RouteHandler>() {
                     @Override
-                    public void processMatch(Class<? extends Route> matchingInterface) {
+                    public void processMatch(Class<? extends RouteHandler> matchingInterface) {
                         routeMapping.registerRoute(matchingInterface);
                     }
                 })
@@ -296,7 +300,12 @@ public class SiteResources {
 
         templateLoader.initializeTemplates();
 
-        resourcesLoadedEpochSecond = ZonedDateTime.now().toEpochSecond();
+        byte[] vulcanizedHTMLBytes = templateLoader.getVulcanizedHTMLBytes();
+        vulcanizedHTML = Unpooled.wrappedBuffer(vulcanizedHTMLBytes == null ? new byte[0] : vulcanizedHTMLBytes);
+        byte[] vulcanizedJSBytes = templateLoader.getVulcanizedHTMLBytes();
+        vulcanizedJS = Unpooled.wrappedBuffer(vulcanizedJSBytes == null ? new byte[0] : vulcanizedJSBytes);
+
+        resourcesLoadedEpochSeconds = ZonedDateTime.now().toEpochSecond();
     }
 
     /**

@@ -31,22 +31,23 @@ import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
 import gribbit.route.AuthNotRequiredRoute;
 import gribbit.server.GribbitServer;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 @RouteOverride("/vulcanized-js")
 public interface VulcanizedJSHandler extends AuthNotRequiredRoute {
     public default Response get() throws Exception {
-        long resourcesLoadedEpochSecond = GribbitServer.siteResources.getResourcesLoadedEpochSecond();
-        if (getRequest().cachedVersionIsOlderThan(resourcesLoadedEpochSecond)) {
+        long resourcesLoadedEpochSeconds = GribbitServer.siteResources.getResourcesLoadedEpochSeconds();
+        if (!getRequest().cachedVersionIsOlderThan(resourcesLoadedEpochSeconds)) {
+            // Classpath elements have not changed since last fetched by browser -- return Not Modified 
+            return new NotModifiedResponse(resourcesLoadedEpochSeconds);
+        } else {
             // Classpath elements have changed since the last version fetched by the browser --
             // return the latest version of the vulcanized resources from GribbitServer.siteResources
-            return new ByteBufResponse(HttpResponseStatus.OK, "application/javascript;charset=utf-8",
-                    Unpooled.wrappedBuffer(GribbitServer.siteResources.getVulcanizedJSBytes()));
-        } else {
-            // Classpath elements have not changed since last fetched by browser.
-            // Call the Not Modified handler. 
-            return new NotModifiedResponse(resourcesLoadedEpochSecond);
+            ByteBufResponse response =
+                    new ByteBufResponse(HttpResponseStatus.OK, "application/javascript;charset=utf-8",
+                            GribbitServer.siteResources.getVulcanizedJS());
+            response.setLastModifiedEpochSeconds(resourcesLoadedEpochSeconds);
+            return response;
         }
     }
 }

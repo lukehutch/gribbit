@@ -84,11 +84,19 @@ public class HTMLPageResponse extends HTMLResponse {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Since Response extends DataModel, we can simply render the public fields of HTMLPageResponse as a template to
-     * produce a complete HTML page. This overrides the method of HTMLResponse, which only renders any templates
-     * associated with the field "content". Here we render "this", because HTMLPageResponse has its own associated
-     * template, HTMLPageResponse.html. The field "content" is simply one of several public fields substituted into
-     * template parameters.
+     * Render this Response object as a complete HTML page, complete with head and body elements. This class is bound to
+     * the HTMLPageResponse.html template, which binds the field "title" to the "${title}" template parameter within the
+     * title element, etc.
+     * 
+     * The field "content" is simply one of several public fields substituted into the template parameters, as a
+     * parameter within the body.
+     * 
+     * The field "flashMessages" is bound to the "${flashMessages}" parameter, which should be inside the body element
+     * of the page template. Flash messages have their own HTML template that is inserted at this point for each flash
+     * message.
+     * 
+     * (Whole-page templates were modified by the vulcanizer on load to insert all head-content.html content found in
+     * the classpath at the end of the head element, and all tail-content.html content at the end of the body element.)
      */
     @Override
     protected String renderContentTemplates() {

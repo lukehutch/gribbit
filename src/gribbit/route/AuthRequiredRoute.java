@@ -30,7 +30,7 @@ import gribbit.auth.User;
 /**
  * Auth required, but validated email NOT required.
  */
-public interface AuthRequiredRoute extends Route {
+public interface AuthRequiredRoute extends RouteHandler {
     /** Return the user that is currently logged in. */
     public default User getUser() {
         // This is overridden in the InvokeHandler to return the actual User object

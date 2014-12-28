@@ -30,7 +30,7 @@ import gribbit.auth.User;
 /**
  * Neither auth nor validated email required.
  */
-public interface AuthNotRequiredRoute extends Route {
+public interface AuthNotRequiredRoute extends RouteHandler {
     /**
      * Delete the user's session cookies, and invalidate their login session in the database if they are currently
      * logged in.

@@ -27,7 +27,6 @@ package gribbit.response;
 
 import gribbit.auth.Cookie;
 import gribbit.auth.Cookie.EncodingType;
-import gribbit.auth.User;
 import gribbit.model.DataModel;
 import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
@@ -46,23 +45,44 @@ public abstract class Response extends DataModel {
     protected HttpResponseStatus status = HttpResponseStatus.OK;
     protected String mimeType;
     protected HashMap<String, Cookie> cookies = null;
-    protected long lastModifiedEpochMillis;
+    protected long lastModifiedEpochSeconds, maxAgeSeconds;
     protected HashMap<String, String> customHeaders;
+    protected String csrfTok;
 
     public Response(HttpResponseStatus status, String mimeType) {
         this.status = status;
         this.mimeType = mimeType;
     }
 
-    public long getLastModifiedEpochMillis() {
-        return lastModifiedEpochMillis;
+    public long getLastModifiedEpochSeconds() {
+        return lastModifiedEpochSeconds;
+    }
+
+    public void setLastModifiedEpochSeconds(long lastModifiedEpochSeconds) {
+        this.lastModifiedEpochSeconds = lastModifiedEpochSeconds;
+    }
+
+    public String getCsrfTok() {
+        return csrfTok;
+    }
+    
+    public void setCsrfTok(String csrfTok) {
+        this.csrfTok = csrfTok;
+    }
+    
+    public long getMaxAgeSeconds() {
+        return maxAgeSeconds;
+    }
+
+    public void setMaxAgeSeconds(long maxAgeSeconds) {
+        this.maxAgeSeconds = maxAgeSeconds;
     }
 
     public HttpResponseStatus getStatus() {
         return status;
     }
 
-    public String getMimeType() {
+    public String getContentType() {
         return mimeType;
     }
 
@@ -72,10 +92,6 @@ public abstract class Response extends DataModel {
 
     public void setMimeType(String mimeType) {
         this.mimeType = mimeType;
-    }
-
-    public void setLastModifiedEpochMillis(long lastModifiedEpochMillis) {
-        this.lastModifiedEpochMillis = lastModifiedEpochMillis;
     }
 
     public void addCustomHeader(String key, String value) {
@@ -152,7 +168,16 @@ public abstract class Response extends DataModel {
         return cookies;
     }
 
+    public Cookie getCookie(String cookieName) {
+        return cookies.get(cookieName);
+    }
+
+    public String getCookieValue(String cookieName) {
+        Cookie cookie = cookies.get(cookieName);
+        return cookie == null ? null : cookie.getValue();
+    }
+
     // -----------------------------------------------------------------------------------------------------
 
-    public abstract ByteBuf getContent(User user, boolean isGetModelRequest);
+    public abstract ByteBuf getContent();
 }

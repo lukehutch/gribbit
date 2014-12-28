@@ -25,7 +25,8 @@
  */
 package gribbit.response;
 
-import gribbit.route.Route;
+import gribbit.auth.Cookie;
+import gribbit.route.RouteHandler;
 import gribbit.route.RouteInfo;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -41,12 +42,18 @@ public class RedirectResponse extends TextResponse {
         super(HttpResponseStatus.FOUND, "");
         addCustomHeader("Location", redirectToURI);
         this.redirectToURI = redirectToURI;
+
+        String redirectCookieValue = getCookieValue(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+        if (redirectCookieValue != null && redirectCookieValue.equals(redirectToURI)) {
+            // Clear the redirect cookie after the requested redirect has been performed
+            deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+        }
     }
 
     /**
      * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
-    public RedirectResponse(Class<? extends Route> redirectToHandler) {
+    public RedirectResponse(Class<? extends RouteHandler> redirectToHandler) {
         this(RouteInfo.forGet(redirectToHandler));
     }
 
@@ -61,7 +68,8 @@ public class RedirectResponse extends TextResponse {
      * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
      * params into the URL for the handler. Can call with zero urlParams if the handler takes no URI params.
      */
-    public static RedirectResponse redirectWithParams(Class<? extends Route> redirectToHandler, Object... urlParams) {
+    public static RedirectResponse redirectWithParams(Class<? extends RouteHandler> redirectToHandler,
+            Object... urlParams) {
         return new RedirectResponse(RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
     }
 

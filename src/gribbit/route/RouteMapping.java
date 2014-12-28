@@ -52,7 +52,7 @@ public class RouteMapping {
 
     // Routes
     private ArrayList<RouteInfo> allRoutes = new ArrayList<>();
-    private HashMap<Class<? extends Route>, RouteInfo> routeForHandler = new HashMap<>();
+    private HashMap<Class<? extends RouteHandler>, RouteInfo> routeForHandler = new HashMap<>();
     private HashMap<String, RouteInfo> routeForRoutePath = new HashMap<>();
 
     private HashMap<Class<? extends DataModel>, RouteInfo> formModelToRoute = new HashMap<>();
@@ -97,7 +97,7 @@ public class RouteMapping {
     /**
      * Get the Route corresponding to a given RestHandler class.
      */
-    public RouteInfo routeForHandler(Class<? extends Route> handlerClass) {
+    public RouteInfo routeForHandler(Class<? extends RouteHandler> handlerClass) {
         RouteInfo route = routeForHandler.get(handlerClass);
         if (route == null) {
             throw new RuntimeException("Class " + handlerClass.getName() + " is not registered as a handler");
@@ -113,7 +113,7 @@ public class RouteMapping {
         if (route == null) {
             throw new RuntimeException("Class " + formModelClass.getName()
                     + " is not registered as a parameter to a post() method of any known subclass of "
-                    + Route.class.getName());
+                    + RouteHandler.class.getName());
         }
         return route;
     }
@@ -130,7 +130,7 @@ public class RouteMapping {
      * 
      * app.action.HandleEmailValidationLink -> /app/action/handle-email-validation-link
      */
-    private static String routePathFromClassName(Class<? extends Route> handler) {
+    private static String routePathFromClassName(Class<? extends RouteHandler> handler) {
         StringBuilder buf = new StringBuilder("/");
         String name = handler.getName().replace('$', '.').replace('.', '/');
         int leaf = name.lastIndexOf('/') + 1;
@@ -164,11 +164,11 @@ public class RouteMapping {
     }
 
     /** Register a RestHandler route. */
-    public void registerRoute(Class<? extends Route> handler) {
+    public void registerRoute(Class<? extends RouteHandler> handler) {
         if (handler.getAnnotation(Disabled.class) != null) {
             // Log.info("Found disabled handler: " + handler.getName());
 
-        } else if (handler == Route.class || handler == AuthNotRequiredRoute.class
+        } else if (handler == RouteHandler.class || handler == AuthNotRequiredRoute.class
                 || handler == AuthRequiredRoute.class || handler == AuthAndValidatedEmailRequiredRoute.class) {
             // Don't register handler for generic super-interfaces 
 
@@ -184,8 +184,8 @@ public class RouteMapping {
             }
 
             if (!handler.isInterface()) {
-                throw new RuntimeException(handler.getName() + " is a class that extends " + Route.class.getName()
-                        + "; should instead be an interface that extends " + Route.class.getName());
+                throw new RuntimeException(handler.getName() + " is a class that extends " + RouteHandler.class.getName()
+                        + "; should instead be an interface that extends " + RouteHandler.class.getName());
             }
 
             String routePath = routeOverride != null ? routeOverride : routePathFromClassName(handler);

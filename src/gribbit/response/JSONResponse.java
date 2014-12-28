@@ -25,7 +25,6 @@
  */
 package gribbit.response;
 
-import gribbit.auth.User;
 import gribbit.model.DataModel;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.thirdparty.UTF8;
@@ -43,7 +42,7 @@ public class JSONResponse extends Response {
     }
 
     @Override
-    public ByteBuf getContent(User user, boolean isGetModelRequest) {
+    public ByteBuf getContent() {
         return Unpooled
                 .wrappedBuffer(UTF8.stringToUTF8(DataModel.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON)));
     }

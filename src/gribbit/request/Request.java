@@ -295,10 +295,23 @@ public class Request {
 
     /**
      * Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see if
-     * the resource is newer than any cached version.
+     * the resource is newer than any cached version. If the If-Modified-Since header is not set, the timestamp of the
+     * cached version is assumed to be zero (the beginning of the Epoch), so this method will return true. If the passed
+     * resource timestamp is zero, the resource timestamp is assumed to be invalid or unavailable, so we assume the
+     * resource is not cached and return true, indicating that the cached version is out of date and should be served
+     * (or served again).
      */
-    public boolean cachedVersionIsOlderThan(long resourceTimestampEpochMillis) {
-        return resourceTimestampEpochMillis / 1000 > ifModifiedSinceEpochSecond;
+    public boolean cachedVersionIsOlderThan(long resourceTimestampEpochSeconds) {
+        if (resourceTimestampEpochSeconds == 0) {
+            // If the resource timestamp is zero, it's not valid, so don't assume this resource is cached,
+            // by returning true indicating that the cached version is out of date. 
+            return true;
+        } else {
+            // Otherwise return true if the resource timestamp is later than the cached version timestamp
+            // (including when the cached version timestamp is zero.)
+            // Note that the HTTP If-Modified-Since header only has single-second granularity.
+            return resourceTimestampEpochSeconds > ifModifiedSinceEpochSecond;
+        }
     }
 
     public long getReqReceivedTimeEpochMillis() {

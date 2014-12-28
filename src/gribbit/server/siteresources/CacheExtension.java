@@ -28,13 +28,14 @@ package gribbit.server.siteresources;
 import gribbit.server.GribbitServer;
 import gribbit.util.Base64Safe;
 import gribbit.util.Log;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -50,13 +51,25 @@ import org.apache.commons.codec.digest.DigestUtils;
  */
 public class CacheExtension {
 
-    private static class HashInfo {
-        String hashKey;
-        long lastModifiedEpochMillis;
+    public static class HashInfo {
+        private String origURI;
+        private String hashKey;
+        private long lastModifiedEpochSeconds;
 
-        public HashInfo(String hashKey, long lastModifiedEpochMillis) {
+        public HashInfo(String origURI, String hashKey, long lastModifiedEpochSeconds) {
+            this.origURI = origURI;
             this.hashKey = hashKey;
-            this.lastModifiedEpochMillis = lastModifiedEpochMillis;
+            this.lastModifiedEpochSeconds = lastModifiedEpochSeconds;
+        }
+
+        public String getHashURI() {
+            // This is created on demand to avoid permanently storing two strings in the map that both contain origURI,
+            // origURI itself and the hash URI (which contains it as a substring).
+            return "/_/" + hashKey + origURI;
+        }
+
+        public long getLastModifiedEpochSeconds() {
+            return lastModifiedEpochSeconds;
         }
     }
 
@@ -66,26 +79,24 @@ public class CacheExtension {
     /** A concurrent set containing URIs that are currently enqueued to be hashed. */
     private static ConcurrentHashMap<String, Object> scheduledURIsToHash = new ConcurrentHashMap<>();
 
-    /** Add or update the mapping between orig URI and hash key. */
-    private static void updateURIHashAndTimestamp(String origURI, HashInfo newHashInfo) {
-        // Update mapping from orig URI to hash key and last modified time.
-        // If we end up beaten my another thread with a hash with a newer timestamp,
-        // we need to put the newer mapping back into the map, looping until the
-        // time in the map is the most recent time.
-        for (;;) {
-            HashInfo oldHashInfo = origURIToHashInfo.put(origURI, newHashInfo);
-            if (oldHashInfo == null || oldHashInfo.lastModifiedEpochMillis <= newHashInfo.lastModifiedEpochMillis) {
-                break;
-            }
-            // The previous HashInfo object had a newer timestamp, use it instead
-            newHashInfo = oldHashInfo;
-        }
-    }
+    // -----------------------------------------------------------------------------------------------------------------
 
     /** Add or update the mapping between orig URI and hash key. */
-    private static void updateURIHashAndTimestamp(String origURI, String hashKey, long lastModifiedEpochMillis) {
-        if (lastModifiedEpochMillis > 0) {
-            updateURIHashAndTimestamp(origURI, new HashInfo(hashKey, lastModifiedEpochMillis));
+    private static void updateURIHashAndTimestamp(String origURI, String hashKey, long lastModifiedEpochSeconds) {
+        if (lastModifiedEpochSeconds > 0) {
+            // Update mapping from orig URI to hash key and last modified time.
+            // If we end up beaten my another thread with a hash with a newer timestamp,
+            // we need to put the newer mapping back into the map, looping until the
+            // time in the map is the most recent time.
+            HashInfo newHashInfo = new HashInfo(origURI, hashKey, lastModifiedEpochSeconds);
+            for (;;) {
+                HashInfo oldHashInfo = origURIToHashInfo.put(origURI, newHashInfo);
+                if (oldHashInfo == null || oldHashInfo.lastModifiedEpochSeconds <= newHashInfo.lastModifiedEpochSeconds) {
+                    break;
+                }
+                // The previous HashInfo object had a newer timestamp, use it instead
+                newHashInfo = oldHashInfo;
+            }
         }
     }
 
@@ -93,64 +104,38 @@ public class CacheExtension {
      * Add a mapping from orig URI to hash URI, scheduling the URI resource to be hashed if it hasn't already been
      * hashed, or if the resource has been modified since last time it was hashed.
      */
-    private static void updateHashURI(String origURI, Hasher hasher, long lastModifiedEpochMillis) {
-        if (!origURI.startsWith("/") || origURI.startsWith("//")) {
-            // Can only hash absolute but local (i.e. domain-less) URIs
-            return;
-        }
-        if (isHashURI(origURI)) {
-            // This is already a hash URI, nothing to substitute
-            return;
-        }
-        boolean needToHash;
-        HashInfo hashInfo = origURIToHashInfo.get(origURI);
-        if (hashInfo != null) {
-            // There is already a hash URI corresponding to origURI -- check the timestamp
-            needToHash = hashInfo.lastModifiedEpochMillis < lastModifiedEpochMillis;
+    private static void scheduleHasher(String origURI, long lastModifiedEpochSeconds, Hasher hasher) {
+        // Schedule the hashing task
+        GribbitServer.backgroundTaskGroup.schedule(new Runnable() {
+            @Override
+            public void run() {
+                long startTime = System.currentTimeMillis();
 
-        } else {
-            // There is no hash URI yet for origURI -- need to hash this object
-            needToHash = true;
-        }
+                // Perform MD5 digest, then convert to URI-safe base 64 encoding, then to hash URI
+                String hashKey = hasher.computeHashKey();
 
-        if (needToHash) {
-            // Check if another thread has already enqueued the object for hashing
-            Object alreadyInQueue = scheduledURIsToHash.put(origURI, new Object());
-            if (alreadyInQueue != null) {
-                // Object is already in the queue to be hashed, nothing to do.
-                needToHash = false;
-            } else {
-                // There is no existing hash URI for this orig URI -- need to schedule this for hashing
-                needToHash = true;
-            }
-        }
-        if (needToHash) {
-            // Schedule the hashing task
-            GribbitServer.backgroundTaskGroup.schedule(new Runnable() {
-                @Override
-                public void run() {
-                    long startTime = System.currentTimeMillis();
-
-                    // Perform MD5 digest, then convert to URI-safe base 64 encoding, then to hash URI
-                    String hashKey = hasher.computeHashKey();
-
+                if (hashKey != null) {
                     // Save mapping between origURI and hash key
-                    updateURIHashAndTimestamp(origURI, hashKey, lastModifiedEpochMillis);
+                    updateURIHashAndTimestamp(origURI, hashKey, lastModifiedEpochSeconds);
 
-                    Log.fine("Hashing resource at URI: " + origURI + " -> " + hashKey + " -- took "
+                    Log.fine("Hashing resource: " + origURI + " -> " + hashKey + " -- took "
                             + (System.currentTimeMillis() - startTime) + " msec");
-
-                    // Remove path from set indicating this path is in the queue
-                    scheduledURIsToHash.remove(origURI);
+                } else {
+                    // If hashing failed (e.g. for FileNotFound exception, or issue reading from ByteBuf)
+                    // then just leave the resource unhashed
                 }
-            }, 0, TimeUnit.MILLISECONDS);
-        }
+                // Remove origURI from set of URIs in the queue
+                scheduledURIsToHash.remove(origURI);
+            }
+        }, 0, TimeUnit.MILLISECONDS);
     }
 
     @FunctionalInterface
     private static interface Hasher {
         String computeHashKey();
     }
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     /**
      * Create a hash URI (which allows the browser to cache this resource indefinitely) if the last modified timestamp
@@ -167,16 +152,32 @@ public class CacheExtension {
      * and when the objects that need to be hashed are not large (i.e. tens of MB is OK, hundreds of MB is probably not,
      * since there are several background worker threads and they all can be hashing objects in parallel).
      */
-    public static void updateHashURI(String origURI, byte[] objectBytes, int objectLen, long lastModifiedEpochMillis) {
-        updateHashURI(origURI, () -> {
-            byte[] data = objectBytes;
-            if (objectLen < objectBytes.length) {
-                // In case of ByteBuf objects where not all the bytes are used (DigestUtils can't take a length param,
-                // so we have to copy the byte array here)
-                data = Arrays.copyOf(objectBytes, objectLen);
+    public static void updateHashURI(String origURI, ByteBuf content, long lastModifiedEpochSeconds) {
+        // Can only hash absolute but local (i.e. domain-less) URIs that have not already been hashed
+        if (origURI.startsWith("/") && !origURI.startsWith("//") && !origURI.startsWith("/_/")) {
+            // Check to see if there is already a mapping to hash URI for this original URI
+            HashInfo hashInfo = origURIToHashInfo.get(origURI);
+            if (hashInfo == null || hashInfo.lastModifiedEpochSeconds < lastModifiedEpochSeconds) {
+                // There is no hash URI yet for origURI, or there is already a hash URI corresponding to origURI,
+                // but the modification time has increased since the cached version, so need to re-hash.
+                // Check if another thread has already enqueued the URI for hashing.
+                Object alreadyInQueue = scheduledURIsToHash.put(origURI, new Object());
+                if (alreadyInQueue == null) {
+                    // This URI is not currently queued for hashing by background workers, add it to the queue
+                    scheduleHasher(origURI, lastModifiedEpochSeconds, new Hasher() {
+                        @Override
+                        public String computeHashKey() {
+                            // Compute MD5 hash of the ByteBuf contents, then base64-encode the results
+                            try {
+                                return Base64Safe.base64Encode(DigestUtils.md5(new ByteBufInputStream(content)));
+                            } catch (IOException e) {
+                                return null;
+                            }
+                        }
+                    });
+                }
             }
-            return Base64Safe.base64Encode(DigestUtils.md5(data));
-        }, lastModifiedEpochMillis);
+        }
     }
 
     /**
@@ -194,8 +195,19 @@ public class CacheExtension {
      * This method defers object hashing to the caller, so it can be used in cases where there is another machine on the
      * network somewhere that hashes objects in the database.
      */
-    public static void updateHashURI(String origURI, String hashKey, long lastModifiedEpochMillis) {
-        updateHashURI(origURI, () -> hashKey, lastModifiedEpochMillis);
+    public static void updateHashURI(String origURI, String hashKey, long lastModifiedEpochSeconds,
+            long currTimeEpochMillis, long maxAgeMillis) {
+        // Can only hash absolute but local (i.e. domain-less) URIs that have not already been hashed
+        if (origURI.startsWith("/") && !origURI.startsWith("//") && !origURI.startsWith("/_/")) {
+            // Check to see if there is already a mapping to hash URI for this original URI
+            HashInfo hashInfo = origURIToHashInfo.get(origURI);
+            if (hashInfo == null || hashInfo.lastModifiedEpochSeconds < lastModifiedEpochSeconds) {
+                // There is no hash URI yet for origURI, or there is already a hash URI corresponding to origURI,
+                // but the modification time has increased since the cached version, so hashcode needs to be updated.
+                // Since hashcode has been provided, we can directly update the hashcode.
+                updateURIHashAndTimestamp(origURI, hashKey, lastModifiedEpochSeconds);
+            }
+        }
     }
 
     /**
@@ -203,19 +215,79 @@ public class CacheExtension {
      * HttpRequestHandler every time a file is served.
      */
     public static void updateHashURI(String origURI, File file) {
-        long lastModifiedEpochMillis = file.lastModified();
-        updateHashURI(origURI, () -> {
-            try (InputStream inputStream = new BufferedInputStream(new FileInputStream(file))) {
-                return Base64Safe.base64Encode(DigestUtils.md5(inputStream));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        // Can only hash absolute but local (i.e. domain-less) URIs that have not already been hashed
+        if (origURI.startsWith("/") && !origURI.startsWith("//") && !origURI.startsWith("/_/")) {
+            // Check to see if there is already a mapping to hash URI for this original URI
+            HashInfo hashInfo = origURIToHashInfo.get(origURI);
+            long lastModifiedEpochSeconds = file.lastModified() / 1000;
+            if (hashInfo == null || hashInfo.lastModifiedEpochSeconds < lastModifiedEpochSeconds) {
+                // There is no hash URI yet for origURI, or there is already a hash URI corresponding to origURI,
+                // but the modification time has increased since the cached version, so need to re-hash.
+                // Check if another thread has already enqueued the URI for hashing.
+                Object alreadyInQueue = scheduledURIsToHash.put(origURI, new Object());
+                if (alreadyInQueue == null) {
+                    // This URI is not currently queued for hashing by background workers, add it to the queue
+                    scheduleHasher(origURI, lastModifiedEpochSeconds, new Hasher() {
+                        @Override
+                        public String computeHashKey() {
+                            try (InputStream inputStream = new BufferedInputStream(new FileInputStream(file))) {
+                                // Compute MD5 hash of file contents, then base64-encode the results
+                                return Base64Safe.base64Encode(DigestUtils.md5(inputStream));
+                            } catch (IOException e) {
+                                return null;
+                            }
+                        }
+                    });
+                }
             }
-        }, lastModifiedEpochMillis);
+        }
     }
 
+    // -----------------------------------------------------------------------------------------------------------------
+
     /**
-     * Get the hashed URI for a given request URI, or null if the resource is not hashed. This returns in O(1). Called
-     * by the HTML template renderer for each URI encountered, so has to be fast.
+     * Return the original URI whose content was hashed to produce hash URI. Simply strips the hash key off the
+     * beginning of the URI.
+     * 
+     * Called by HttpRequestHandler on all request URIs. (When handling HTTP requests that contain hash keys, the hash
+     * key can be completely ignored, since the hash URI is only used to prevent the browser from fetching the resource
+     * the second and subsequent times it wants to access it; the resource still has to be served the first time.)
+     */
+    public static String getOrigURI(String hashURI) {
+        if (hashURI.startsWith("/_/")) {
+            int slashIdx = hashURI.indexOf('/', 3);
+            if (slashIdx < 0) {
+                // Malformed hash URI
+                return hashURI;
+            }
+            // Return "/uri" given "/_/HASHKEY/uri"
+            return hashURI.substring(slashIdx);
+        } else {
+            // Not a hash URI, just return the original
+            return hashURI;
+        }
+    }
+
+    /** Return the hash key from a hash URI, or null if none present. */
+    public static String getHashKey(String hashURI) {
+        if (hashURI.startsWith("/_/")) {
+            int slashIdx = hashURI.indexOf('/', 3);
+            if (slashIdx < 0) {
+                // Malformed hash URI
+                return null;
+            }
+            // Return "HASHKEY" given "/_/HASHKEY/uri"
+            return hashURI.substring(3, slashIdx);
+        } else {
+            return null;
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Get the info on the hash URI for a given request URI, or null if the resource is not hashed. This returns in
+     * O(1). Called by the HTML template renderer for each URI encountered, so has to be fast.
      * 
      * If the URI is for a static file and the file hasn't been cached before, this will add the file to the hashing
      * queue and return null. Once the hashing of file contents has been completed, subsequent calls to this method with
@@ -225,68 +297,16 @@ public class CacheExtension {
      * get() method, then the hash() method is expected to return a hashcode in O(1), presumably stored in the database
      * for the resource corresponding to the URI.
      * 
-     * @return null, if there is no hash URI corresponding to origURI, otherwise returns the hash URI.
+     * @return null, if there is no hash URI corresponding to origURI, otherwise returns the HashInfo object
+     *         corresponding to origURI.
      */
-    public static String getHashURI(String origURI) {
-        if (!origURI.startsWith("/") || origURI.startsWith("//")) {
-            // Can only cache absolute but local (i.e. domain-less) URIs
-            return null;
-        }
-        if (isHashURI(origURI)) {
-            // This is already a hash URI, nothing to substitute
-            return null;
-        }
-
+    public static HashInfo getHashInfo(String origURI) {
         HashInfo hashInfo = origURIToHashInfo.get(origURI);
         if (hashInfo == null) {
             // No known hash key for this orig URI
             return null;
         } else {
-            // This orig URI has a hash key, incorporate it into a hash URI
-            return "/_/" + hashInfo.hashKey + origURI;
+            return hashInfo;
         }
     }
-
-    /**
-     * Return the original URI whose content was hashed to produce hashURI. Simply strips the hashcode off the beginning
-     * of the URI.
-     * 
-     * Called by HttpRequestHandler on all request URIs. (When handling HTTP requests that contain hash keys, the hash
-     * key can be completely ignored, since the hash URI is only used to prevent the browser from fetching the resource
-     * the second and subsequent times it wants to access it; the resource still has to be served the first time.)
-     */
-    public static String getOrigURI(String hashURI) {
-        if (!isHashURI(hashURI)) {
-            // Not a hash URI, just return the original
-            return hashURI;
-        } else {
-            int slashIdx = hashURI.indexOf('/', 3);
-            if (slashIdx < 0) {
-                // Malformed hash URI
-                return hashURI;
-            }
-            // Return "/uri" given "/_/HASHCODE/uri"
-            return hashURI.substring(slashIdx);
-        }
-    }
-
-    /** Return true if a URI is MD5-hashed, and can therefore be indefinitely cached. */
-    public static boolean isHashURI(String uri) {
-        return uri.startsWith("/_/");
-    }
-
-    /**
-     * Get the last modified timestamp (in epoch millis) of this orig URI (i.e. not for hash URIs). Returns null if this
-     * URI does not have a mapping to a hash URI.
-     */
-    public static Long getLastModifiedEpochMillis(String origURI) {
-        HashInfo hashInfo = origURIToHashInfo.get(origURI);
-        if (hashInfo == null) {
-            // No known hash key for this orig URI
-            return null;
-        } else {
-            return hashInfo.lastModifiedEpochMillis;
-        }
-    }
-
 }

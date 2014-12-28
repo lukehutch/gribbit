@@ -25,7 +25,6 @@
  */
 package gribbit.response;
 
-import gribbit.auth.User;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -40,7 +39,7 @@ public class ByteBufResponse extends Response {
     }
 
     @Override
-    public ByteBuf getContent(User user, boolean isGetModelRequest) {
+    public ByteBuf getContent() {
         return content;
     }
 
