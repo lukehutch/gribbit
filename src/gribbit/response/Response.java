@@ -65,11 +65,11 @@ public abstract class Response extends DataModel {
     public String getCsrfTok() {
         return csrfTok;
     }
-    
+
     public void setCsrfTok(String csrfTok) {
         this.csrfTok = csrfTok;
     }
-    
+
     public long getMaxAgeSeconds() {
         return maxAgeSeconds;
     }
@@ -169,11 +169,11 @@ public abstract class Response extends DataModel {
     }
 
     public Cookie getCookie(String cookieName) {
-        return cookies.get(cookieName);
+        return cookies == null ? null : cookies.get(cookieName);
     }
 
     public String getCookieValue(String cookieName) {
-        Cookie cookie = cookies.get(cookieName);
+        Cookie cookie = getCookie(cookieName);
         return cookie == null ? null : cookie.getValue();
     }
 

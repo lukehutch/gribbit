@@ -51,9 +51,9 @@ import java.time.ZonedDateTime;
 @RouteOverride("/oauth/google")
 public interface GoogleLogin extends AuthNotRequiredRoute {
 
-    public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth.gX";
-    public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth.gT";
-    public static final String GOOGLE_REFRESH_TOKEN_KEY = "auth.gRT";
+    public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth_gX";
+    public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth_gT";
+    public static final String GOOGLE_REFRESH_TOKEN_KEY = "auth_gRT";
 
     public static class AuthResponse {
         public String access_token, token_type, expires_in, id_token, refresh_token;
