@@ -525,6 +525,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         try {
             if (msg instanceof HttpContent && decoder != null) {
                 HttpContent chunk = (HttpContent) msg;
+                // Offer chunk to decoder (this decreases refcount of chunk, so it doesn't have to
+                // be separately released). Decoder is released after message has been handled.
                 decoder.offer(chunk);
 
                 try {

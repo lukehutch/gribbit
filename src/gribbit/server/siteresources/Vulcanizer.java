@@ -578,11 +578,10 @@ public class Vulcanizer {
     private LinkedList<Dep> topologicalSort() {
         // Check that all ids exist (i.e. that all referenced URIs were loaded),
         // and determine all roots (HTMLDeps that are not scheduled after any other HTMLDep)
-        HashSet<String> rootIds = new HashSet<>();
+        HashSet<String> rootIds = new HashSet<>(idToDep.keySet());
         HashSet<String> nonRootIds = new HashSet<>();
         for (Entry<String, DepsAfter> ent : idToDepsAfter.entrySet()) {
             String idBefore = ent.getKey();
-            rootIds.add(idBefore);
             if (!idToDep.containsKey(idBefore)) {
                 throw new RuntimeException("Resource " + idBefore + " does not exist, referenced in "
                         + ent.getValue().originURI);

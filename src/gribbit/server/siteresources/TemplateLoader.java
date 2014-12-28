@@ -745,7 +745,9 @@ public class TemplateLoader {
             if (templateStr == null) {
                 templateStr = ent.getValue();
             }
-            String relativePath = className.replace('.', '/') + ".java";
+            // TODO: not technically right, because inner classes will appear to be in their own java file
+            // in error messages
+            String relativePath = className.replace('$', '.').replace('.', '/') + ".java";
             vulcanizer.addResource("/" + relativePath, templateStr);
         }
 
