@@ -46,8 +46,8 @@ import gribbit.response.HTMLResponse;
 import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.route.AuthAndValidatedEmailRequiredRoute;
-import gribbit.route.AuthRequiredRoute;
+import gribbit.route.RouteHandlerAuthAndValidatedEmailRequired;
+import gribbit.route.RouteHandlerAuthRequired;
 import gribbit.route.RouteHandler;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
@@ -99,7 +99,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 
@@ -347,21 +347,23 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             boolean hashTheResponse, long hashKeyMaxRemainingAgeSeconds, String hashKey, ChannelHandlerContext ctx)
             throws Exception {
 
-        // Add any pending flash messages to the response, so that they will be rendered when 
-        // response.getContent() is called.  
+        // Add any pending flash messages to the response, if the response is an HTML page
         if (response instanceof HTMLPageResponse) {
             // Add flash messages to response template, if any
             ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
             if (flashMessages != null) {
+                // Render pending flash messages into the HTML page
                 ((HTMLPageResponse) response).setFlashMessages(flashMessages);
-                // Clear pending flash messages
-                request.clearFlashMessages();
+                // Clear the flash message cookie
+                response.deleteCookie(Cookie.FLASH_COOKIE_NAME);
             }
         } else {
-            // If flash messages were produced while generating response, but the response type
-            // is not an HTMLPageResponse, store them in a cookie so they will show up next time
-            // there is an HTMLPageResponse-typed response generated
-            request.saveFlashMessagesInCookie();
+            // Store any un-displayed flash messages back in the cookie
+            ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
+            if (flashMessages != null) {
+                response.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, FlashMessage.toCookieString(flashMessages),
+                        "/", 60));
+            }
         }
 
         // Get the content of the response as a byte buffer.
@@ -408,28 +410,34 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             httpRes.content().clear();
         }
 
-        // Get cookies set in the response, and use them to update cookies received in the request.
-        ArrayList<Cookie> cookiesToSetPathSpecific = response.getCookiesToSetPathSpecific();
-        if (cookiesToSetPathSpecific != null) {
-            for (Cookie cookie : cookiesToSetPathSpecific) {
-                request.setCookiePathSpecific(cookie);
+        // Get cookies to delete in the response
+        HashSet<String> cookiesToDelete = response.getCookiesToDelete();
+        if (cookiesToDelete != null) {
+            for (String cookieName : cookiesToDelete) {
+                Log.fine("Cookie to delete for req " + reqURI + " : " + cookieName); // TODO temp
+                ArrayList<Cookie> allCookiesWithName = request.getAllCookiesWithName(cookieName);
+                if (allCookiesWithName != null) {
+                    for (Cookie cookie : allCookiesWithName) {
+                        // Delete all cookies with the requested name (there may be multiple cookies
+                        // with this name but with different paths)
+                        String deleteCookieStr =
+                                ServerCookieEncoder.encode(Cookie.deleteCookie(cookie).toNettyCookie());
+                        httpRes.headers().add(SET_COOKIE, deleteCookieStr);
+                    }
+                }
             }
         }
+
+        // Get cookies to set in the response
         ArrayList<Cookie> cookiesToSet = response.getCookiesToSet();
         if (cookiesToSet != null) {
             for (Cookie cookie : cookiesToSet) {
-                request.setCookie(cookie);
-            }
-        }
-        
-        // Transfer cookies from the request to the response. Some of these may have been modified
-        // while serving the request, including with expired cookies (causing the cookie to be deleted)
-        Collection<ArrayList<Cookie>> cookieLists = request.getAllCookies();
-        if (cookieLists != null) {
-            for (ArrayList<Cookie> cookieList : cookieLists) {
-                for (Cookie cookie : cookieList) {
-                    // System.out.println(routePath + " " + cookie.toString());
-                    httpRes.headers().add(SET_COOKIE, ServerCookieEncoder.encode(cookie.toNettyCookie()));
+                if (cookiesToDelete.contains(cookie.getName())) {
+                    String setCookieStr = ServerCookieEncoder.encode(cookie.toNettyCookie());
+                    httpRes.headers().add(SET_COOKIE, setCookieStr);
+                } else {
+                    Log.warning("Tried to delete and set the cookie \"" + cookie.getName()
+                            + "\" in the same response -- ignoring the set request");
                 }
             }
         }
@@ -643,7 +651,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                             response =
                                     new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
 
-                        } else if (AuthRequiredRoute.class.isAssignableFrom(handler)) {
+                        } else if (RouteHandlerAuthRequired.class.isAssignableFrom(handler)) {
 
                             // This handler requires authentication -- check if user is logged in
                             user = User.getLoggedInUser(request);
@@ -652,13 +660,14 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                 // User is not logged in: handle request with OnUnauthorized handler instead
                                 response =
                                         getResponseForErrorHandlerRoute(
-                                                GribbitServer.siteResources.getUnauthorizedRoute(), request, user);
+                                                GribbitServer.siteResources.getUnauthorizedRoute(), request, user)
+                                        // Redirect the user back to the page they were trying to get to once they
+                                        // do manage to log in successfully
+                                                .setCookie(
+                                                        new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, reqURI,
+                                                                "/", 300));
 
-                                // Redirect the user back to the page they were trying to get to once they
-                                // do manage to log in successfully
-                                request.setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, reqURI, "/", 300));
-
-                            } else if (AuthAndValidatedEmailRequiredRoute.class.isAssignableFrom(handler)
+                            } else if (RouteHandlerAuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
                                     && !user.emailIsValidated()) {
 
                                 // User is logged in, but their email address has not been validated:
@@ -734,6 +743,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 boolean hashTheResponse = false;
                 long hashKeyRemainingAgeSeconds = 0;
                 if (response == null && authorizedRoute != null) {
+
+                    // ----------------------------------
+                    // See if response should be hashed
+                    // ----------------------------------
 
                     // For hashed *non-file* URIs, the actual last modified timestamp of dynamically-served
                     // content can't be read directly, so read the last modified timestamp stored for the

@@ -28,14 +28,14 @@ package gribbit.handler.error;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.Response;
 import gribbit.response.TextResponse;
-import gribbit.route.AuthNotRequiredRoute;
+import gribbit.route.RouteHandlerAuthNotRequired;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * Default handler for internal server errors.
  */
 @RouteOverride("/gribbit/err/internal-server-error")
-public interface InternalServerError extends AuthNotRequiredRoute {
+public interface InternalServerError extends RouteHandlerAuthNotRequired {
     public default Response get() {
         return new TextResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal server error");
     }

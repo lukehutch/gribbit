@@ -105,13 +105,14 @@ public class RouteInfo {
          */
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            // Intercept a few methods first
             String methodName = method.getName();
             if (methodName.equals("getRequest")) {
                 return request;
             } else if (methodName.equals("getUser")) {
                 return user;
             } else {
-                // Call default implementation of interface method with the given args
+                // Call default implementation of non-intercepted method with the passed args
                 if (!method.isDefault()) {
                     throw new RuntimeException("Method " + method.getName() + " in interface "
                             + proxy.getClass().getName() + " is not a default method");
@@ -132,7 +133,7 @@ public class RouteInfo {
     private Response invokeMethod(Request request, User user, Method method, Object[] methodParamVals) {
         // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
         // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
-        InvocationHandler invocationHandler = new MethodInvocationHandler(request, user);
+        MethodInvocationHandler invocationHandler = new MethodInvocationHandler(request, user);
         RouteHandler proxy = (RouteHandler) Proxy.newProxyInstance(handlerClassLoader, proxyParams, invocationHandler);
 
         try {
@@ -149,7 +150,7 @@ public class RouteInfo {
 
             // For non-error responses
             if (response.getStatus() == HttpResponseStatus.OK) {
-                
+
                 // Add the user's CSRF token to the response, if available
                 response.setCsrfTok(user != null ? user.csrfTok : null);
 
@@ -375,11 +376,11 @@ public class RouteInfo {
      */
     public Response callHandler(Request request, User user) throws Exception {
         Response response;
-        if (AuthRequiredRoute.class.isAssignableFrom(handlerClass) && user == null) {
+        if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass) && user == null) {
             // Should not happen (the user object should only be non-null if the user is authorized),
             // but just to be safe, double check that user is authorized if they are calling an
             // authorization-required handler
-            Log.error("Tried to call handler of type " + AuthRequiredRoute.class.getName()
+            Log.error("Tried to call handler of type " + RouteHandlerAuthRequired.class.getName()
                     + " with a null user object -- unauthorized");
             response = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
 
@@ -399,7 +400,7 @@ public class RouteInfo {
 
                 // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
                 // unathenticated route
-                if (AuthRequiredRoute.class.isAssignableFrom(handlerClass)) {
+                if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass)) {
                     String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
                     if (postToken == null || postToken.isEmpty()) {
                         throw new AppException("Missing CSRF token in POST request");

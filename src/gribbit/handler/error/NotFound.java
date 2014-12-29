@@ -28,14 +28,14 @@ package gribbit.handler.error;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.Response;
 import gribbit.response.TextResponse;
-import gribbit.route.AuthNotRequiredRoute;
+import gribbit.route.RouteHandlerAuthNotRequired;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * Default 404 handler.
  */
 @RouteOverride("/gribbit/err/404")
-public interface NotFound extends AuthNotRequiredRoute {
+public interface NotFound extends RouteHandlerAuthNotRequired {
     public default Response get() {
         return new TextResponse(HttpResponseStatus.NOT_FOUND, "404: Not Found");
     }

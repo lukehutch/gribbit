@@ -28,7 +28,7 @@ package gribbit.handler.error;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.Response;
 import gribbit.response.TextResponse;
-import gribbit.route.AuthNotRequiredRoute;
+import gribbit.route.RouteHandlerAuthNotRequired;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -40,7 +40,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * We can also call this handler ourselves if user-supplied data is invalid.
  */
 @RouteOverride("/gribbit/err/bad-request")
-public interface BadRequest extends AuthNotRequiredRoute {
+public interface BadRequest extends RouteHandlerAuthNotRequired {
     public default Response get() {
         return new TextResponse(HttpResponseStatus.BAD_REQUEST, "Bad request");
     }

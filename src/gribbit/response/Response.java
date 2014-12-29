@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * The superclass of all response types, containing fields that go into the header of the HTTP response regardless of
@@ -41,7 +42,8 @@ public abstract class Response extends DataModel {
 
     protected HttpResponseStatus status = HttpResponseStatus.OK;
     protected String mimeType;
-    protected ArrayList<Cookie> cookies = null, cookiesPathSpecific = null;
+    protected ArrayList<Cookie> cookiesToSet = null;
+    protected HashSet<String> cookiesToDelete = null;
     protected long lastModifiedEpochSeconds, maxAgeSeconds;
     protected HashMap<String, String> customHeaders;
     protected String csrfTok;
@@ -105,61 +107,40 @@ public abstract class Response extends DataModel {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Set a cookie in the response with a specific path (this allows there to be multiple cookies set with different
-     * paths).
+     * Set a cookie in the response. Note that cookies with a shorter path will be masked by cookies with a longer path
+     * on routes with the longer path as a prefix.
      * 
      * @return this
      */
-    public Response setCookiePathSpecific(Cookie cookie) {
-        if (cookiesPathSpecific == null) {
-            cookiesPathSpecific = new ArrayList<>();
-        }
-        cookiesPathSpecific.add(cookie);
-        return this;
-    }
-
-    /** Set a cookie in the response, deleting any existing cookies with the same name but a different path. */
     public Response setCookie(Cookie cookie) {
-        if (cookies == null) {
-            cookies = new ArrayList<>();
+        if (cookiesToSet == null) {
+            cookiesToSet = new ArrayList<>();
         }
-        cookies.add(cookie);
+        cookiesToSet.add(cookie);
         return this;
     }
 
     /**
-     * Delete a cookie in the response with a matching specific path (this allows there to be multiple cookies set with
-     * different paths).
+     * Delete all cookies (with all paths) matching the given name in the response. If this is called on the same
+     * response as setCookie() with the same cookie name, the setCookie() will be ignored.
      * 
      * @return this
      */
-    public Response deleteCookiePathSpecific(String cookieName, String path) {
-        if (cookiesPathSpecific == null) {
-            cookiesPathSpecific = new ArrayList<>();
-        }
-        cookiesPathSpecific.add(Cookie.deleteCookie(cookieName, path));
-        return this;
-    }
-
-    /** Set a cookie in the response, deleting any existing cookies with the same name and any path. */
-    public Response deleteCookieAllPaths(String cookieName) {
-        if (cookies == null) {
-            cookies = new ArrayList<>();
-        }
-        cookies.add(Cookie.deleteCookie(cookieName, "/"));
+    public Response deleteCookie(String cookieName) {
+        cookiesToDelete.add(cookieName);
         return this;
     }
 
     /** Called by HttpRequestHandler when the response is served. */
     public ArrayList<Cookie> getCookiesToSet() {
-        return cookies;
+        return cookiesToSet;
     }
 
     /** Called by HttpRequestHandler when the response is served. */
-    public ArrayList<Cookie> getCookiesToSetPathSpecific() {
-        return cookiesPathSpecific;
+    public HashSet<String> getCookiesToDelete() {
+        return cookiesToDelete;
     }
-
+    
     // -----------------------------------------------------------------------------------------------------
 
     public abstract ByteBuf getContent();

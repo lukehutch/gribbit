@@ -168,8 +168,8 @@ public class RouteMapping {
         if (handler.getAnnotation(Disabled.class) != null) {
             // Log.info("Found disabled handler: " + handler.getName());
 
-        } else if (handler == RouteHandler.class || handler == AuthNotRequiredRoute.class
-                || handler == AuthRequiredRoute.class || handler == AuthAndValidatedEmailRequiredRoute.class) {
+        } else if (handler == RouteHandler.class || handler == RouteHandlerAuthNotRequired.class
+                || handler == RouteHandlerAuthRequired.class || handler == RouteHandlerAuthAndValidatedEmailRequired.class) {
             // Don't register handler for generic super-interfaces 
 
         } else {

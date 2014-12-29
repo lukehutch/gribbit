@@ -25,17 +25,8 @@
  */
 package gribbit.route;
 
-import gribbit.auth.User;
-
 /**
- * Neither auth nor validated email required.
+ * Auth and validated email required.
  */
-public interface AuthNotRequiredRoute extends RouteHandler {
-    /**
-     * Delete the user's session cookies, and invalidate their login session in the database if they are currently
-     * logged in.
-     */
-    public default void logOutUser() {
-        User.logOutUser(getRequest());
-    }
+public interface RouteHandlerAuthAndValidatedEmailRequired extends RouteHandlerAuthRequired {
 }

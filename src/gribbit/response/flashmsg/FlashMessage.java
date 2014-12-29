@@ -28,80 +28,101 @@ package gribbit.response.flashmsg;
 import gribbit.model.DataModel;
 import gribbit.util.StringUtils;
 
-public class FlashMessage extends DataModel {
+import java.util.ArrayList;
 
-    public String cssClass;
+public class FlashMessage extends DataModel {
+    public FlashType flashType;
     public String strongText;
     public String message;
 
+    /** Type of flash message. */
     public enum FlashType {
-        INFO, SUCCESS, WARNING, ERROR
+        INFO, SUCCESS, WARNING, ERROR;
+
+        /** Render FlashType enum values into the HTML template as CSS classes. */
+        @Override
+        public String toString() {
+            switch (this) {
+            case ERROR:
+                return "alert-danger";
+            case SUCCESS:
+                return "alert-success";
+            case INFO:
+                return "alert-info";
+            case WARNING:
+            default:
+                return "";
+            }
+        }
     };
 
-    private void init(FlashType flashType, String strongText, String message) {
-        switch (flashType) {
-        case ERROR:
-            this.cssClass = "alert-danger";
-            break;
-        case SUCCESS:
-            this.cssClass = "alert-success";
-            break;
-        case INFO:
-            this.cssClass = "alert-info";
-            break;
-        case WARNING:
-        default:
-            this.cssClass = "";
-            break;
-        }
+    public FlashMessage(FlashType flashType, String strongText, String message) {
+        this.flashType = flashType;
         this.strongText = strongText;
         this.message = message;
     }
 
-    public FlashMessage(FlashType flashType, String strongText, String message) {
-        init(flashType, strongText, message);
-    }
-
-    public static FlashMessage fromCookieString(String cookieString) {
-        // Separate out flash message into FlashType and message text parts
-        // Check formatting in case someone has been messing with cookie values.
-        int tabIdx = cookieString.indexOf('\t');
-        if (tabIdx > 0) {
-            int tabIdx2 = cookieString.indexOf('\t', tabIdx + 1);
-            if (tabIdx2 > 0) {
-                try {
-                    FlashType flashType = FlashType.valueOf(cookieString.substring(0, tabIdx));
-                    String strongText = cookieString.substring(tabIdx + 1, tabIdx2);
-                    String message = cookieString.substring(tabIdx2 + 1);
-                    return new FlashMessage(flashType, strongText, message);
-                } catch (Exception e) {
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Create the cookie string encoding for a flash message.
-     * 
-     * @param flashType
-     *            the type of popup
-     * @param strongText
-     *            optional bolded text to put before the main message
-     * @param flashMessage
-     *            the flash message to pop up
-     */
-    public static String toCookieString(FlashType flashType, String strongText, String flashMessage) {
-        return flashType.toString() //
-                + "\t" //
-                + (strongText == null ? "" : StringUtils.normalizeSpacing(strongText) // 
-                        + "\t" //
-                        + (flashMessage == null ? "" : StringUtils.normalizeSpacing(flashMessage)));
-    }
-
     public static final String _template = //
-            "<div class='alert ${cssClass}'>" //
+            "<div class='alert ${flashType}'>" //
                     + "<a class='close' data-dismiss='alert'>&times;</a>" //  
                     + "<strong>${strongText}</strong> ${message}" //
                     + "</div>";
+
+    /**
+     * Create a list of flash messages from a cookie string, or returns null if the cookie string is null or contains no
+     * valid flash messages.
+     */
+    public static ArrayList<FlashMessage> fromCookieString(String flashMessagesCookieStr) {
+        if (flashMessagesCookieStr == null || flashMessagesCookieStr.isEmpty()) {
+            return null;
+        }
+        ArrayList<FlashMessage> flashMessages = null;
+        String[] cookieParts = StringUtils.split(flashMessagesCookieStr, "\n");
+        for (String cookiePart : cookieParts) {
+            FlashMessage flashMessage = null;
+
+            // Separate out flash message into FlashType and message text parts
+            // Check formatting in case someone has been messing with cookie values.
+            int tabIdx = cookiePart.indexOf('\t');
+            if (tabIdx > 0) {
+                int tabIdx2 = cookiePart.indexOf('\t', tabIdx + 1);
+                if (tabIdx2 > 0) {
+                    try {
+                        FlashType flashType = FlashType.valueOf(cookiePart.substring(0, tabIdx));
+                        String strongText = cookiePart.substring(tabIdx + 1, tabIdx2);
+                        String message = cookiePart.substring(tabIdx2 + 1);
+                        flashMessage = new FlashMessage(flashType, strongText, message);
+                    } catch (Exception e) {
+                    }
+                }
+            }
+
+            if (flashMessage != null) {
+                if (flashMessages == null) {
+                    flashMessages = new ArrayList<>();
+                }
+                flashMessages.add(flashMessage);
+            }
+        }
+        return flashMessages;
+    }
+
+    /** Create the cookie string encoding for a list of flash messages, or returns null if the list is null or empty. */
+    public static String toCookieString(ArrayList<FlashMessage> flashMessages) {
+        if (flashMessages == null || flashMessages.isEmpty()) {
+            return null;
+        }
+        StringBuilder buf = new StringBuilder(1024);
+        for (FlashMessage flashMessage : flashMessages) {
+            if (buf.length() > 0) {
+                buf.append('\n');
+            }
+            buf.append(flashMessage.flashType.toString() //
+                    + "\t" //
+                    + (flashMessage.strongText == null ? "" : StringUtils.normalizeSpacing(flashMessage.strongText) // 
+                            + "\t" //
+                            + (flashMessage.message == null ? "" : StringUtils.normalizeSpacing(flashMessage.message))));
+        }
+        return buf.toString();
+    }
 }

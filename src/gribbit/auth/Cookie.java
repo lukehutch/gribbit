@@ -131,6 +131,8 @@ public class Cookie {
         this(name, valueCleartext, path, maxAgeInSeconds, false);
     }
 
+    // -----------------------------------------------------------------------------------------------------
+
     /**
      * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in this
      * case, ignore the cookie).
@@ -143,10 +145,21 @@ public class Cookie {
         this.discardAtEndOfBrowserSession = nettyCookie.isDiscard();
     }
 
+    /** Create a Netty cookie from this Cookie object. */
+    public io.netty.handler.codec.http.Cookie toNettyCookie() {
+        io.netty.handler.codec.http.Cookie nettyCookie = new DefaultCookie(name, WebUtils.escapeCookieValue(value));
+        if (path != null && !path.isEmpty()) {
+            nettyCookie.setPath(path);
+        }
+        nettyCookie.setMaxAge(maxAgeSeconds);
+        nettyCookie.setDiscard(discardAtEndOfBrowserSession);
+        return nettyCookie;
+    }
+
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is set to
+     * Create a cookie that, if set in response, overwrites and deletes the named cookie (by setting maxAgeSeconds to
      * zero). Have to specify the path since there can be multiple cookies with the same name but with different paths;
      * this will only delete the cookie with the matching path.
      */
@@ -154,17 +167,12 @@ public class Cookie {
         return new Cookie(name, "", path, 0, false);
     }
 
-    // -----------------------------------------------------------------------------------------------------
-
-    /** Create a Netty cookie from this Cookie object. */
-    public io.netty.handler.codec.http.Cookie toNettyCookie() {
-        io.netty.handler.codec.http.Cookie nettyCookie = new DefaultCookie(name, WebUtils.escapeCookieValue(value));
-        if (path != null) {
-            nettyCookie.setPath(path);
-        }
-        nettyCookie.setMaxAge(maxAgeSeconds);
-        nettyCookie.setDiscard(discardAtEndOfBrowserSession);
-        return nettyCookie;
+    /**
+     * Create a cookie that, if set in response, overwrites and deletes the cookie with the same name and path (by
+     * setting maxAgeSeconds to zero).
+     */
+    public static Cookie deleteCookie(Cookie cookie) {
+        return new Cookie(cookie.getName(), "", cookie.getPath(), 0, false);
     }
 
     // -----------------------------------------------------------------------------------------------------

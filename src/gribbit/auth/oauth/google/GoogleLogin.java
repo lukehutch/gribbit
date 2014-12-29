@@ -33,8 +33,9 @@ import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.request.Request;
 import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
+import gribbit.response.flashmsg.FlashMessage;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
-import gribbit.route.AuthNotRequiredRoute;
+import gribbit.route.RouteHandlerAuthNotRequired;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -49,7 +50,7 @@ import java.time.ZonedDateTime;
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
-public interface GoogleLogin extends AuthNotRequiredRoute {
+public interface GoogleLogin extends RouteHandlerAuthNotRequired {
 
     public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth_gX";
     public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth_gT";
@@ -229,14 +230,14 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                             // time the user has logged in, according to the browser's cookies, but the
                             // user's database record has been deleted, deleting the refresh token.
                             // See: http://goo.gl/aUoDLl
-                            logOutUser();
                             response = new RedirectResponse(getAuthorizationCodeURL(/* forceApprovalPrompt = */true));
+                            logOutUser(response);
 
                         } else {
 
                             if (user == null) {
                                 // There was no user with this email address -- create a new user
-                                user = User.createFederatedLoginUser(email, request);
+                                user = User.createFederatedLoginUser(email, response);
 
                                 user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 if (!user.emailValidated) {
@@ -244,10 +245,10 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                                     // so that the user doesn't get confused about why we're asking them to
                                     // validate their email address. (TODO: under what circumstances will
                                     // Google report verified_email == false?)
-                                    request.addFlashMessage(FlashType.WARNING, "Please verify email address",
+                                    addFlashMessage(new FlashMessage(FlashType.WARNING, "Please verify email address",
                                             "Google has informed us that you have not verified your email "
                                                     + "address with them. Please do so, then log out and "
-                                                    + "log back into this site.");
+                                                    + "log back into this site."));
                                 }
                                 user.putData("name", userInfo.name);
                                 user.putData("givenName", userInfo.given_name);
@@ -269,7 +270,7 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                                 }
 
                                 // Log in existing user with this email address
-                                user.logIn(request);
+                                user.logIn(response);
 
                                 // res.clearFlashMessages();
                                 // res.addFlashMessage(FlashType.SUCCESS, "Welcome back",
@@ -291,10 +292,10 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                                 // Redirect home if the user didn't previously try to go directly to another URL
                                 response = new RedirectResponse("/");
                             } else {
-                                // Redirect to wherever the user was trying to get before
-                                response = new RedirectResponse(redirectOrigin);
-                                // Clear the redirect cookie
-                                response.deleteCookieAllPaths(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+                                // Redirect to wherever the user was trying to get before, and clear the redirect cookie
+                                response =
+                                        new RedirectResponse(redirectOrigin)
+                                                .deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
                             }
                         }
                     }
@@ -314,11 +315,10 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
         }
         if (error != null || response == null) {
             Log.error("Error during Google OAuth2 login: " + error);
-            logOutUser();
-            request.clearFlashMessages();
+            clearFlashMessages();
             if (error.contains("Unauthorized")) {
-                request.addFlashMessage(FlashType.ERROR, "Error",
-                        "Could not log you in, please check your password or contact the site administrator.");
+                addFlashMessage(new FlashMessage(FlashType.ERROR, "Error",
+                        "Could not log you in, please check your password or contact the site administrator."));
             }
             if ("callback".equals(action)) {
                 // We don't want the long callback URI in the browser address field,
@@ -329,6 +329,7 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                 // the unauthorized route
                 response = GribbitServer.siteResources.getUnauthorizedRoute().callHandler(request, user);
             }
+            logOutUser(response);
         }
         return response;
     }

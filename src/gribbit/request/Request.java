@@ -36,8 +36,7 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.REFERER;
 import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 import gribbit.auth.Cookie;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.response.flashmsg.FlashMessage.FlashType;
-import gribbit.util.StringUtils;
+import gribbit.util.Log;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -94,8 +93,8 @@ public class Request {
      */
     private boolean isGetModelRequest;
 
-    /** Flash messages, in cookie string format */
-    private String flashMessageCookieString;
+    /** Flash messages. */
+    private ArrayList<FlashMessage> flashMessages;
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -106,6 +105,8 @@ public class Request {
         // Parse and decode/decrypt cookies
         for (String cookieHeader : headers.getAll(COOKIE)) {
             for (io.netty.handler.codec.http.Cookie nettyCookie : CookieDecoder.decode(cookieHeader)) {
+                Log.fine("Cookie in request: " + nettyCookie);  // TODO temp
+                
                 if (this.cookieNameToCookies == null) {
                     this.cookieNameToCookies = new HashMap<>();
                 }
@@ -153,7 +154,7 @@ public class Request {
         }
 
         // Get flash messages from cookie, if any
-        this.flashMessageCookieString = getCookieValue(Cookie.FLASH_COOKIE_NAME);
+        this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -313,88 +314,6 @@ public class Request {
         }
     }
 
-    /** Schedule for deletion all cookies (with any path) that have the given name. */
-    public void deleteCookie(String cookieName) {
-        ArrayList<Cookie> currCookies = getAllCookiesWithName(cookieName);
-        if (currCookies != null) {
-            for (int i = 0; i < currCookies.size(); i++) {
-                // Need to pull in all the cookies with a matching name from the request,
-                // and write an expired cookie over the top with the same path and the
-                // same name, in order to delete all cookies with all paths that have
-                // this name.
-                Cookie currCookie = currCookies.get(i);
-                currCookies.set(i, Cookie.deleteCookie(cookieName, currCookie.getPath()));
-            }
-        }
-    }
-
-    /**
-     * Set a cookie in the response with a specific path (this allows there to be multiple cookies set with different
-     * paths).
-     */
-    public void setCookiePathSpecific(Cookie cookie) {
-        ArrayList<Cookie> currCookies = getAllCookiesWithName(cookie.getName());
-        if (currCookies == null) {
-            // There are cookies with this name currently; add this new cookie
-            if (cookieNameToCookies == null) {
-                cookieNameToCookies = new HashMap<>();
-            }
-            ArrayList<Cookie> cookies = new ArrayList<>();
-            cookies.add(cookie);
-            cookieNameToCookies.put(cookie.getName(), cookies);
-        } else {
-            // There are one or more cookies with a name matching the one to be set.
-            // Replace the value of the cookie with the same path as this one.
-            boolean matched = false;
-            for (int i = 0; i < currCookies.size(); i++) {
-                Cookie currCookie = currCookies.get(i);
-                if (currCookie.getPath().equals(cookie.getPath())) {
-                    currCookies.set(i, cookie);
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
-                // There were cookies present with this name, but none had the requested path.
-                // Add this cookie with the new path.
-                currCookies.add(cookie);
-            }
-        }
-    }
-
-    /** Set a cookie in the response, deleting any existing cookies with the same name but a different path. */
-    public void setCookie(Cookie cookie) {
-        ArrayList<Cookie> currCookies = getAllCookiesWithName(cookie.getName());
-        if (currCookies == null) {
-            // There are cookies with this name currently; add this new cookie
-            if (cookieNameToCookies == null) {
-                cookieNameToCookies = new HashMap<>();
-            }
-            ArrayList<Cookie> cookies = new ArrayList<>();
-            cookies.add(cookie);
-            cookieNameToCookies.put(cookie.getName(), cookies);
-        } else {
-            // There are one or more cookies with a name matching the one to be set.
-            // Delete any cookies that do not match the target path.
-            boolean matched = false;
-            for (int i = 0; i < currCookies.size(); i++) {
-                Cookie currCookie = currCookies.get(i);
-                if (currCookie.getPath().equals(cookie.getPath())) {
-                    currCookies.set(i, cookie);
-                    matched = true;
-                } else {
-                    // Overwrite cookie with non-matching path with an expired cookie
-                    currCookies.set(i, Cookie.deleteCookie(currCookie.getName(), currCookie.getPath()));
-                }
-            }
-            if (!matched) {
-                // There were cookies present with this name, but none had the requested path.
-                // Add this cookie with the new path.
-                currCookies.add(cookie);
-            }
-        }
-    }
-
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
@@ -425,47 +344,21 @@ public class Request {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
-    public void addFlashMessage(FlashType flashType, String strongText, String flashMessage) {
-        String newFlashMsgCookieStr = FlashMessage.toCookieString(flashType, strongText, flashMessage);
-        if (flashMessageCookieString == null) {
-            flashMessageCookieString = newFlashMsgCookieStr;
+    public void addFlashMessage(FlashMessage flashMessage) {
+        if (flashMessages == null) {
+            flashMessages = new ArrayList<>();
         } else {
-            flashMessageCookieString = flashMessageCookieString + "\n" + newFlashMsgCookieStr;
+            flashMessages.add(flashMessage);
         }
     }
 
-    /** Clear flash messages. */
-    public void clearFlashMessages() {
-        flashMessageCookieString = null;
-        deleteCookie(Cookie.FLASH_COOKIE_NAME);
+    /** Clear the flash messages. */
+    public void clearFlashMessage() {
+        flashMessages = null;
     }
 
-    /** Get any flash message cookie value produced by calling addFlashMessage() during the handling of this request. */
     public ArrayList<FlashMessage> getFlashMessages() {
-        if (flashMessageCookieString == null) {
-            return null;
-        } else {
-            ArrayList<FlashMessage> flashMessages = new ArrayList<>();
-            for (String flashMessageStr : StringUtils.split(flashMessageCookieString, "\n")) {
-                FlashMessage flashMessage = FlashMessage.fromCookieString(flashMessageStr);
-                if (flashMessage != null) {
-                    // As long as message format was valid, add flash message
-                    flashMessages.add(flashMessage);
-                }
-            }
-            return flashMessages.isEmpty() ? null : flashMessages;
-        }
-    }
-
-    /**
-     * Transfer any pending flash messages back into the flash cookie so that they can be served in subsequent
-     * responses.
-     */
-    public void saveFlashMessagesInCookie() {
-        if (flashMessageCookieString != null) {
-            setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, flashMessageCookieString, "/", 60));
-            flashMessageCookieString = null;
-        }
+        return flashMessages;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
