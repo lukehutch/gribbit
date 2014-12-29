@@ -127,6 +127,9 @@ public abstract class Response extends DataModel {
      * @return this
      */
     public Response deleteCookie(String cookieName) {
+        if (cookiesToDelete == null) {
+            cookiesToDelete = new HashSet<>();
+        }
         cookiesToDelete.add(cookieName);
         return this;
     }
