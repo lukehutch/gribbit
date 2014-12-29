@@ -30,7 +30,6 @@ import gribbit.auth.User;
 import gribbit.exception.BadRequestException;
 import gribbit.exception.UnauthorizedException;
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.request.Request;
 import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;
@@ -50,7 +49,7 @@ import java.time.ZonedDateTime;
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RouteOverride("/oauth/google")
-public interface GoogleLogin extends RouteHandlerAuthNotRequired {
+public class GoogleLogin extends RouteHandlerAuthNotRequired {
 
     public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth_gX";
     public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth_gT";
@@ -124,11 +123,11 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
     // TODO: Need to set up the image to show on the approval page in the API console, and the email address
     // to contact if something goes wrong
 
-    public default String callbackURI() {
+    private String callbackURI() {
         return GribbitServer.uri + RouteInfo.forGet(GoogleLogin.class, "callback");
     }
 
-    public default String getAuthorizationCodeURL(boolean forceApprovalPrompt) {
+    private String getAuthorizationCodeURL(boolean forceApprovalPrompt) {
         if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
@@ -158,10 +157,9 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
     // This handler is initially called with "/login" appended to the URI, initiating the OAuth process.
     // The route of this same handler is given to Google with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
-    public default Response get(String action) throws Exception {
+    public Response get(String action) throws Exception {
         User user = null;
         Response response = null;
-        Request request = getRequest();
         String error = request.getQueryParam("error");
         if (error != null) {
             // If the user was denied access, we get back an error, e.g. "error=access_denied"
@@ -334,7 +332,7 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
                 // This logout method is a little faster, because user doesn't have to be looked up in request
                 response.logOutUser(user);
             } else {
-                response.logOutUser(getRequest());
+                response.logOutUser(request);
             }
         }
         return response;

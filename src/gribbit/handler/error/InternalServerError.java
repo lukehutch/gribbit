@@ -35,8 +35,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * Default handler for internal server errors.
  */
 @RouteOverride("/gribbit/err/internal-server-error")
-public interface InternalServerError extends RouteHandlerAuthNotRequired {
-    public default Response get() {
+public class InternalServerError extends RouteHandlerAuthNotRequired {
+    public Response get() {
         return new TextResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal server error");
     }
 }

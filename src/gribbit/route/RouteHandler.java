@@ -31,32 +31,28 @@ import gribbit.response.flashmsg.FlashMessage;
 /**
  * A route handler. Override the public default get() method with optional params to accept URL params, and/or the
  * public default post() method with one optional param of type DataModel to populate the DataModel values from POST
- * param values. Note: you should normally implement one of the sub-interfaces of Route (AuthNotRequiredRoute,
- * AuthRequiredRoute, AuthAndValidatedEmailRequiredRoute), and not Route itself.
+ * param values. Note: you should normally subclass AuthNotRequiredRoute, AuthRequiredRoute or
+ * AuthAndValidatedEmailRequiredRoute, and not Route itself.
  */
-public interface RouteHandler {
+public class RouteHandler {
 
-    /** Get the current request. */
-    public default Request getRequest() {
-        // Should not happen. This is overridden in the InvokeHandler to return the actual Request object.
-        throw new RuntimeException("getRequest() not intercepted by InvokeHandler");
-    }
+    public Request request;
 
     /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
-    public default void addFlashMessage(FlashMessage flashMessage) {
-        getRequest().addFlashMessage(flashMessage);
+    public void addFlashMessage(FlashMessage flashMessage) {
+        request.addFlashMessage(flashMessage);
     }
 
     /** Clear flash messages. */
-    public default void clearFlashMessages() {
-        getRequest().clearFlashMessage();
+    public void clearFlashMessages() {
+        request.clearFlashMessage();
     }
 
     /**
      * Convenience method to get the value of a named cookie from the request. If there are multiple cookies with this
      * name, returns the value of the cookie with the longest path, as per the HTTP spec.
      */
-    public default String getCookieValue(String cookieName) {
-        return getRequest().getCookieValue(cookieName);
+    public String getCookieValue(String cookieName) {
+        return request.getCookieValue(cookieName);
     }
 }

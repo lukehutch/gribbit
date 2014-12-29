@@ -35,8 +35,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * Default 404 handler.
  */
 @RouteOverride("/gribbit/err/404")
-public interface NotFound extends RouteHandlerAuthNotRequired {
-    public default Response get() {
+public class NotFound extends RouteHandlerAuthNotRequired {
+    public Response get() {
         return new TextResponse(HttpResponseStatus.NOT_FOUND, "404: Not Found");
     }
 }

@@ -28,5 +28,5 @@ package gribbit.route;
 /**
  * Auth and validated email required.
  */
-public interface RouteHandlerAuthAndValidatedEmailRequired extends RouteHandlerAuthRequired {
+public class RouteHandlerAuthAndValidatedEmailRequired extends RouteHandlerAuthRequired {
 }

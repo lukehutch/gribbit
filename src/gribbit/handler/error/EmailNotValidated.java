@@ -36,8 +36,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * user's email address must be validated for them to be able to access a given route.
  */
 @RouteOverride("/gribbit/err/email-not-validated")
-public interface EmailNotValidated extends RouteHandlerAuthNotRequired {
-    public default Response get() {
+public class EmailNotValidated extends RouteHandlerAuthNotRequired {
+    public Response get() {
         return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Email address has not yet been validated");
     }
 }

@@ -42,12 +42,8 @@ import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Proxy;
 import java.time.ZonedDateTime;
 
 /** The metadata about a Route. */
@@ -62,83 +58,29 @@ public class RouteInfo {
     private Method postMethod;
     private Class<? extends DataModel> postParamType;
 
-    private ClassLoader handlerClassLoader;
-    private Class<?>[] proxyParams;
-
     // -----------------------------------------------------------------------------------------------------------------
-
-    /**
-     * See comments listed under the following post:
-     * https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies
-     */
-    private static final Constructor<MethodHandles.Lookup> constructor;
-    static {
-        try {
-            constructor = MethodHandles.Lookup.class.getDeclaredConstructor(Class.class, int.class);
-        } catch (NoSuchMethodException | SecurityException e) {
-            throw new RuntimeException(e);
-        }
-        if (!constructor.isAccessible()) {
-            constructor.setAccessible(true);
-        }
-    }
-
-    /**
-     * InvocationHandler for dynamically invoking get()/post() methods in Route objects. See:
-     * https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies
-     * 
-     * Wraps the Request and User objects so that Route.getRequest() and Route.getUser() methods can be intercepted and
-     * have the right values returned for the current request.
-     */
-    private class MethodInvocationHandler implements InvocationHandler {
-        Request request;
-        User user;
-
-        public MethodInvocationHandler(Request request, User user) {
-            this.request = request;
-            this.user = user;
-        }
-
-        /**
-         * Invoke a method in a Route subinterface, intercepting getRequest() and getUser() method calls to return the
-         * appropriate values.
-         */
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            // Intercept a few methods first
-            String methodName = method.getName();
-            if (methodName.equals("getRequest")) {
-                return request;
-            } else if (methodName.equals("getUser")) {
-                return user;
-            } else {
-                // Call default implementation of non-intercepted method with the passed args
-                if (!method.isDefault()) {
-                    throw new RuntimeException("Method " + method.getName() + " in interface "
-                            + proxy.getClass().getName() + " is not a default method");
-                }
-                final Class<?> declaringClass = method.getDeclaringClass();
-                if (method.isDefault()) {
-                    return constructor.newInstance(declaringClass, MethodHandles.Lookup.PRIVATE)
-                            .unreflectSpecial(method, declaringClass).bindTo(proxy).invokeWithArguments(args);
-                } else {
-                    return MethodHandles.lookup().in(declaringClass).unreflectSpecial(method, declaringClass)
-                            .bindTo(proxy).invokeWithArguments(args);
-                }
-            }
-        }
-    }
 
     /** Invoke a default method in a Route subinterface. */
     private Response invokeMethod(Request request, User user, Method method, Object[] methodParamVals) {
-        // Create InvocationHandler and proxy instance for proxying the dynamic method call -- see
-        // https://rmannibucau.wordpress.com/2014/03/27/java-8-default-interface-methods-and-jdk-dynamic-proxies/
-        MethodInvocationHandler invocationHandler = new MethodInvocationHandler(request, user);
-        RouteHandler proxy = (RouteHandler) Proxy.newProxyInstance(handlerClassLoader, proxyParams, invocationHandler);
+        // Create a handler instance
+        RouteHandler instance;
+        try {
+            instance = handlerClass.newInstance();
+        } catch (InstantiationException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        
+        // Set the request field
+        instance.request = request;
+        
+        // Also set the user field if this is an auth-required handler
+        if (instance instanceof RouteHandlerAuthRequired) {
+            ((RouteHandlerAuthRequired) instance).user = user;
+        }
 
         try {
             // Invoke the method
-            Response response = (Response) invocationHandler.invoke(proxy, method, methodParamVals);
+            Response response = (Response) method.invoke(instance, methodParamVals);
 
             // The Response object should not be null, but if it is, respond with No Content
             if (response == null) {
@@ -188,8 +130,6 @@ public class RouteInfo {
 
     public RouteInfo(Class<? extends RouteHandler> handlerClass, String routePath) {
         this.handlerClass = handlerClass;
-        this.handlerClassLoader = handlerClass.getClassLoader();
-        this.proxyParams = new Class[] { handlerClass };
         this.routePath = routePath;
 
         // Check for a Cached annotation on the handler subinterface

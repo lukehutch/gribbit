@@ -35,8 +35,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * Default handler called when user is not authorized to see a given resource.
  */
 @RouteOverride("/gribbit/err/unauthorized")
-public interface Unauthorized extends RouteHandlerAuthNotRequired {
-    public default Response get() {
-        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized").logOutUser(getRequest());
+public class Unauthorized extends RouteHandlerAuthNotRequired {
+    public Response get() {
+        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized").logOutUser(request);
     }
 }
