@@ -25,10 +25,8 @@
  */
 package gribbit.response;
 
-import gribbit.handler.vulcanized.VulcanizedHTMLHandler;
 import gribbit.model.DataModel;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -42,9 +40,6 @@ public class HTMLPageResponse extends HTMLResponse {
 
     /** Each FlashMessage is rendered as a Bootstrap template. */
     public ArrayList<FlashMessage> flashMessages;
-
-    /** The route to the vulcanized HTML handler will be inserted into the HTML template from this field. */
-    public String vulcanizedHtmlURI = GribbitServer.siteResources.routeURIForHandler(VulcanizedHTMLHandler.class);
 
     // -----------------------------------------------------------------------------------------------------------------
 

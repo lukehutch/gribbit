@@ -42,7 +42,6 @@ import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.io.File;
-import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
@@ -54,7 +53,10 @@ import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
+import org.jsoup.nodes.Comment;
+import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
@@ -63,13 +65,18 @@ import org.jsoup.select.Elements;
 public class TemplateLoader {
     private SiteResources siteResources;
 
-    private Vulcanizer vulcanizer;
-    
     private DataModelLoader dataModelLoader;
 
-    private StringBuilder headContent = new StringBuilder(8192), tailContent = new StringBuilder(8192);
+    private StringBuilder headContent = new StringBuilder(16384), tailContent = new StringBuilder(16384);
 
-    private HashMap<Class<? extends DataModel>, List<Node>> templateClassToDocument = new HashMap<>();
+    private HashMap<String, List<Node>> templateNameToTemplateNodes = new HashMap<>();
+
+    private HashMap<Class<? extends DataModel>, List<Node>> templateClassToDocumentNodes = new HashMap<>();
+
+    private HashSet<String> customInlineElements = new HashSet<>();
+
+    /** Templates that consist of complete HTML docs, with head and body elements */
+    private ArrayList<Document> pageTemplateDocs = new ArrayList<>();
 
     /** Pattern for template parameters, of the form "${name}" */
     public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern.compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
@@ -78,16 +85,7 @@ public class TemplateLoader {
 
     TemplateLoader(SiteResources siteResources, File polymerModuleRootDir, DataModelLoader dataModelLoader) {
         this.siteResources = siteResources;
-        this.vulcanizer = new Vulcanizer(siteResources, polymerModuleRootDir);
         this.dataModelLoader = dataModelLoader;
-    }
-
-    byte[] getVulcanizedHTMLBytes() {
-        return vulcanizer.vulcanizedHTMLBytes;
-    }
-
-    byte[] getVulcanizedJSBytes() {
-        return vulcanizer.vulcanizedJSBytes;
     }
 
     /**
@@ -95,33 +93,24 @@ public class TemplateLoader {
      * prettyprinting)
      */
     HashSet<String> getCustomInlineElements() {
-        return vulcanizer.customInlineElements;
+        return customInlineElements;
     }
 
-    /** Return the named template, or null if it doesn't exist. */
-    List<Node> getTemplateDocument(Class<? extends DataModel> templateClass) {
-        return templateClassToDocument.get(templateClass);
-    }
-
-    /** Got an HTML, CSS or JS file on the classpath. */
-    void registerWebResource(String absolutePath, String relativePath, InputStream inputStream) {
-        try {
-            if (absolutePath.endsWith("/head-content.html")) {
-                // Load header HTML content from the classpath
-                headContent.append(StringUtils.readWholeFile(inputStream));
-
-            } else if (absolutePath.endsWith("/tail-content.html")) {
-                // Load footer HTML content from the classpath
-                tailContent.append(StringUtils.readWholeFile(inputStream));
-
-            } else {
-                // Load HTML/CSS/JS resource from the classpath
-                vulcanizer.addResource("/" + relativePath, StringUtils.readWholeFile(inputStream));
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Could not read web resource " + absolutePath, e);
+    /**
+     * Register a custom element (e.g. a Polymer or X-Tags element) as an inline element for prettyprinting (otherwise
+     * it will be prettyprinted as a block element, with newlines and indentation).
+     */
+    void registerCustomInlineElement(String elementName) {
+        if (!elementName.contains("-")) {
+            throw new IllegalArgumentException("Custom element names must include a hyphen, got \"" + elementName
+                    + "\"");
         }
-        Log.info("Registering web resource: " + relativePath);
+        customInlineElements.add(elementName);
+    }
+
+    /** Return the template corresponding to the given template class, or null if it doesn't exist. */
+    List<Node> getTemplateDocumentNodes(Class<? extends DataModel> templateClass) {
+        return templateClassToDocumentNodes.get(templateClass);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -736,38 +725,177 @@ public class TemplateLoader {
 
     // -----------------------------------------------------------------------------------------------------
 
+    private static boolean isLocalURI(String hrefURI) {
+        return
+        //Not empty/null/'#'
+        hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#") //
+                // Not external/absolute URI
+                && !WebUtils.EXTERNAL_URI.matcher(hrefURI).matches() //
+                // Not template param
+                && !hrefURI.contains("${") //
+                // Not Polymer param
+                && !hrefURI.contains("{{");
+    }
+
+    /**
+     * Resolve a relative path in an URI attribute to an absolute path.
+     * 
+     * @param hrefURI
+     *            the URI to resolve, e.g. "../css/main.css"
+     * @param baseURI
+     *            the base URI to resolve relative to, without a trailing slash, e.g. "/site/res"
+     * @return the absolute path of the URI, e.g. "/site/css/main.css"
+     */
+    private static String resolveHREF(String hrefURI, String baseURI) {
+        // Return original URI if it is empty, starts with "#", is a template param, or starts with
+        // a Polymer param (i.e. starts with "{{")
+        if (isLocalURI(hrefURI)) {
+            // Build new path for the linked resource
+            StringBuilder hrefURIResolved =
+                    new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/" : baseURI);
+            for (CharSequence part : StringUtils.splitAsList(hrefURI, "/")) {
+                if (part.length() == 0 || part.equals(".")) {
+                    // Ignore
+                } else if (part.equals("..")) {
+                    // Move up one level (ignoring if we get back to root)
+                    int lastIdx = hrefURIResolved.lastIndexOf("/");
+                    hrefURIResolved.setLength(lastIdx < 0 ? 0 : lastIdx);
+                } else {
+                    if (hrefURIResolved.length() > 0 && hrefURIResolved.charAt(hrefURIResolved.length() - 1) != '/') {
+                        hrefURIResolved.append('/');
+                    }
+                    hrefURIResolved.append(part);
+                }
+            }
+            return hrefURIResolved.toString();
+        }
+        return hrefURI;
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
+    /** Got an HTML file on the classpath, or a static final inline template. */
+    void registerWebResource(String absolutePath, String relativePath, String html) {
+        try {
+            if (absolutePath.endsWith("/head-content.html")) {
+                // Load header HTML content from the classpath
+                headContent.append(html);
+
+            } else if (absolutePath.endsWith("/tail-content.html")) {
+                // Load footer HTML content from the classpath
+                tailContent.append(html);
+
+            } else {
+                // Use the leaf name (less the file extension) as the name of the template
+                String idLeaf = relativePath.substring(relativePath.lastIndexOf('/') + 1);
+                int lastDot = idLeaf.lastIndexOf('.');
+                if (lastDot < 0) {
+                    lastDot = idLeaf.length();
+                }
+                String templateName = idLeaf.substring(0, lastDot);
+
+                // See if this is a whole-page HTML document, as opposed to an HTML fragment
+                int firstTagIdx = html.indexOf("<");
+                boolean isWholeDocument =
+                        firstTagIdx >= 0
+                                && ((html.length() >= 5 && html.substring(firstTagIdx, firstTagIdx + 5).toLowerCase()
+                                        .equals("<html")) //
+                                || (html.length() >= 9 && html.substring(firstTagIdx, firstTagIdx + 9).toLowerCase()
+                                        .equals("<!doctype")));
+
+                // Page templates need to be run through Jsoup.parse(), not Jsoup.parseBodyFragment()
+                Document doc = isWholeDocument ? Jsoup.parse(html) : Jsoup.parseBodyFragment(html);
+
+                String baseURI = "/" + relativePath;
+                for (Element e : doc.getAllElements()) {
+                    // Strip HTML comments
+                    ArrayList<Node> childNodes = new ArrayList<>(e.childNodes());
+                    for (Node n : childNodes) {
+                        if (n instanceof Comment) {
+                            String commentStr = ((Comment) n).getData();
+                            // Remove all comments that do not start with "[if " or " [if "
+                            // (which test for IE versions), and which do not contain "@license"
+                            // (since we shouldn't be stripping away license information)
+                            if (!commentStr.startsWith("[if ") && !commentStr.startsWith(" [if ")
+                                    && !commentStr.contains("@license")) {
+                                n.remove();
+                            }
+                        }
+                    }
+
+                    // Make URLs absolute (this is important for hash URIs to be able to be properly resolved)
+                    if (e.hasAttr("href")) {
+                        e.attr("href", resolveHREF(e.attr("href"), baseURI));
+                    }
+                    if (e.hasAttr("src")) {
+                        e.attr("src", resolveHREF(e.attr("src"), baseURI));
+                    }
+                }
+
+                // Store mapping from template name to nodes in template doc
+                List<Node> prevTemplate = templateNameToTemplateNodes.put(templateName, //
+                        isWholeDocument ? doc.childNodes() : doc.body().childNodes());
+                if (prevTemplate != null) {
+                    // We only match template names and DataModel names on the leafname currently, so html
+                    // files in classpath have to have unique names
+                    throw new RuntimeException("Two HTML template files found in classpath with same name \""
+                            + templateName + "\"");
+                }
+
+                // If this is a whole-page template with head and body elements, record that
+                if (isWholeDocument) {
+                    pageTemplateDocs.add(doc);
+                }
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Could not read web resource " + absolutePath, e);
+        }
+        Log.info("Registering web resource: " + relativePath);
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
     void initializeTemplates() {
-        // Add inline templates to the vulcanizer
+        // Register static final inline templates
         for (Entry<String, String> ent : dataModelLoader.classNameToInlineTemplate.entrySet()) {
+            // Get leaf name (also replacing com.pkg.ClassName$InnerClass -> com.pkg.ClassName.InnerClass)
             String className = ent.getKey();
+            className = className.replace('$', '.');
+
             // Allow dynamically-loaded static constants to override the version obtained by reflection
             String templateStr = dataModelLoader.classNameToInlineTemplateOverride.get(className);
             if (templateStr == null) {
                 templateStr = ent.getValue();
             }
-            // TODO: not technically right, because inner classes will appear to be in their own java file
-            // in error messages
-            String relativePath = className.replace('$', '.').replace('.', '/') + ".java";
-            vulcanizer.addResource("/" + relativePath, templateStr);
+
+            // Register inline template
+            String fakePath = "/" + className.replace('.', '/') + ".class";
+            registerWebResource(fakePath, fakePath, templateStr);
         }
 
-        // Vulcanize HTML/CSS/JS resources into one CSS+HTML file and one JS file, in topological sort order
-        // of dependencies 
-        vulcanizer.vulcanize(headContent.toString(), tailContent.toString());
+        // The set of template names is the intersection between html file names (less the file extension)
+        // and the simple class names of DataModel subclasses
+        HashSet<String> nameIntersection = new HashSet<>(templateNameToTemplateNodes.keySet());
+        nameIntersection.retainAll(dataModelLoader.classNameToDataModel.keySet());
 
-        // The set of template names is the intersection between html file names and DataModel class names
-        HashSet<String> templateNames = new HashSet<>(vulcanizer.templateNameToTemplateNodes.keySet());
-        templateNames.retainAll(dataModelLoader.classNameToDataModel.keySet());
-
-        for (String templateName : templateNames) {
+        for (String templateName : nameIntersection) {
             Class<? extends DataModel> templateClass = dataModelLoader.classNameToDataModel.get(templateName);
-            List<Node> templateNodes = vulcanizer.templateNameToTemplateNodes.get(templateName);
+            List<Node> templateNodes = templateNameToTemplateNodes.get(templateName);
 
             // Cross-check parameter names between HTML templates and DataModel subclasses 
             crossCheckDataModelAndView(siteResources, templateName, templateClass, templateNodes);
 
             // Create a mapping from DataModel class to the HTML doc that holds the template contents
-            templateClassToDocument.put(templateClass, templateNodes);
+            templateClassToDocumentNodes.put(templateClass, templateNodes);
+        }
+
+        // For whole-page templates, add head-content.html to the end of the head element and tail-content.html
+        // to the end of the body element
+        for (Document wholePageDoc : pageTemplateDocs) {
+            wholePageDoc.head().append(headContent.toString());
+            wholePageDoc.body().append(tailContent.toString());
         }
     }
+
 }

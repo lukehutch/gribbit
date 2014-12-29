@@ -51,7 +51,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,12 +86,6 @@ public class Request {
      * See https://nealpoole.com/blog/2010/11/preventing-csrf-attacks-with-ajax-and-http-headers/
      */
     private String xRequestedWith;
-
-    /**
-     * Cookies to delete later in the response (used when a method has access to only the request, not the response).
-     * Will not be deleted if a cookie of the same name is set in the response.
-     */
-    private HashSet<String> cookiesToDelete = new HashSet<>();
 
     /**
      * If set to true by appending "?_getmodel=1" to the URL, then return the data model backing an HTML page, not the
@@ -270,26 +263,6 @@ public class Request {
     /** Add a cookie to delete later in the response. */
     public void deleteCookie(String cookieName) {
         setCookie(Cookie.deleteCookie(cookieName));
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /** Find where the last redirect originated from */
-    public String getRedirectOrigin() {
-        //TODO: test this
-        // Get where redirected from, if present, and reset cookie
-        Cookie cookie = getCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
-        if (cookie != null) {
-            String redirectedFrom = cookie.getValue();
-            if (redirectedFrom != null) {
-                cookiesToDelete.add(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
-                return redirectedFrom;
-            } else {
-                return null;
-            }
-        } else {
-            return null;
-        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------

@@ -33,10 +33,9 @@ import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -62,8 +61,6 @@ public class SiteResources {
     private RouteMapping routeMapping;
 
     private TemplateLoader templateLoader;
-
-    private ByteBuf vulcanizedHTML, vulcanizedJS;
 
     private DataModelLoader dataModelLoader;
 
@@ -118,20 +115,12 @@ public class SiteResources {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public ByteBuf getVulcanizedHTML() {
-        return vulcanizedHTML;
-    }
-
-    public ByteBuf getVulcanizedJS() {
-        return vulcanizedJS;
-    }
-
     /**
      * Get the HTML template document for a given template class, or return null if there isn't a template with the
      * given name.
      */
     public List<Node> getTemplateDocForClass(Class<? extends DataModel> templateClass) {
-        return templateLoader.getTemplateDocument(templateClass);
+        return templateLoader.getTemplateDocumentNodes(templateClass);
     }
 
     public long getResourcesLoadedEpochSeconds() {
@@ -144,6 +133,14 @@ public class SiteResources {
      */
     public HashSet<String> getCustomInlineElements() {
         return templateLoader.getCustomInlineElements();
+    }
+
+    /**
+     * Register a custom element (e.g. a Polymer or X-Tags element) as an inline element for prettyprinting (otherwise
+     * it will be prettyprinted as a block element, with newlines and indentation).
+     */
+    public void registerCustomInlineElement(String elementName) {
+        templateLoader.registerCustomInlineElement(elementName);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -271,10 +268,15 @@ public class SiteResources {
                     }
                 })
                 //
-                .matchFilenamePattern(".*\\.(html|js|css)", new FileMatchProcessor() {
+                .matchFilenamePattern(".*\\.html", new FileMatchProcessor() {
                     @Override
                     public void processMatch(String absolutePath, String relativePath, InputStream inputStream) {
-                        templateLoader.registerWebResource(absolutePath, relativePath, inputStream);
+                        try {
+                            templateLoader.registerWebResource(absolutePath, relativePath,
+                                    StringUtils.readWholeFile(inputStream));
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 });
 
@@ -299,11 +301,6 @@ public class SiteResources {
         classpathScanner.scan();
 
         templateLoader.initializeTemplates();
-
-        byte[] vulcanizedHTMLBytes = templateLoader.getVulcanizedHTMLBytes();
-        vulcanizedHTML = Unpooled.wrappedBuffer(vulcanizedHTMLBytes == null ? new byte[0] : vulcanizedHTMLBytes);
-        byte[] vulcanizedJSBytes = templateLoader.getVulcanizedJSBytes();
-        vulcanizedJS = Unpooled.wrappedBuffer(vulcanizedJSBytes == null ? new byte[0] : vulcanizedJSBytes);
 
         resourcesLoadedEpochSeconds = ZonedDateTime.now().toEpochSecond();
     }
