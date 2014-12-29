@@ -183,11 +183,6 @@ public class RouteMapping {
                 }
             }
 
-            if (!handler.isInterface()) {
-                throw new RuntimeException(handler.getName() + " is a class that extends " + RouteHandler.class.getName()
-                        + "; should instead be an interface that extends " + RouteHandler.class.getName());
-            }
-
             String routePath = routeOverride != null ? routeOverride : routePathFromClassName(handler);
             if (routePath.startsWith("/_/")) {
                 throw new RuntimeException("Cannot register routes with URIs starting with \"/_/\", "

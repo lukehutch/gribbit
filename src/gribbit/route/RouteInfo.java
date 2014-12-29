@@ -69,10 +69,10 @@ public class RouteInfo {
         } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-        
+
         // Set the request field
         instance.request = request;
-        
+
         // Also set the user field if this is an auth-required handler
         if (instance instanceof RouteHandlerAuthRequired) {
             ((RouteHandlerAuthRequired) instance).user = user;
@@ -117,7 +117,7 @@ public class RouteInfo {
                 response.setLastModifiedEpochSeconds(0);
                 response.setMaxAgeSeconds(0);
             }
-
+            
             return response;
 
         } catch (Throwable e) {
@@ -151,12 +151,9 @@ public class RouteInfo {
             boolean isGet = methodName.equals("get"), isPost = methodName.equals("post");
 
             // Check method modifiers
-            if ((isGet || isPost) && !method.isDefault()) {
+            if ((isGet || isPost) && (method.getModifiers() & Modifier.STATIC) != 0) {
                 throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                        + " needs to be default");
-            } else if (!(isGet || isPost) && !method.isDefault() && (method.getModifiers() | Modifier.STATIC) == 0) {
-                throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                        + " needs to be default or static");
+                        + " should not be static");
             }
 
             // Check return type

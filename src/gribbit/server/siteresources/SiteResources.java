@@ -48,7 +48,6 @@ import com.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import com.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
 import com.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
 import com.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
-import com.lukehutch.fastclasspathscanner.matchprocessor.SubinterfaceMatchProcessor;
 
 public class SiteResources {
 
