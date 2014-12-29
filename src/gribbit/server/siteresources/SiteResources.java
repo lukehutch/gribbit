@@ -247,10 +247,10 @@ public class SiteResources {
         classpathScanner = new FastClasspathScanner(//
                 new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
         //
-                .matchSubinterfacesOf(RouteHandler.class, new SubinterfaceMatchProcessor<RouteHandler>() {
+                .matchSubclassesOf(RouteHandler.class, new SubclassMatchProcessor<RouteHandler>() {
                     @Override
-                    public void processMatch(Class<? extends RouteHandler> matchingInterface) {
-                        routeMapping.registerRoute(matchingInterface);
+                    public void processMatch(Class<? extends RouteHandler> matchingClass) {
+                        routeMapping.registerRoute(matchingClass);
                     }
                 })
                 //
