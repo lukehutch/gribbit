@@ -29,6 +29,7 @@ import gribbit.auth.Cookie;
 import gribbit.request.Request;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -41,8 +42,8 @@ public interface RouteHandler {
 
     /** Get the current request. */
     public default Request getRequest() {
-        // This is overridden in the InvokeHandler to return the actual request
-        return null;
+        // Should not happen. This is overridden in the InvokeHandler to return the actual Request object.
+        throw new RuntimeException("getRequest() not caught by InvokeHandler");
     }
 
     /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
@@ -55,24 +56,18 @@ public interface RouteHandler {
         getRequest().clearFlashMessages();
     }
 
-    /** Set a cookie in the response. */
-    public default void setCookie(Cookie cookie) {
-        // (Cookies are stored in the request temporarily, but are moved to the response when the response is served)
-        getRequest().setCookie(cookie);
+    /**
+     * Get all cookies in the request. Returns a collection of lists. Each list contains all the cookies for a specific
+     * cookie name (there may be multiple cookies with the same name but with different paths).
+     */
+    public default Collection<ArrayList<Cookie>> getCookies() {
+        return getRequest().getAllCookies();
     }
 
-    /** Delete a named cookie in the browser when sending the response. */
-    public default void deleteCookie(String cookieName) {
-        // (Cookies are stored in the request temporarily, but are moved to the response when the response is served)
-        getRequest().deleteCookie(cookieName);
-    }
-
-    /** Get all cookies. */
-    public default Collection<Cookie> getCookies() {
-        return getRequest().getCookies();
-    }
-
-    /** Get the String value of a specific cookie. */
+    /**
+     * Get the String value of a specific cookie. If there are multiple cookies with this name, returns the value of the
+     * cookie with the longest path.
+     */
     public default String getCookieValue(String cookieName) {
         return getRequest().getCookieValue(cookieName);
     }

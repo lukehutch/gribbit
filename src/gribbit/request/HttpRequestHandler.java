@@ -385,10 +385,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, content);
         httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
 
-        // FIXME: the refcount of the ByteBufs for vulcanized content decreases to 0 at some point, how does this happen? 
-        // FIXME: need to probably add a future after writing the output that de-refs the ByteBuffers? Netty sometimes does this, sometimes doesn't. 
-        // System.out.println("* " + content.refCnt() + " " + reqURI);
-
         httpRes.headers().set(CONTENT_LENGTH, content.readableBytes());
         httpRes.headers().set(CONTENT_TYPE, contentType);
 
@@ -412,13 +408,29 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             httpRes.content().clear();
         }
 
+        // Get cookies set in the response, and use them to update cookies received in the request.
+        ArrayList<Cookie> cookiesToSetPathSpecific = response.getCookiesToSetPathSpecific();
+        if (cookiesToSetPathSpecific != null) {
+            for (Cookie cookie : cookiesToSetPathSpecific) {
+                request.setCookiePathSpecific(cookie);
+            }
+        }
+        ArrayList<Cookie> cookiesToSet = response.getCookiesToSet();
+        if (cookiesToSet != null) {
+            for (Cookie cookie : cookiesToSet) {
+                request.setCookie(cookie);
+            }
+        }
+        
         // Transfer cookies from the request to the response. Some of these may have been modified
         // while serving the request, including with expired cookies (causing the cookie to be deleted)
-        Collection<Cookie> cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                // System.out.println(routePath + " " + cookie.toString());
-                httpRes.headers().add(SET_COOKIE, ServerCookieEncoder.encode(cookie.getNettyCookie()));
+        Collection<ArrayList<Cookie>> cookieLists = request.getAllCookies();
+        if (cookieLists != null) {
+            for (ArrayList<Cookie> cookieList : cookieLists) {
+                for (Cookie cookie : cookieList) {
+                    // System.out.println(routePath + " " + cookie.toString());
+                    httpRes.headers().add(SET_COOKIE, ServerCookieEncoder.encode(cookie.toNettyCookie()));
+                }
             }
         }
 
@@ -451,7 +463,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                 // TODO: Apache closes KeepAlive connections after a few seconds,
                 // see http://en.wikipedia.org/wiki/HTTP_persistent_connection
                 // TODO: implement a stale connection tracker
-                if (closeAfterWrite /* || status != HttpResponseStatus.OK */) {  // FIXME: should I close the channel for redirects? (probably not...)
+                if (closeAfterWrite /* || status != HttpResponseStatus.OK */) { // FIXME: should I close the channel for redirects? (probably not...)
                     future.addListener(ChannelFutureListener.CLOSE);
                 }
 
@@ -836,7 +848,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             // Release HTTP decoder resources, including any file uploads that were received in a POST
             // request and stored in /tmp
             destroyDecoder();
-            
+
             throw new RuntimeException(e);
         }
     }

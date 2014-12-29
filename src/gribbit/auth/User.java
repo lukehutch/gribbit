@@ -25,7 +25,6 @@
  */
 package gribbit.auth;
 
-import gribbit.auth.Cookie.EncodingType;
 import gribbit.auth.User.Token.TokenType;
 import gribbit.exception.UnauthorizedException;
 import gribbit.model.DBModelStringKey;
@@ -408,9 +407,8 @@ public class User extends DBModelStringKey {
 
             // Save login cookies in result
             request.setCookie(new Cookie(Cookie.SESSION_COOKIE_NAME, sessionTok.token, "/",
-                    Cookie.SESSION_COOKIE_MAX_AGE_SECONDS, EncodingType.PLAIN));
-            request.setCookie(new Cookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS,
-                    EncodingType.PLAIN));
+                    Cookie.SESSION_COOKIE_MAX_AGE_SECONDS));
+            request.setCookie(new Cookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS));
 
         } else {
             // User is not authorized

@@ -90,8 +90,9 @@ public class HTMLPageResponse extends HTMLResponse {
      * of the page template. Flash messages have their own HTML template that is inserted at this point for each flash
      * message.
      * 
-     * (Whole-page templates were modified by the vulcanizer on load to insert all head-content.html content found in
-     * the classpath at the end of the head element, and all tail-content.html content at the end of the body element.)
+     * (Whole-page templates were modified by the template loader on load to insert all head-content.html content found
+     * in the classpath at the end of the head element, and all tail-content.html content at the end of the body
+     * element.)
      */
     @Override
     protected String renderContentTemplates() {

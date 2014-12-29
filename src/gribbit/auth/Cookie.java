@@ -25,13 +25,8 @@
  */
 package gribbit.auth;
 
-import gribbit.server.config.GribbitProperties;
-import gribbit.util.Base64Safe;
-import gribbit.util.Log;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.WebUtils;
-import gribbit.util.thirdparty.UTF8;
-import gribbit.util.thirdparty.UTF8.UTF8Exception;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.ServerCookieEncoder;
 
@@ -42,24 +37,16 @@ public class Cookie {
 
     private final String name;
 
-    /** The encoding type for the cookie value. */
-    public enum EncodingType {
-        /** UTF-8 bytes, %-encoded except for alphanum characters, '-' and '_'. */
-        PLAIN,
-        /** Base64-encoded UTF-8 bytes. */
-        BASE64_ENCODED;
-    }
+    private final String path;
+
+    /** The unencoded cookie value. */
+    private String value;
+
+    private long maxAgeSeconds;
+
+    private boolean discardAtEndOfBrowserSession;
 
     // -----------------------------------------------------------------------------------------------------
-
-    /** The name of the session cookie. */
-    public static final String SESSION_COOKIE_NAME = "_session";
-
-    /** How long a session cookie lasts for. */
-    public static final int SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
-
-    /** Session cookie length (number of random bytes generated before base 64 encoding) */
-    public static final int SESSION_COOKIE_LENGTH = 20;
 
     /** The name of the email address cookie. Used to notify the Persona client as to who is logged in. */
     public static final String EMAIL_COOKIE_NAME = "_email";
@@ -72,170 +59,20 @@ public class Cookie {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /**
-     * Private class for encapsulating access to cookie values so that we can lazily handle encoding / decoding of
-     * values (to save time if a cookie is not used in a given request).
-     */
-    private class CookieJar {
-        /**
-         * The Netty cookie containing the possibly-base64-encoded UTF8 bytes representing the cookie's string value
-         */
-        private io.netty.handler.codec.http.Cookie encodedNettyCookie;
+    /** The name of the session cookie. */
+    public static final String SESSION_COOKIE_NAME = "_session";
 
-        /** The unencoded cookie value. */
-        private String unencodedValue;
+    /** How long a session cookie lasts for. */
+    public static final int SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-        /** Tracks whether encoded and/or decoded values are known. */
-        private boolean hasEncodedValue, hasUnencodedValue;
+    /** Session cookie length (number of random bytes generated before base 64 encoding) */
+    public static final int SESSION_COOKIE_LENGTH = 20;
 
-        private EncodingType encodingType;
-
-        private static final String BASE64_ENCODED_PREFIX = "!0!";
-
-        public CookieJar(io.netty.handler.codec.http.Cookie nettyCookie) {
-            hasEncodedValue = true;
-            this.encodedNettyCookie = nettyCookie;
-            String value = nettyCookie.getValue();
-            encodingType = value.startsWith(BASE64_ENCODED_PREFIX) ? EncodingType.BASE64_ENCODED : EncodingType.PLAIN;
-        }
-
-        public CookieJar(String name, String unencodedValue, String path, long maxAgeInSeconds,
-                EncodingType encodingType, boolean discardAtEndOfBrowserSession) {
-            hasUnencodedValue = true;
-            this.unencodedValue = unencodedValue;
-            this.encodingType = encodingType;
-            checkValidCookieFieldStr(name);
-            checkValidCookieFieldStr(path);
-            this.encodedNettyCookie = new DefaultCookie(name, "");
-            if (maxAgeInSeconds <= 0 && maxAgeInSeconds != Long.MIN_VALUE) {
-                // If maxAge <= 0, cookie is expired immediately (so there is nothing to encode);
-                this.unencodedValue = "";
-                encodedNettyCookie.setMaxAge(0);
-                // Keep "" as encoded value
-                this.hasEncodedValue = true;
-            } else {
-                if (maxAgeInSeconds == Long.MIN_VALUE || discardAtEndOfBrowserSession) {
-                    // if maxAge == Long.MIN_VALUE, cookie is expired at end of session.
-                    encodedNettyCookie.setDiscard(discardAtEndOfBrowserSession);
-                }
-                encodedNettyCookie.setMaxAge(maxAgeInSeconds);
-            }
-
-            // Disallow URL params in cookie path
-            if (path.indexOf('?') >= 0 || path.indexOf('&') >= 0)
-                throw new RuntimeException("Cookie path cannot have URL params: " + path);
-            encodedNettyCookie.setPath(path);
-
-            if (name.equals(SESSION_COOKIE_NAME)) {
-                // Session cookie should not be accessible from Javascript for safety
-                // TODO: Does adding HttpOnly prevent WebSockets from working?
-                encodedNettyCookie.setHttpOnly(true);
-            }
-            // Cookies are only sent over HTTPS channels
-            encodedNettyCookie.setSecure(GribbitProperties.SSL);
-        }
-
-        public String getUnencodedValue() {
-            // Lazily unencode cookie if it hasn't been unencoded yet
-            if (!hasUnencodedValue) {
-                String encodedValue = encodedNettyCookie.getValue();
-                if (encodedValue == null || encodedValue.isEmpty()) {
-                    unencodedValue = "";
-                } else {
-                    try {
-                        if (encodedValue.startsWith(BASE64_ENCODED_PREFIX)) {
-                            // Base64-encoded UTF8 bytes
-                            byte[] base64UTF8Bytes =
-                                    Base64Safe.base64Decode(encodedValue.substring(BASE64_ENCODED_PREFIX.length()));
-                            unencodedValue = UTF8.utf8ToString(base64UTF8Bytes);
-
-                        } else /* PLAIN */{
-                            // Reverse any %-encoding applied to cookie string to get back its Unicode value
-                            unencodedValue = WebUtils.unescapeCookieValue(encodedValue);
-                        }
-                    } catch (UTF8Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                hasUnencodedValue = true;
-            }
-            return unencodedValue;
-        }
-
-        public io.netty.handler.codec.http.Cookie getEncodedCookie() {
-            // Lazily encode cookie if it hasn't been encoded yet
-            if (!hasEncodedValue) {
-                String encodedValue;
-                if (encodingType == EncodingType.PLAIN) {
-                    // Do minimal encoding of cookie string
-                    encodedValue = WebUtils.escapeCookieValue(unencodedValue);
-
-                } else {
-                    // Base64-encode the value
-                    byte[] utf8Bytes = UTF8.stringToUTF8(unencodedValue);
-                    encodedValue = BASE64_ENCODED_PREFIX + Base64Safe.base64Encode(utf8Bytes);
-                }
-                if (encodedValue.length() > 3700) {
-                    // > 4000 bytes total kills performance and/or doesn't work in many browsers
-                    Log.warning("Cookie value too long once base64-encoded: " + encodedValue.length() + " characters");
-                }
-                encodedNettyCookie.setValue(encodedValue);
-                hasEncodedValue = true;
-            }
-            return encodedNettyCookie;
-        }
-
-        public boolean cookieHasExpired() {
-            long maxAge = encodedNettyCookie.getMaxAge();
-            return maxAge <= 0 && maxAge != Long.MIN_VALUE;
-        }
-
-        public String getPath() {
-            return encodedNettyCookie.getPath();
-        }
+    public static String generateRandomSessionToken() {
+        return RandomTokenGenerator.generateRandomTokenBase64(Cookie.SESSION_COOKIE_LENGTH);
     }
-
-    private final CookieJar cookieJar;
 
     // ------------------------------------------------------------------------------------------------------
-
-    /**
-     * Create a cookie and possibly base64-encode its value. If maxAgeInSeconds is Long.MIN_VALUE, then cookie will
-     * expire at end of browser session.
-     */
-    public Cookie(String name, String unencodedValue, String path, long maxAgeInSeconds, EncodingType encodingType,
-            boolean discardAtEndOfBrowserSession) {
-        this.name = name;
-        this.cookieJar =
-                new CookieJar(name, unencodedValue, path, maxAgeInSeconds, encodingType, discardAtEndOfBrowserSession);
-    }
-
-    /**
-     * Create a possibly-base64-encoded cookie with the discard flag set to false (cookie is not discarded when browser
-     * session closes).
-     */
-    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds, EncodingType encodingType) {
-        this(name, valueCleartext, path, maxAgeInSeconds, encodingType, false);
-    }
-
-    /**
-     * Create a %-encoded cookie with the discard flag set to false (cookie is not discarded when browser session
-     * closes).
-     */
-    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds) throws Exception {
-        this(name, valueCleartext, path, maxAgeInSeconds, EncodingType.PLAIN, false);
-    }
-
-    /**
-     * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in this
-     * case, ignore the cookie).
-     */
-    public Cookie(io.netty.handler.codec.http.Cookie nettyCookie) {
-        this.name = nettyCookie.getName();
-        this.cookieJar = new CookieJar(nettyCookie);
-    }
-
-    // -----------------------------------------------------------------------------------------------------
 
     // Valid characters for cookie fields and values
     private static final boolean[] VALID_CHAR = new boolean[256];
@@ -246,6 +83,7 @@ public class Cookie {
             VALID_CHAR[c] = false;
     }
 
+    // Check the chars in a cookie's name and path are valid
     private static void checkValidCookieFieldStr(String str) {
         if (str.length() > 3500) {
             throw new RuntimeException("Cookie value too long: " + str);
@@ -261,10 +99,72 @@ public class Cookie {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is set to zero)
+     * Create a cookie.
      */
-    public static Cookie deleteCookie(String name) {
-        return new Cookie(name, "", "/", 0, EncodingType.PLAIN, false);
+    public Cookie(String name, String value, String path, long maxAgeSeconds, boolean discardAtEndOfBrowserSession) {
+        this.name = name;
+        checkValidCookieFieldStr(name);
+        this.path = path;
+        checkValidCookieFieldStr(path);
+        this.value = value;
+        this.maxAgeSeconds = maxAgeSeconds;
+        this.discardAtEndOfBrowserSession = discardAtEndOfBrowserSession;
+
+        if (this.maxAgeSeconds <= 0 && this.maxAgeSeconds != Long.MIN_VALUE) {
+            // If maxAge <= 0, cookie is expired immediately (so there is nothing to encode)
+            this.value = "";
+            this.maxAgeSeconds = 0;
+        } else {
+            // if maxAge == Long.MIN_VALUE or discardAtEndOfBrowserSession is true, cookie expires at end of session
+            if (maxAgeSeconds == Long.MIN_VALUE) {
+                this.discardAtEndOfBrowserSession = true;
+            } else if (this.discardAtEndOfBrowserSession) {
+                this.maxAgeSeconds = Long.MIN_VALUE;
+            }
+        }
+    }
+
+    /**
+     * Create a cookie with the discard flag set to false (cookie is not discarded when browser session closes).
+     */
+    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds) {
+        this(name, valueCleartext, path, maxAgeInSeconds, false);
+    }
+
+    /**
+     * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in this
+     * case, ignore the cookie).
+     */
+    public Cookie(io.netty.handler.codec.http.Cookie nettyCookie) {
+        this.name = nettyCookie.getName();
+        this.path = nettyCookie.getPath();
+        this.value = WebUtils.unescapeCookieValue(nettyCookie.getValue());
+        this.maxAgeSeconds = nettyCookie.getMaxAge();
+        this.discardAtEndOfBrowserSession = nettyCookie.isDiscard();
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
+    /**
+     * Create a cookie that, if set in response, overwrites and deletes the named cookie (because maxAge is set to
+     * zero). Have to specify the path since there can be multiple cookies with the same name but with different paths;
+     * this will only delete the cookie with the matching path.
+     */
+    public static Cookie deleteCookie(String name, String path) {
+        return new Cookie(name, "", path, 0, false);
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
+    /** Create a Netty cookie from this Cookie object. */
+    public io.netty.handler.codec.http.Cookie toNettyCookie() {
+        io.netty.handler.codec.http.Cookie nettyCookie = new DefaultCookie(name, WebUtils.escapeCookieValue(value));
+        if (path != null) {
+            nettyCookie.setPath(path);
+        }
+        nettyCookie.setMaxAge(maxAgeSeconds);
+        nettyCookie.setDiscard(discardAtEndOfBrowserSession);
+        return nettyCookie;
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -274,31 +174,26 @@ public class Cookie {
      */
     @Override
     public String toString() {
-        return ServerCookieEncoder.encode(cookieJar.getEncodedCookie());
+        return ServerCookieEncoder.encode(toNettyCookie());
     }
 
+    /** Get the name of the cookie. */
     public String getName() {
         return name;
     }
 
+    /** Get the cookie path, or "" if the cookie path is not set. */
     public String getPath() {
-        return cookieJar.getPath();
+        return path == null ? "" : path;
     }
 
     /** Get unencoded value of cookie. */
     public String getValue() {
-        return cookieJar.getUnencodedValue();
+        return value;
     }
 
+    /** Return true if the cookie has expired. */
     public boolean hasExpired() {
-        return cookieJar.cookieHasExpired();
-    }
-
-    public io.netty.handler.codec.http.Cookie getNettyCookie() {
-        return cookieJar.getEncodedCookie();
-    }
-
-    public static String generateRandomSessionToken() {
-        return RandomTokenGenerator.generateRandomTokenBase64(Cookie.SESSION_COOKIE_LENGTH);
+        return maxAgeSeconds <= 0 && maxAgeSeconds != Long.MIN_VALUE;
     }
 }

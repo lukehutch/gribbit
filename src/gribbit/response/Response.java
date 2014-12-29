@@ -26,14 +26,11 @@
 package gribbit.response;
 
 import gribbit.auth.Cookie;
-import gribbit.auth.Cookie.EncodingType;
 import gribbit.model.DataModel;
-import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -44,7 +41,7 @@ public abstract class Response extends DataModel {
 
     protected HttpResponseStatus status = HttpResponseStatus.OK;
     protected String mimeType;
-    protected HashMap<String, Cookie> cookies = null;
+    protected ArrayList<Cookie> cookies = null, cookiesPathSpecific = null;
     protected long lastModifiedEpochSeconds, maxAgeSeconds;
     protected HashMap<String, String> customHeaders;
     protected String csrfTok;
@@ -108,73 +105,59 @@ public abstract class Response extends DataModel {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Add a possibly-base64-encoded cookie to the response.
+     * Set a cookie in the response with a specific path (this allows there to be multiple cookies set with different
+     * paths).
+     * 
+     * @return this
      */
-    public Response setCookie(String cookieName, String val, String path, int maxAgeInSeconds, EncodingType encodingType) {
-        if (cookies == null)
-            cookies = new HashMap<>();
-        try {
-            Cookie oldVal = cookies.put(cookieName, new Cookie(cookieName, val, path, maxAgeInSeconds, encodingType));
-            if (oldVal != null) {
-                Log.warning("Cookie \"" + cookieName + "\" written twice during a single request");
-            }
-
-        } catch (Exception e) {
-            Log.error("Could not add cookie: " + e.getMessage());
+    public Response setCookiePathSpecific(Cookie cookie) {
+        if (cookiesPathSpecific == null) {
+            cookiesPathSpecific = new ArrayList<>();
         }
+        cookiesPathSpecific.add(cookie);
+        return this;
+    }
+
+    /** Set a cookie in the response, deleting any existing cookies with the same name but a different path. */
+    public Response setCookie(Cookie cookie) {
+        if (cookies == null) {
+            cookies = new ArrayList<>();
+        }
+        cookies.add(cookie);
         return this;
     }
 
     /**
-     * Add base64-encoded cookie to the response.
+     * Delete a cookie in the response with a matching specific path (this allows there to be multiple cookies set with
+     * different paths).
+     * 
+     * @return this
      */
-    public Response setCookie(String key, String val, String path, int maxAgeInSeconds) {
-        return setCookie(key, val, path, maxAgeInSeconds, EncodingType.BASE64_ENCODED);
-    }
-
-    /**
-     * Add a base64-encoded cookie to the response.
-     */
-    public Response setCookie(String key, String val, String path, Instant expiry, EncodingType encodingType) {
-        long secondsLeft = Math.max(0, ChronoUnit.SECONDS.between(Instant.now(), expiry));
-        secondsLeft = secondsLeft < 0 ? 0 : secondsLeft > Integer.MAX_VALUE ? Integer.MAX_VALUE : secondsLeft;
-        return setCookie(key, val, path, (int) secondsLeft, encodingType);
-    }
-
-    /**
-     * Add base64-encoded cookie to the response.
-     */
-    public Response setCookie(String key, String val, String path, Instant expiry) {
-        return setCookie(key, val, path, expiry, EncodingType.BASE64_ENCODED);
-    }
-
-    /** Delete a cookie from the response */
-    public Response deleteCookie(String cookieName) {
-        if (cookies == null)
-            cookies = new HashMap<>();
-        try {
-            Cookie oldVal = cookies.put(cookieName, Cookie.deleteCookie(cookieName));
-            if (oldVal != null) {
-                // Log.warning("Cookie \"" + cookieName + "\" written then deleted during the same request");
-            }
-
-        } catch (Exception e) {
-            Log.error("Could not delete cookie: " + e.getMessage());
+    public Response deleteCookiePathSpecific(String cookieName, String path) {
+        if (cookiesPathSpecific == null) {
+            cookiesPathSpecific = new ArrayList<>();
         }
+        cookiesPathSpecific.add(Cookie.deleteCookie(cookieName, path));
         return this;
     }
 
-    public HashMap<String, Cookie> getCookies() {
+    /** Set a cookie in the response, deleting any existing cookies with the same name and any path. */
+    public Response deleteCookieAllPaths(String cookieName) {
+        if (cookies == null) {
+            cookies = new ArrayList<>();
+        }
+        cookies.add(Cookie.deleteCookie(cookieName, "/"));
+        return this;
+    }
+
+    /** Called by HttpRequestHandler when the response is served. */
+    public ArrayList<Cookie> getCookiesToSet() {
         return cookies;
     }
 
-    public Cookie getCookie(String cookieName) {
-        return cookies == null ? null : cookies.get(cookieName);
-    }
-
-    public String getCookieValue(String cookieName) {
-        Cookie cookie = getCookie(cookieName);
-        return cookie == null ? null : cookie.getValue();
+    /** Called by HttpRequestHandler when the response is served. */
+    public ArrayList<Cookie> getCookiesToSetPathSpecific() {
+        return cookiesPathSpecific;
     }
 
     // -----------------------------------------------------------------------------------------------------

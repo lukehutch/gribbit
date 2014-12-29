@@ -35,7 +35,6 @@ import static io.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaders.Names.REFERER;
 import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 import gribbit.auth.Cookie;
-import gribbit.auth.Cookie.EncodingType;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
 import gribbit.util.StringUtils;
@@ -50,6 +49,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +69,7 @@ public class Request {
     private String userAgent;
     private long ifModifiedSinceEpochSecond = 0;
 
-    private HashMap<String, Cookie> cookieNameToCookie;
+    private HashMap<String, ArrayList<Cookie>> cookieNameToCookies;
     private HashMap<String, String> postParamToValue;
     private HashMap<String, FileUpload> postParamToFileUpload;
     private Map<String, List<String>> queryParamToVals;
@@ -105,10 +106,18 @@ public class Request {
         // Parse and decode/decrypt cookies
         for (String cookieHeader : headers.getAll(COOKIE)) {
             for (io.netty.handler.codec.http.Cookie nettyCookie : CookieDecoder.decode(cookieHeader)) {
-                if (this.cookieNameToCookie == null) {
-                    this.cookieNameToCookie = new HashMap<>();
+                if (this.cookieNameToCookies == null) {
+                    this.cookieNameToCookies = new HashMap<>();
                 }
-                this.cookieNameToCookie.put(nettyCookie.getName(), new Cookie(nettyCookie));
+                String cookieName = nettyCookie.getName();
+                Cookie cookie = new Cookie(nettyCookie);
+
+                // Multiple cookies may be present in the request with the same name but with different paths
+                ArrayList<Cookie> cookiesWithThisName = this.cookieNameToCookies.get(cookieName);
+                if (cookiesWithThisName == null) {
+                    this.cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
+                }
+                cookiesWithThisName.add(cookie);
             }
         }
 
@@ -226,23 +235,75 @@ public class Request {
     }
 
     // -----------------------------------------------------------------------------------------------------------------
+    
+    /** Used for sorting cookies into decreasing order of path length */
+    private static final Comparator<Cookie> cookiePathLengthComparator = new Comparator<Cookie>() {
+        @Override
+        public int compare(Cookie o1, Cookie o2) {
+            return o2.getPath().length() - o1.getPath().length();
+        }
+    };
 
-    public Collection<Cookie> getCookies() {
-        if (cookieNameToCookie == null) {
+    /**
+     * Get a collection of lists of cookies -- each list in the collection consists of one or more cookies, where all
+     * cookies in a list have the same name but different paths. (It is possible to receive multiple cookies with the
+     * same name in a request.) Cookie lists are ordered into decreasing order of path length to conform to a "SHOULD"
+     * clause in the HTTP header spec.
+     * 
+     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     */
+    public Collection<ArrayList<Cookie>> getAllCookies() {
+        if (cookieNameToCookies == null) {
             return null;
         } else {
-            return cookieNameToCookie.values();
+            Collection<ArrayList<Cookie>> cookieLists = cookieNameToCookies.values();
+            for (ArrayList<Cookie> cookieList : cookieLists) {
+                Collections.sort(cookieList, cookiePathLengthComparator);
+            }
+            return cookieLists;
         }
     }
 
+    /**
+     * Get all cookies with the given name, or null if there are no cookies with this name. (There may be multiple
+     * cookies with the same name but with different paths.) The returned list is ordered into decreasing order of path
+     * length to conform to a "SHOULD" clause in the HTTP header spec.
+     * 
+     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     */
+    public ArrayList<Cookie> getAllCookiesWithName(String cookieName) {
+        if (cookieNameToCookies == null) {
+            return null;
+        } else {
+            ArrayList<Cookie> cookieList = cookieNameToCookies.get(cookieName);
+            if (cookieList != null) {
+                Collections.sort(cookieList, cookiePathLengthComparator);
+            }
+            return cookieList;
+        }
+    }
+
+    /**
+     * Get a cookie by name, or null if there are no cookies with this name. If there is more than one cookie with the
+     * same name, return the cookie with the longest path.
+     * 
+     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     */
     public Cookie getCookie(String cookieName) {
-        if (cookieNameToCookie == null) {
+        ArrayList<Cookie> cookieList = getAllCookiesWithName(cookieName);
+        if (cookieList == null) {
             return null;
         } else {
-            return cookieNameToCookie.get(cookieName);
+            return cookieList.get(0);
         }
     }
 
+    /**
+     * Get the string value of a named cookie, or null if there are no cookies with this name. If there is more than one
+     * cookie with the same name, return the value of the one with the longest path.
+     * 
+     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     */
     public String getCookieValue(String cookieName) {
         Cookie cookie = getCookie(cookieName);
         if (cookie == null) {
@@ -252,17 +313,86 @@ public class Request {
         }
     }
 
-    /** Add a cookie to serve later in the response. */
-    public void setCookie(Cookie cookie) {
-        if (cookieNameToCookie == null) {
-            cookieNameToCookie = new HashMap<>();
+    /** Schedule for deletion all cookies (with any path) that have the given name. */
+    public void deleteCookie(String cookieName) {
+        ArrayList<Cookie> currCookies = getAllCookiesWithName(cookieName);
+        if (currCookies != null) {
+            for (int i = 0; i < currCookies.size(); i++) {
+                // Need to pull in all the cookies with a matching name from the request,
+                // and write an expired cookie over the top with the same path and the
+                // same name, in order to delete all cookies with all paths that have
+                // this name.
+                Cookie currCookie = currCookies.get(i);
+                currCookies.set(i, Cookie.deleteCookie(cookieName, currCookie.getPath()));
+            }
         }
-        cookieNameToCookie.put(cookie.getName(), cookie);
     }
 
-    /** Add a cookie to delete later in the response. */
-    public void deleteCookie(String cookieName) {
-        setCookie(Cookie.deleteCookie(cookieName));
+    /**
+     * Set a cookie in the response with a specific path (this allows there to be multiple cookies set with different
+     * paths).
+     */
+    public void setCookiePathSpecific(Cookie cookie) {
+        ArrayList<Cookie> currCookies = getAllCookiesWithName(cookie.getName());
+        if (currCookies == null) {
+            // There are cookies with this name currently; add this new cookie
+            if (cookieNameToCookies == null) {
+                cookieNameToCookies = new HashMap<>();
+            }
+            ArrayList<Cookie> cookies = new ArrayList<>();
+            cookies.add(cookie);
+            cookieNameToCookies.put(cookie.getName(), cookies);
+        } else {
+            // There are one or more cookies with a name matching the one to be set.
+            // Replace the value of the cookie with the same path as this one.
+            boolean matched = false;
+            for (int i = 0; i < currCookies.size(); i++) {
+                Cookie currCookie = currCookies.get(i);
+                if (currCookie.getPath().equals(cookie.getPath())) {
+                    currCookies.set(i, cookie);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                // There were cookies present with this name, but none had the requested path.
+                // Add this cookie with the new path.
+                currCookies.add(cookie);
+            }
+        }
+    }
+
+    /** Set a cookie in the response, deleting any existing cookies with the same name but a different path. */
+    public void setCookie(Cookie cookie) {
+        ArrayList<Cookie> currCookies = getAllCookiesWithName(cookie.getName());
+        if (currCookies == null) {
+            // There are cookies with this name currently; add this new cookie
+            if (cookieNameToCookies == null) {
+                cookieNameToCookies = new HashMap<>();
+            }
+            ArrayList<Cookie> cookies = new ArrayList<>();
+            cookies.add(cookie);
+            cookieNameToCookies.put(cookie.getName(), cookies);
+        } else {
+            // There are one or more cookies with a name matching the one to be set.
+            // Delete any cookies that do not match the target path.
+            boolean matched = false;
+            for (int i = 0; i < currCookies.size(); i++) {
+                Cookie currCookie = currCookies.get(i);
+                if (currCookie.getPath().equals(cookie.getPath())) {
+                    currCookies.set(i, cookie);
+                    matched = true;
+                } else {
+                    // Overwrite cookie with non-matching path with an expired cookie
+                    currCookies.set(i, Cookie.deleteCookie(currCookie.getName(), currCookie.getPath()));
+                }
+            }
+            if (!matched) {
+                // There were cookies present with this name, but none had the requested path.
+                // Add this cookie with the new path.
+                currCookies.add(cookie);
+            }
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -333,7 +463,7 @@ public class Request {
      */
     public void saveFlashMessagesInCookie() {
         if (flashMessageCookieString != null) {
-            setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, flashMessageCookieString, "/", 60, EncodingType.PLAIN));
+            setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, flashMessageCookieString, "/", 60));
             flashMessageCookieString = null;
         }
     }

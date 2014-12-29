@@ -287,7 +287,15 @@ public interface GoogleLogin extends AuthNotRequiredRoute {
                             // URL when they were originally told they were unauthorized. If so, try again, otherwise
                             // redirect back home.
                             String redirectOrigin = request.getCookieValue(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
-                            response = new RedirectResponse(redirectOrigin != null ? redirectOrigin : "/");
+                            if (redirectOrigin == null) {
+                                // Redirect home if the user didn't previously try to go directly to another URL
+                                response = new RedirectResponse("/");
+                            } else {
+                                // Redirect to wherever the user was trying to get before
+                                response = new RedirectResponse(redirectOrigin);
+                                // Clear the redirect cookie
+                                response.deleteCookieAllPaths(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+                            }
                         }
                     }
                 } catch (BadRequestException e) {
