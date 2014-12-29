@@ -347,9 +347,8 @@ public class Request {
     public void addFlashMessage(FlashMessage flashMessage) {
         if (flashMessages == null) {
             flashMessages = new ArrayList<>();
-        } else {
-            flashMessages.add(flashMessage);
         }
+        flashMessages.add(flashMessage);
     }
 
     /** Clear the flash messages. */
