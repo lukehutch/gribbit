@@ -98,4 +98,13 @@ public class HTMLPageResponse extends HTMLResponse {
     protected String renderContentTemplates() {
         return this.renderTemplate(GribbitProperties.PRETTY_PRINT_HTML);
     }
+
+    /**
+     * Default page template. All files named "head-content.html" on the classpath will be inserted at the end of the
+     * head element, and all files named "tail-content.html" on the classpath will be inserted at the end of the body
+     * element. The flashMessages parameter is filled in after the response is returned.
+     */
+    public static final String _template = "<!DOCTYPE html>" //
+            + "<html><head><title>${title}</title></head>" //
+            + "<body>${flashMessages}${content}</body></html>";
 }
