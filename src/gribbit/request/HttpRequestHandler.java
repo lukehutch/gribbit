@@ -361,8 +361,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             // Store any un-displayed flash messages back in the cookie
             ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
             if (flashMessages != null) {
-                response.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, FlashMessage.toCookieString(flashMessages),
-                        "/", 60));
+                response.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, "/",
+                        FlashMessage.toCookieString(flashMessages), 60));
             }
         }
 
@@ -432,12 +432,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         ArrayList<Cookie> cookiesToSet = response.getCookiesToSet();
         if (cookiesToSet != null) {
             for (Cookie cookie : cookiesToSet) {
-                if (cookiesToDelete.contains(cookie.getName())) {
-                    String setCookieStr = ServerCookieEncoder.encode(cookie.toNettyCookie());
-                    httpRes.headers().add(SET_COOKIE, setCookieStr);
-                } else {
+                if (cookiesToDelete != null && cookiesToDelete.contains(cookie.getName())) {
                     Log.warning("Tried to delete and set the cookie \"" + cookie.getName()
                             + "\" in the same response -- ignoring the set request");
+                } else {
+                    String setCookieStr = ServerCookieEncoder.encode(cookie.toNettyCookie());
+                    httpRes.headers().add(SET_COOKIE, setCookieStr);
                 }
             }
         }
@@ -664,8 +664,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
                                         // Redirect the user back to the page they were trying to get to once they
                                         // do manage to log in successfully
                                                 .setCookie(
-                                                        new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, reqURI,
-                                                                "/", 300));
+                                                        new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/",
+                                                                reqURI, 300));
 
                             } else if (RouteHandlerAuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
                                     && !user.emailIsValidated()) {

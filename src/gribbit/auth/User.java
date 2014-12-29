@@ -407,9 +407,9 @@ public class User extends DBModelStringKey {
             }
 
             // Save login cookies in result
-            response.setCookie(new Cookie(Cookie.SESSION_COOKIE_NAME, sessionTok.token, "/",
+            response.setCookie(new Cookie(Cookie.SESSION_COOKIE_NAME, "/", sessionTok.token,
                     Cookie.SESSION_COOKIE_MAX_AGE_SECONDS));
-            response.setCookie(new Cookie(Cookie.EMAIL_COOKIE_NAME, id, "/", Cookie.SESSION_COOKIE_MAX_AGE_SECONDS));
+            response.setCookie(new Cookie(Cookie.EMAIL_COOKIE_NAME, "/", id, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS));
 
         } else {
             // User is not authorized

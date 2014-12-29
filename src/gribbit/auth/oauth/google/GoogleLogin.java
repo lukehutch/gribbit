@@ -230,8 +230,9 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
                             // time the user has logged in, according to the browser's cookies, but the
                             // user's database record has been deleted, deleting the refresh token.
                             // See: http://goo.gl/aUoDLl
-                            response = new RedirectResponse(getAuthorizationCodeURL(/* forceApprovalPrompt = */true));
-                            logOutUser(response);
+                            response =
+                                    new RedirectResponse(getAuthorizationCodeURL(/* forceApprovalPrompt = */true))
+                                            .logOutUser(user);
 
                         } else {
 
@@ -269,9 +270,6 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
                                     user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 }
 
-                                // Log in existing user with this email address
-                                user.logIn(response);
-
                                 // res.clearFlashMessages();
                                 // res.addFlashMessage(FlashType.SUCCESS, "Welcome back",
                                 // "You are now signed in with the email address " + email);
@@ -297,6 +295,9 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
                                         new RedirectResponse(redirectOrigin)
                                                 .deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
                             }
+
+                            // Log in user with this email address
+                            user.logIn(response);
                         }
                     }
                 } catch (BadRequestException e) {
@@ -329,7 +330,12 @@ public interface GoogleLogin extends RouteHandlerAuthNotRequired {
                 // the unauthorized route
                 response = GribbitServer.siteResources.getUnauthorizedRoute().callHandler(request, user);
             }
-            logOutUser(response);
+            if (user != null) {
+                // This logout method is a little faster, because user doesn't have to be looked up in request
+                response.logOutUser(user);
+            } else {
+                response.logOutUser(getRequest());
+            }
         }
         return response;
     }

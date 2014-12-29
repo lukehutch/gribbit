@@ -26,7 +26,9 @@
 package gribbit.response;
 
 import gribbit.auth.Cookie;
+import gribbit.auth.User;
 import gribbit.model.DataModel;
+import gribbit.request.Request;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -143,7 +145,29 @@ public abstract class Response extends DataModel {
     public HashSet<String> getCookiesToDelete() {
         return cookiesToDelete;
     }
-    
+
+    // -----------------------------------------------------------------------------------------------------
+
+    /** Log out the currently logged-in user. */
+    public Response logOutUser(Request request) {
+        if (request != null) {
+            User.logOutUser(request, this);
+        } else {
+            User.removeLoginCookies(this);
+        }
+        return this;
+    }
+
+    /** Log out the currently logged-in user. */
+    public Response logOutUser(User user) {
+        if (user != null) {
+            user.logOut(this);
+        } else {
+            User.removeLoginCookies(this);
+        }
+        return this;
+    }
+
     // -----------------------------------------------------------------------------------------------------
 
     public abstract ByteBuf getContent();

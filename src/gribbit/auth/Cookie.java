@@ -101,12 +101,14 @@ public class Cookie {
     /**
      * Create a cookie.
      */
-    public Cookie(String name, String value, String path, long maxAgeSeconds, boolean discardAtEndOfBrowserSession) {
+    public Cookie(String name, String path, String cookieValue, long maxAgeSeconds, boolean discardAtEndOfBrowserSession) {
         this.name = name;
         checkValidCookieFieldStr(name);
         this.path = path;
-        checkValidCookieFieldStr(path);
-        this.value = value;
+        if (path != null) {
+            checkValidCookieFieldStr(path);
+        }
+        this.value = cookieValue;
         this.maxAgeSeconds = maxAgeSeconds;
         this.discardAtEndOfBrowserSession = discardAtEndOfBrowserSession;
 
@@ -127,8 +129,17 @@ public class Cookie {
     /**
      * Create a cookie with the discard flag set to false (cookie is not discarded when browser session closes).
      */
-    public Cookie(String name, String valueCleartext, String path, long maxAgeInSeconds) {
-        this(name, valueCleartext, path, maxAgeInSeconds, false);
+    public Cookie(String name, String path, String cookieValue, long maxAgeInSeconds) {
+        this(name, path, cookieValue, maxAgeInSeconds, false);
+    }
+
+    /**
+     * Create a cookie with path unset (meaning, according to the HTTP spec, it will default to the path of the object
+     * currently being requested), and the discard flag set to false (cookie is not discarded when browser session
+     * closes).
+     */
+    public Cookie(String name, String cookieValue, long maxAgeInSeconds) {
+        this(name, null, cookieValue, maxAgeInSeconds, false);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -164,7 +175,7 @@ public class Cookie {
      * this will only delete the cookie with the matching path.
      */
     public static Cookie deleteCookie(String name, String path) {
-        return new Cookie(name, "", path, 0, false);
+        return new Cookie(name, path, "", 0, false);
     }
 
     /**
@@ -172,7 +183,7 @@ public class Cookie {
      * setting maxAgeSeconds to zero).
      */
     public static Cookie deleteCookie(Cookie cookie) {
-        return new Cookie(cookie.getName(), "", cookie.getPath(), 0, false);
+        return new Cookie(cookie.getName(), cookie.getPath(), "", 0, false);
     }
 
     // -----------------------------------------------------------------------------------------------------

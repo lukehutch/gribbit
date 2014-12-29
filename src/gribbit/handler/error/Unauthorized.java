@@ -37,8 +37,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 @RouteOverride("/gribbit/err/unauthorized")
 public interface Unauthorized extends RouteHandlerAuthNotRequired {
     public default Response get() {
-        TextResponse response = new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
-        logOutUser(response);
-        return response;
+        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized").logOutUser(getRequest());
     }
 }

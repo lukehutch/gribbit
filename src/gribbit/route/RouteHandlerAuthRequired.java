@@ -26,7 +26,6 @@
 package gribbit.route;
 
 import gribbit.auth.User;
-import gribbit.response.Response;
 
 /**
  * Auth required, but validated email NOT required.
@@ -36,20 +35,5 @@ public interface RouteHandlerAuthRequired extends RouteHandler {
     public default User getUser() {
         // Should not happen. This is overridden in the InvokeHandler to return the actual User object.
         throw new RuntimeException("getUser() not intercepted by InvokeHandler");
-    }
-
-    /**
-     * Delete the user's session cookies, and invalidate their login session in the database if they are currently
-     * logged in.
-     */
-    public default void logOutUser(Response response) {
-        User user = getUser();
-        if (user != null) {
-            // Invalidate user's session and CSRF token in the database if they are currently logged in 
-            user.logOut(response);
-        } else {
-            // Otherwise just remove the session cookies
-            User.removeLoginCookies(response);
-        }
     }
 }
