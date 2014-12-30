@@ -206,13 +206,13 @@ public class GribbitServer {
             // TODO: These SSL classes seem to be absent in Java 8.
             // TODO: Also need to listen on both SSL and non-SSL ports. Don't allow auth-required
             // TODO: RestHandler classes to be served on non-https paths, or forms to be submitted to them
-            //            final SslContext sslCtx;
-            //            if (SSL) {
-            //                SelfSignedCertificate ssc = new SelfSignedCertificate();
-            //                sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
-            //            } else {
-            //                sslCtx = null;
-            //            }
+            //                        final SslContext sslCtx;
+            //                        if (GribbitProperties.SSL) {
+            //                            SelfSignedCertificate ssc = new SelfSignedCertificate();
+            //                            sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
+            //                        } else {
+            //                            sslCtx = null;
+            //                        }
             // TODO: Add SslHandler to pipeline to support SSL, its presence is tested for by 
             // TODO: HttpRequestHandler
 

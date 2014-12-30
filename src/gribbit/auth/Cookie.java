@@ -149,10 +149,10 @@ public class Cookie {
      * case, ignore the cookie).
      */
     public Cookie(io.netty.handler.codec.http.Cookie nettyCookie) {
-        this.name = nettyCookie.getName();
-        this.path = nettyCookie.getPath();
-        this.value = WebUtils.unescapeCookieValue(nettyCookie.getValue());
-        this.maxAgeSeconds = nettyCookie.getMaxAge();
+        this.name = nettyCookie.name();
+        this.path = nettyCookie.path();
+        this.value = WebUtils.unescapeCookieValue(nettyCookie.value());
+        this.maxAgeSeconds = nettyCookie.maxAge();
         this.discardAtEndOfBrowserSession = nettyCookie.isDiscard();
     }
 

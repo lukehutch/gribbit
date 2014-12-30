@@ -25,19 +25,19 @@
  */
 package gribbit.request;
 
-import static io.netty.handler.codec.http.HttpHeaders.Names.CACHE_CONTROL;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
-import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.DATE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.ETAG;
-import static io.netty.handler.codec.http.HttpHeaders.Names.EXPECT;
-import static io.netty.handler.codec.http.HttpHeaders.Names.EXPIRES;
-import static io.netty.handler.codec.http.HttpHeaders.Names.LAST_MODIFIED;
-import static io.netty.handler.codec.http.HttpHeaders.Names.PRAGMA;
-import static io.netty.handler.codec.http.HttpHeaders.Names.SET_COOKIE;
-import static io.netty.handler.codec.http.HttpHeaders.Values.CLOSE;
-import static io.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
+import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.DATE;
+import static io.netty.handler.codec.http.HttpHeaderNames.ETAG;
+import static io.netty.handler.codec.http.HttpHeaderNames.EXPECT;
+import static io.netty.handler.codec.http.HttpHeaderNames.EXPIRES;
+import static io.netty.handler.codec.http.HttpHeaderNames.LAST_MODIFIED;
+import static io.netty.handler.codec.http.HttpHeaderNames.PRAGMA;
+import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
+import static io.netty.handler.codec.http.HttpHeaderValues.CLOSE;
+import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
 import gribbit.response.ErrorResponse;
@@ -46,9 +46,9 @@ import gribbit.response.HTMLResponse;
 import gribbit.response.NotModifiedResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;
+import gribbit.route.RouteHandler;
 import gribbit.route.RouteHandlerAuthAndValidatedEmailRequired;
 import gribbit.route.RouteHandlerAuthRequired;
-import gribbit.route.RouteHandler;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -66,6 +66,7 @@ import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpChunkedInput;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -192,9 +193,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             // Without these headers, the server will not have a last modified timestamp to check
             // against its own timestamp on subsequent requests, so cannot return Not Modified.
             // This is the minimum necessary set of headers for disabling caching, see http://goo.gl/yXGd2x
-            httpHeaders.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate");
-            httpHeaders.add(PRAGMA, "no-cache");
-            httpHeaders.add(EXPIRES, 0);
+            httpHeaders.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
+            httpHeaders.add(PRAGMA, "no-cache"); // HTTP 1.0
+            httpHeaders.add(EXPIRES, "0"); // Proxies
         }
 
     }
@@ -257,7 +258,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
 
             long fileLength = fileToServe.length();
-            httpRes.headers().set(CONTENT_LENGTH, fileLength);
+            httpRes.headers().set(CONTENT_LENGTH, Long.toString(fileLength));
 
             String contentType = "application/octet-stream";
             String filePath = staticResourceFile.getPath();
@@ -307,7 +308,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             } else {
                 // Can't use FileRegions / zero-copy with SSL
                 sendFileFuture =
-                        ctx.write(new HttpChunkedInputTEMP(new ChunkedFile(fileToServe, 0, fileLength, 8192)),
+                        ctx.write(new HttpChunkedInput(new ChunkedFile(fileToServe, 0, fileLength, 8192)),
                                 ctx.newProgressivePromise());
             }
 
@@ -387,7 +388,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, content);
         httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
 
-        httpRes.headers().set(CONTENT_LENGTH, content.readableBytes());
+        httpRes.headers().set(CONTENT_LENGTH, Integer.toString(content.readableBytes()));
         httpRes.headers().set(CONTENT_TYPE, contentType);
 
         // Set headers for caching
@@ -414,7 +415,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
         HashSet<String> cookiesToDelete = response.getCookiesToDelete();
         if (cookiesToDelete != null) {
             for (String cookieName : cookiesToDelete) {
-                Log.fine("Cookie to delete for req " + reqURI + " : " + cookieName); // TODO temp
+                // Log.fine("Cookie to delete for req " + reqURI + " : " + cookieName);
                 ArrayList<Cookie> allCookiesWithName = request.getAllCookiesWithName(cookieName);
                 if (allCookiesWithName != null) {
                     for (Cookie cookie : allCookiesWithName) {
@@ -507,9 +508,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
             // Handle expect-100-continue
             boolean expect100Continue = false;
-            List<String> allExpectHeaders = httpReq.headers().getAll(EXPECT);
+            List<CharSequence> allExpectHeaders = httpReq.headers().getAll(EXPECT);
             for (int i = 0; i < allExpectHeaders.size(); i++) {
-                String h = allExpectHeaders.get(i);
+                String h = allExpectHeaders.get(i).toString();
                 if (h.equalsIgnoreCase("100-continue")) {
                     expect100Continue = true;
                     break;
@@ -523,11 +524,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
 
             closeAfterWrite =
                     httpReq.headers().contains(CONNECTION, CLOSE, true) || //
-                            (httpReq.getProtocolVersion().equals(HttpVersion.HTTP_1_0) && !httpReq.headers().contains(
+                            (httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0) && !httpReq.headers().contains(
                                     CONNECTION, KEEP_ALIVE, true));
-            addKeepAliveHeader = !closeAfterWrite && httpReq.getProtocolVersion().equals(HttpVersion.HTTP_1_0);
+            addKeepAliveHeader = !closeAfterWrite && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
 
-            if (httpReq.getMethod() == HttpMethod.POST) {
+            if (httpReq.method() == HttpMethod.POST) {
                 // Start decoding HttpContent chunks
                 destroyDecoder();
                 decoder = new HttpPostRequestDecoder(factory, httpReq);
@@ -883,7 +884,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> 
             DefaultFullHttpResponse httpRes =
                     new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR,
                             contentByteBuf);
-            httpRes.headers().set(CONTENT_LENGTH, contentByteBuf.readableBytes());
+            httpRes.headers().set(CONTENT_LENGTH, Integer.toString(contentByteBuf.readableBytes()));
             httpRes.headers().set(CONTENT_TYPE, "text/plain;charset=utf-8");
             ctx.writeAndFlush(httpRes);
             ctx.channel().close();

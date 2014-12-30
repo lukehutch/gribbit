@@ -25,18 +25,17 @@
  */
 package gribbit.request;
 
-import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT;
-import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT_CHARSET;
-import static io.netty.handler.codec.http.HttpHeaders.Names.ACCEPT_LANGUAGE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.COOKIE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.HOST;
-import static io.netty.handler.codec.http.HttpHeaders.Names.IF_MODIFIED_SINCE;
-import static io.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
-import static io.netty.handler.codec.http.HttpHeaders.Names.REFERER;
-import static io.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_CHARSET;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_LANGUAGE;
+import static io.netty.handler.codec.http.HttpHeaderNames.COOKIE;
+import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
+import static io.netty.handler.codec.http.HttpHeaderNames.IF_MODIFIED_SINCE;
+import static io.netty.handler.codec.http.HttpHeaderNames.ORIGIN;
+import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
+import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.Cookie;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.util.Log;
 import io.netty.handler.codec.http.CookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -61,11 +60,11 @@ public class Request {
     private String requestor;
     private String host;
     private String path;
-    private String accept;
-    private String acceptCharset;
-    private String acceptLanguage;
-    private String referer;
-    private String userAgent;
+    private CharSequence accept;
+    private CharSequence acceptCharset;
+    private CharSequence acceptLanguage;
+    private CharSequence referer;
+    private CharSequence userAgent;
     private long ifModifiedSinceEpochSecond = 0;
 
     private HashMap<String, ArrayList<Cookie>> cookieNameToCookies;
@@ -78,14 +77,14 @@ public class Request {
      * 
      * See http://en.wikipedia.org/wiki/Cross-origin_resource_sharing
      **/
-    private String origin;
+    private CharSequence origin;
 
     /**
      * Header for CSRF protection of AJAX requests (regular GETs and POSTs don't allow for header manipulation.)
      * 
      * See https://nealpoole.com/blog/2010/11/preventing-csrf-attacks-with-ajax-and-http-headers/
      */
-    private String xRequestedWith;
+    private CharSequence xRequestedWith;
 
     /**
      * If set to true by appending "?_getmodel=1" to the URL, then return the data model backing an HTML page, not the
@@ -103,14 +102,13 @@ public class Request {
         HttpHeaders headers = httpReq.headers();
 
         // Parse and decode/decrypt cookies
-        for (String cookieHeader : headers.getAll(COOKIE)) {
-            for (io.netty.handler.codec.http.Cookie nettyCookie : CookieDecoder.decode(cookieHeader)) {
-                Log.fine("Cookie in request: " + nettyCookie);  // TODO temp
-                
+        for (CharSequence cookieHeader : headers.getAll(COOKIE)) {
+            for (io.netty.handler.codec.http.Cookie nettyCookie : CookieDecoder.decode(cookieHeader.toString())) {
+                // Log.fine("Cookie in request: " + nettyCookie);
                 if (this.cookieNameToCookies == null) {
                     this.cookieNameToCookies = new HashMap<>();
                 }
-                String cookieName = nettyCookie.getName();
+                String cookieName = nettyCookie.name();
                 Cookie cookie = new Cookie(nettyCookie);
 
                 // Multiple cookies may be present in the request with the same name but with different paths
@@ -122,9 +120,8 @@ public class Request {
             }
         }
 
-        this.method = httpReq.getMethod();
-
-        this.host = headers.get(HOST);
+        this.method = httpReq.method();
+        this.host = headers.get(HOST).toString();
 
         this.xRequestedWith = headers.get("X-Requested-With");
         this.accept = headers.get(ACCEPT);
@@ -134,14 +131,14 @@ public class Request {
         this.referer = headers.get(REFERER);
         this.userAgent = headers.get(USER_AGENT);
 
-        String cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
-        if (cacheDateHeader != null && !cacheDateHeader.isEmpty()) {
+        CharSequence cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
+        if (cacheDateHeader != null && cacheDateHeader.length() > 0) {
             this.ifModifiedSinceEpochSecond =
                     ZonedDateTime.parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
         }
 
         // Decode the path.
-        QueryStringDecoder decoder = new QueryStringDecoder(httpReq.getUri());
+        QueryStringDecoder decoder = new QueryStringDecoder(httpReq.uri());
         this.path = decoder.path();
         this.queryParamToVals = decoder.parameters();
 
@@ -362,6 +359,10 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------------------
 
+    public String getURI() {
+        return path.toString();
+    }
+
     public String getRequestor() {
         return requestor == null ? "" : requestor;
     }
@@ -378,43 +379,39 @@ public class Request {
         this.method = method;
     }
 
-    public String getURI() {
-        return path;
-    }
-
     public void setURI(String uri) {
         this.path = uri;
     }
 
-    public String getHost() {
+    public CharSequence getHost() {
         return host;
     }
 
-    public String getAccept() {
+    public CharSequence getAccept() {
         return accept;
     }
 
-    public String getAcceptCharset() {
+    public CharSequence getAcceptCharset() {
         return acceptCharset;
     }
 
-    public String getAcceptLanguage() {
+    public CharSequence getAcceptLanguage() {
         return acceptLanguage;
     }
 
-    public String getReferer() {
+    public CharSequence getReferer() {
         return referer;
     }
 
-    public String getUserAgent() {
+    public CharSequence getUserAgent() {
         return userAgent;
     }
 
-    public String getOrigin() {
+    public CharSequence getOrigin() {
         return origin;
     }
 
-    public String getXRequestedWith() {
+    public CharSequence getXRequestedWith() {
         return xRequestedWith;
     }
 
