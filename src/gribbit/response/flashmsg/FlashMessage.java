@@ -63,6 +63,7 @@ public class FlashMessage extends DataModel {
     }
 
     public static final String _template = //
+            // FlashType objects are rendered directly into CSS classes here by overriding the toString() method
             "<div class='alert ${flashType}'>" //
                     + "<a class='close' data-dismiss='alert'>&times;</a>" //  
                     + "<strong>${strongText}</strong> ${message}" //
