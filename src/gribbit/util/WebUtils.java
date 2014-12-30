@@ -27,6 +27,7 @@ package gribbit.util;
 
 import gribbit.util.thirdparty.UTF8;
 
+import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -35,8 +36,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class WebUtils {
 
@@ -76,15 +75,14 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /** HTML tags that should not be closed. http://www.w3.org/TR/html-markup/syntax.html#void-element */
-    public static final HashSet<String> VOID_ELEMENTS = Stream.of("area", "base", "br", "col", "command", "embed",
-            "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr", "!doctype", "!DOCTYPE")
-            .collect(Collectors.toCollection(HashSet::new));
+    public static final HashSet<String> VOID_ELEMENTS = toSet(new String[] { "area", "base", "br", "col", "command",
+            "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr", "!doctype",
+            "!DOCTYPE" });
 
     /** HTML inline elements. https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente */
-    public static final HashSet<String> INLINE_ELEMENTS = Stream.of("a", "abbr", "acronym", "b", "bdo", "big", "br",
-            "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd", "label", "map", "object", "q", "samp",
-            "select", "small", "span", "strong", "sub", "sup", "textarea", "title", "tt", "var").collect(
-            Collectors.toCollection(HashSet::new));
+    public static final HashSet<String> INLINE_ELEMENTS = toSet(new String[] { "a", "abbr", "acronym", "b", "bdo",
+            "big", "br", "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd", "label", "map", "object",
+            "q", "samp", "select", "small", "span", "strong", "sub", "sup", "textarea", "title", "tt", "var" });
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -95,22 +93,12 @@ public class WebUtils {
      * (Applet and object tags are rejected during template loading, so those tags' attributes are not listed here, but
      * they also take URL params.)
      */
-    private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = new HashMap<>();
-    static {
-        for (String s : new String[] { "a.href", "area.href", "base.href", "blockquote.cite", "body.background",
-                "del.cite", "form.action", "frame.longdesc", "frame.src", "head.profile", "iframe.longdesc",
-                "iframe.src", "img.longdesc", "img.src", "img.usemap", "input.src", "input.usemap", "ins.cite",
-                "link.href", "q.cite", "script.src", "audio.src", "button.formaction", "command.icon", "embed.src",
-                "html.manifest", "input.formaction", "source.src", "video.poster", "video.src" }) {
-            String[] parts = StringUtils.split(s, ".");
-            String eltName = parts[0], attrName = parts[1];
-            HashSet<String> set = URL_ELT_ATTRS.get(eltName);
-            if (set == null) {
-                URL_ELT_ATTRS.put(eltName, set = new HashSet<>());
-            }
-            set.add(attrName);
-        }
-    }
+    private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = toMap(new String[] { "a.href", "area.href",
+            "base.href", "blockquote.cite", "body.background", "del.cite", "form.action", "frame.longdesc",
+            "frame.src", "head.profile", "iframe.longdesc", "iframe.src", "img.longdesc", "img.src", "img.usemap",
+            "input.src", "input.usemap", "ins.cite", "link.href", "q.cite", "script.src", "audio.src",
+            "button.formaction", "command.icon", "embed.src", "html.manifest", "input.formaction", "source.src",
+            "video.poster", "video.src" }, ".");
 
     /** Return true if the given HTML attribute takes a URL as a value */
     public static boolean isURLAttr(String tagName, String attrName) {
@@ -134,16 +122,15 @@ public class WebUtils {
      * Whitelisted attributes that can't be exploited in an XSS attack -- source: https://www.owasp.org/index.
      * php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#XSS_Prevention_Rules_Summary
      */
-    public static final HashSet<String> XSS_SAFE_ATTRS = Stream.of("align", "alink", "alt", "bgcolor", "border",
-            "cellpadding", "cellspacing", "class", "color", "cols", "colspan", "coords", "dir", "face", "height",
-            "hspace", "ismap", "lang", "marginheight", "marginwidth", "multiple", "nohref", "noresize", "noshade",
-            "nowrap", "ref", "rel", "rev", "rows", "rowspan", "scrolling", "shape", "span", "summary", "tabindex",
-            "title", "usemap", "valign", "value", "vlink", "vspace", "width").collect(
-            Collectors.toCollection(HashSet::new));
+    public static final HashSet<String> XSS_SAFE_ATTRS = toSet(new String[] { "align", "alink", "alt", "bgcolor",
+            "border", "cellpadding", "cellspacing", "class", "color", "cols", "colspan", "coords", "dir", "face",
+            "height", "hspace", "ismap", "lang", "marginheight", "marginwidth", "multiple", "nohref", "noresize",
+            "noshade", "nowrap", "ref", "rel", "rev", "rows", "rowspan", "scrolling", "shape", "span", "summary",
+            "tabindex", "title", "usemap", "valign", "value", "vlink", "vspace", "width" });
 
     // -----------------------------------------------------------------------------------------------------
 
-    public static final Map<String, String> EXTENSION_TO_MIMETYPE = Arrays.stream(new String[][] {
+    private static final Map<String, String> EXTENSION_TO_MIMETYPE = toMap(new String[][] {
             // See https://github.com/h5bp/server-configs-nginx/blob/master/mime.types for more
             { "txt", "text/plain" }, //
             { "htm", "text/html" }, //
@@ -173,7 +160,21 @@ public class WebUtils {
             { "ogg", "audio/ogg" }, //
             { "mp3", "audio/mpeg" }, //
             { "wav", "audio/x-wav" }, //
-    }).collect(Collectors.toMap(kv -> kv[0], kv -> kv[1]));
+    });
+
+    /** Get the extension from a filename, and return the most likely mimetype given the extension. */
+    public static String extensionToMimetype(String filePath) {
+        String contentType = "application/octet-stream";
+        int dotIdx = filePath.lastIndexOf('.'), slashIdx = filePath.lastIndexOf(File.separatorChar);
+        if (dotIdx > 0 && slashIdx < dotIdx) {
+            String ext = filePath.substring(dotIdx + 1).toLowerCase();
+            String mimeType = WebUtils.EXTENSION_TO_MIMETYPE.get(ext);
+            if (mimeType != null) {
+                contentType = mimeType;
+            }
+        }
+        return contentType;
+    }
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -623,4 +624,35 @@ public class WebUtils {
         return null;
     }
 
+    // -----------------------------------------------------------------------------------------------------
+
+    private static <T> HashSet<T> toSet(T[] elts) {
+        HashSet<T> set = new HashSet<>();
+        for (T elt : elts) {
+            set.add(elt);
+        }
+        return set;
+    }
+
+    private static <T> HashMap<T, T> toMap(T[][] pairs) {
+        HashMap<T, T> map = new HashMap<>();
+        for (T[] pair : pairs) {
+            map.put(pair[0], pair[1]);
+        }
+        return map;
+    }
+
+    private static HashMap<String, HashSet<String>> toMap(String[] kvPairs, String separator) {
+        HashMap<String, HashSet<String>> map = new HashMap<>();
+        for (String kvPair : kvPairs) {
+            String[] parts = StringUtils.split(kvPair, separator);
+            String eltName = parts[0], attrName = parts[1];
+            HashSet<String> set = map.get(eltName);
+            if (set == null) {
+                map.put(eltName, set = new HashSet<>());
+            }
+            set.add(attrName);
+        }
+        return map;
+    }
 }
