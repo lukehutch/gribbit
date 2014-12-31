@@ -112,6 +112,7 @@ public class GribbitProperties {
 
     public static String STATIC_RESOURCE_ROOT = properties.getProperty("staticresourceroot", null);
 
+    public static boolean CONTENT_GZIP = getPropertyBoolean("content.gzip", true);
     public static boolean PRETTY_PRINT_HTML = getPropertyBoolean("prettyprint.html", true);
     public static boolean PRETTY_PRINT_JSON = getPropertyBoolean("prettyprint.json", true);
 

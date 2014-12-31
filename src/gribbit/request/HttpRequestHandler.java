@@ -407,13 +407,15 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         }
         byte[] contentBytes = content.array();
 
-        // Gzip content if it's larger than 1kb and has a compressible content type 
-        // TODO: compare speed to using JZlib.GZIPOutputStream
+        // Gzip content if the configuration property is set to allow gzip, and the client supports gzip encoding,
+        // and the content size is larger than 1kb, and the content type is compressible 
         ByteBuf gzippedContent = null;
-        if (acceptEncodingGzip //
+        if (GribbitProperties.CONTENT_GZIP && //
+                acceptEncodingGzip //
                 && content.readableBytes() > 1024 //
                 && WebUtils.isCompressibleContentType(contentType)) {
             gzippedContent = Unpooled.buffer(/* initialCapacity = */content.readableBytes());
+            // TODO: compare speed to using JZlib.GZIPOutputStream
             GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
             gzipStream.write(contentBytes);
             gzipStream.close();
@@ -431,13 +433,15 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         }
 
         httpRes.headers().add(SERVER, GribbitServer.SERVER_IDENTIFIER);
-        
-        // Add an Accept-Encoding: gzip header to the response to let the client know that in future,
-        // it can send compressed requests. (This header is probably ignored by most clients, but
-        // maybe it's useful..) http://stackoverflow.com/a/1450163/3950982
+
+        // Add an Accept-Encoding: gzip header to the response to let the client know that in future
+        // it can send compressed requests. (This header is probably ignored by most clients, because
+        // on initial request they don't know yet if the server can accept compressed content, but
+        // there must be clients out there that look for this header and compress content on the
+        // second and subsequent requests? See http://stackoverflow.com/a/1450163/3950982 )
         httpRes.headers().add(ACCEPT_ENCODING, "gzip");
 
-        // Set headers for caching
+        // Set date and cache headers
         setDateAndCacheHeaders(httpRes.headers(), timeNow, response.getLastModifiedEpochSeconds(),
                 hashKeyMaxRemainingAgeSeconds, hashKey);
 
@@ -451,7 +455,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             CacheExtension.updateHashURI(reqURI, content, response.getLastModifiedEpochSeconds());
         }
 
-        // After last use of the content ByteBuf, release content if gzippedContent is being used instead
+        // Release the content ByteBuf after last usage if gzippedContent is being used instead
         if (gzippedContent != null) {
             content.release();
         }
