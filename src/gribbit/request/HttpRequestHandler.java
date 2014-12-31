@@ -26,8 +26,10 @@
 package gribbit.request;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderNames.SERVER;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaderNames.DATE;
@@ -428,7 +430,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             httpRes.headers().set(CONTENT_ENCODING, GZIP);
         }
 
-        httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
+        httpRes.headers().add(SERVER, GribbitServer.SERVER_IDENTIFIER);
+        
+        // Add an Accept-Encoding: gzip header to the response to let the client know that in future,
+        // it can send compressed requests. (This header is probably ignored by most clients, but
+        // maybe it's useful..) http://stackoverflow.com/a/1450163/3950982
+        httpRes.headers().add(ACCEPT_ENCODING, "gzip");
 
         // Set headers for caching
         setDateAndCacheHeaders(httpRes.headers(), timeNow, response.getLastModifiedEpochSeconds(),
