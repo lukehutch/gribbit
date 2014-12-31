@@ -38,10 +38,9 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 
@@ -229,18 +228,12 @@ public class GribbitServer {
                                     p.addLast(sslCtx.newHandler(ch.alloc()));
                                 }
 
-                                p.addLast(new LoggingHandler(LogLevel.INFO));
+                                // p.addLast(new LoggingHandler(LogLevel.INFO));
+
+                                p.addLast(new HttpContentDecompressor());
 
                                 p.addLast(new HttpServerCodec());
 
-                                // TODO: look at HttpServerUpgradeHandler for web socket and SPDY/Http2 reqs
-
-                                // TODO: I get a 330 error in the browser on static file requests if this is
-                                // enabled -- see http://goo.gl/lPAzQC
-                                //  p.addLast(new HttpContentCompressor());
-                                
-                                //  p.addLast(new HttpContentDecompressor());
-                                
                                 p.addLast(new WebSocketServerCompressionHandler());
 
                                 p.addLast(routeHandlerGroup, new HttpRequestHandler());

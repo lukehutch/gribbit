@@ -25,7 +25,10 @@
  */
 package gribbit.util;
 
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
 import gribbit.util.thirdparty.UTF8;
+import io.netty.handler.codec.http.HttpHeaders;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
@@ -160,20 +163,32 @@ public class WebUtils {
             { "ogg", "audio/ogg" }, //
             { "mp3", "audio/mpeg" }, //
             { "wav", "audio/x-wav" }, //
+            { "csv", "text/comma-separated-values" }, //
     });
 
-    /** Get the extension from a filename, and return the most likely mimetype given the extension. */
-    public static String extensionToMimetype(String filePath) {
+    public static void setContentTypeHeaders(HttpHeaders headers, String path) {
         String contentType = "application/octet-stream";
-        int dotIdx = filePath.lastIndexOf('.'), slashIdx = filePath.lastIndexOf(File.separatorChar);
+        int dotIdx = path.lastIndexOf('.'), slashIdx = path.lastIndexOf(File.separatorChar);
         if (dotIdx > 0 && slashIdx < dotIdx) {
-            String ext = filePath.substring(dotIdx + 1).toLowerCase();
+            String ext = path.substring(dotIdx + 1).toLowerCase();
             String mimeType = WebUtils.EXTENSION_TO_MIMETYPE.get(ext);
             if (mimeType != null) {
                 contentType = mimeType;
             }
+            // .svgz files need an additional header -- see http://kaioa.com/node/45
+            if (ext.equals("svgz")) {
+                headers.set(CONTENT_ENCODING, "gzip");
+            }
         }
-        return contentType;
+        headers.set(CONTENT_TYPE, contentType);
+    }
+
+    public static boolean isCompressibleContentType(String contentType) {
+        return contentType != null
+                && !contentType.isEmpty()
+                && (contentType.startsWith("text/") || contentType.startsWith("application/javascript")
+                        || contentType.startsWith("application/json") || contentType.startsWith("application/xml")
+                        || contentType.startsWith("image/svg+xml") || contentType.startsWith("application/x-font-ttf"));
     }
 
     // -----------------------------------------------------------------------------------------------------

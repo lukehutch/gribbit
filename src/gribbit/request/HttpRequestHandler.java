@@ -28,14 +28,16 @@ package gribbit.request;
 import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
 import static io.netty.handler.codec.http.HttpHeaderNames.DATE;
 import static io.netty.handler.codec.http.HttpHeaderNames.ETAG;
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPECT;
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPIRES;
 import static io.netty.handler.codec.http.HttpHeaderNames.LAST_MODIFIED;
 import static io.netty.handler.codec.http.HttpHeaderNames.PRAGMA;
-import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
@@ -99,6 +101,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.stream.ChunkedFile;
 import io.netty.util.CharsetUtil;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -113,6 +116,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.zip.GZIPOutputStream;
 
 public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
@@ -270,7 +274,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             long fileLength = fileToServe.length();
             httpRes.headers().set(CONTENT_LENGTH, Long.toString(fileLength));
-            httpRes.headers().set(CONTENT_TYPE, WebUtils.extensionToMimetype(staticResourceFile.getPath()));
+            WebUtils.setContentTypeHeaders(httpRes.headers(), staticResourceFile.getPath());
 
             // If the file contents have changed since the last time the file was hashed,
             // schedule the file to be hashed in the background so that future references to the
@@ -398,15 +402,28 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             content = response.getContent();
             contentType = response.getContentType();
         }
-        HttpResponseStatus status = response.getStatus();
+        byte[] contentBytes = content.array();
 
-        // closeAfterWrite = true;  // FIXME: test this, it doesn't seem to work ====================================================================
+        // Gzip content if it's longer than 1kb and is a compressible type 
+        int contentLength = content.readableBytes();
+        boolean gzipContent = contentLength > 1024 && WebUtils.isCompressibleContentType(contentType);
+        ByteBuf gzippedContent = null;
+        if (gzipContent) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream(contentLength);
+            GZIPOutputStream gzip = new GZIPOutputStream(out);
+            gzip.write(contentBytes);
+            gzip.close();
+            gzippedContent = Unpooled.wrappedBuffer(out.toByteArray());
+        }
 
         // Create a FullHttpResponse object that wraps the response status and content
-        DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, content);
+        HttpResponseStatus status = response.getStatus();
+        DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, //
+                gzipContent ? gzippedContent : content);
         httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
 
-        httpRes.headers().set(CONTENT_LENGTH, Integer.toString(content.readableBytes()));
+        httpRes.headers().set(CONTENT_LENGTH,
+                Integer.toString(gzipContent ? gzippedContent.readableBytes() : content.readableBytes()));
         httpRes.headers().set(CONTENT_TYPE, contentType);
 
         // Set headers for caching
@@ -421,6 +438,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // the linked resource won't even be requested from the server.
         if (hashTheResponse && status == HttpResponseStatus.OK) {
             CacheExtension.updateHashURI(reqURI, content, response.getLastModifiedEpochSeconds());
+        }
+
+        // After last use of content, release the content ByteBuf if gzippedContent is being passed back 
+        // in the response instead of content
+        if (gzipContent) {
+            content.release();
+            httpRes.headers().set(CONTENT_ENCODING, GZIP);
         }
 
         if (isHEAD) {
@@ -472,6 +496,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         if (addKeepAliveHeader && status == HttpResponseStatus.OK) {
             httpRes.headers().add(CONNECTION, KEEP_ALIVE);
         }
+
+        // closeAfterWrite = true;  // FIXME: test this, it doesn't seem to work ====================================================================
 
         if (ctx.channel().isOpen()) {
             // Check Channel.isWritable() to prevent OutOfMemoryError,
@@ -587,339 +613,358 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // ------------------------------------------------------------------------------
 
         boolean requestComplete = false;
-        if (msg instanceof HttpRequest) {
-            HttpRequest httpReq = (HttpRequest) msg;
+        try {
+            if (msg instanceof HttpRequest) {
+                HttpRequest httpReq = (HttpRequest) msg;
 
-            // System.out.println("REQUEST: " + httpReq.getUri());
+                // System.out.println("REQUEST: " + httpReq.getUri());
 
-            // Start a new request
-            request = new Request(httpReq);
+                // Start a new request
+                request = new Request(httpReq);
 
-            // Handle expect-100-continue
-            boolean expect100Continue = false;
-            List<CharSequence> allExpectHeaders = httpReq.headers().getAll(EXPECT);
-            for (int i = 0; i < allExpectHeaders.size(); i++) {
-                String h = allExpectHeaders.get(i).toString();
-                if (h.equalsIgnoreCase("100-continue")) {
-                    expect100Continue = true;
-                    break;
-                }
-            }
-            if (expect100Continue) {
-                ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE,
-                        Unpooled.EMPTY_BUFFER));
-                return;
-            }
-
-            closeAfterWrite = !HttpHeaderUtil.isKeepAlive(httpReq);
-            addKeepAliveHeader = !closeAfterWrite && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
-
-            if (httpReq.method() == HttpMethod.POST) {
-                // Start decoding HttpContent chunks
-                destroyDecoder();
-                decoder = new HttpPostRequestDecoder(factory, httpReq);
-
-            } else {
-                // Non-POST (probably GET) -- start handling the request
-                requestComplete = true;
-            }
-
-            // TODO: will this return failure before all POST chunks have been received?
-            if (!httpReq.decoderResult().isSuccess()) {
-                sendHttpErrorResponse(ctx, httpReq, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                        HttpResponseStatus.BAD_REQUEST));
-                return;
-            }
-        }
-
-        // ------------------------------------------------------------------------------
-        // Decode HTTP POST body
-        // ------------------------------------------------------------------------------
-
-        if (msg instanceof HttpContent && decoder != null) {
-            HttpContent chunk = (HttpContent) msg;
-            // Offer chunk to decoder (this decreases refcount of chunk, so it doesn't have to
-            // be separately released). Decoder is released after message has been handled.
-            decoder.offer(chunk);
-
-            try {
-                while (decoder.hasNext()) {
-                    InterfaceHttpData data = decoder.next();
-                    if (data != null) {
-                        HttpDataType httpDataType = data.getHttpDataType();
-                        if (httpDataType == HttpDataType.Attribute) {
-                            try {
-                                Attribute attribute = (Attribute) data;
-                                request.setPostParam(attribute.getName(),
-                                        attribute.getString(attribute.getCharset() == null ? Charset.forName("UTF-8")
-                                                : attribute.getCharset()));
-                            } finally {
-                                // Decrease refcount, freeing data
-                                data.release();
-                            }
-
-                        } else if (httpDataType == HttpDataType.FileUpload) {
-                            FileUpload fileUpload = (FileUpload) data;
-                            // TODO consider imposing size limit and returning 413 (Request Entity Too
-                            // Large) once the amount of data that has been sent hits the limit
-                            if (fileUpload.isCompleted()) {
-                                // Save the FileUpload object (which wraps a DiskFileUpload in /tmp).
-                                // Need to release this resource later.
-                                request.setPostFileUploadParam(fileUpload.getName(), fileUpload);
-                            }
-                        } else {
-                            Log.warning("Got unknown data chunk type: " + httpDataType);
-                        }
+                // Handle expect-100-continue
+                boolean expect100Continue = false;
+                List<CharSequence> allExpectHeaders = httpReq.headers().getAll(EXPECT);
+                for (int i = 0; i < allExpectHeaders.size(); i++) {
+                    String h = allExpectHeaders.get(i).toString();
+                    if (h.equalsIgnoreCase("100-continue")) {
+                        expect100Continue = true;
+                        break;
                     }
                 }
-            } catch (EndOfDataDecoderException e) {
-                // Apparently decoder.hasNext() doesn't actually work
-            }
-
-            if (chunk instanceof LastHttpContent) {
-                requestComplete = true;
-            }
-        }
-
-        if (!requestComplete) {
-            // Wait for more chunks
-            return;
-        }
-
-        // ------------------------------------------------------------------------------
-        // Figure out how to handle HTTP request
-        // ------------------------------------------------------------------------------
-
-        // All POST chunks have been received (or there are no chunks); ready to start handling the request
-
-        String origReqURI = request.getURI();
-
-        // If this is a hash URI, look up original URI whose served resource was hashed to give this hash URI.
-        // We only need to serve the resource at a hash URI once per resource per client, since resources served
-        // from hash URIs are indefinitely cached in the browser.
-        String hashKey = CacheExtension.getHashKey(origReqURI);
-        boolean isHashURI = hashKey != null;
-        String reqURI = isHashURI ? CacheExtension.getOrigURI(origReqURI) : origReqURI;
-
-        InetSocketAddress requestor = (InetSocketAddress) ctx.channel().remoteAddress();
-        if (requestor != null) {
-            InetAddress address = requestor.getAddress();
-            if (address != null) {
-                request.setRequestor(address.getHostAddress());
-            }
-        }
-
-        boolean isHEAD = request.getMethod() == HttpMethod.HEAD;
-
-        // Run the GET method if HEAD is requested, just don't return a body.
-        HttpMethod origReqMethod = request.getMethod();
-        if (isHEAD) {
-            request.setMethod(HttpMethod.GET);
-        }
-
-        // ------------------------------------------------------------------------------
-        // Authenticate user
-        // ------------------------------------------------------------------------------
-
-        // The response object generated by a RestHandler
-        Response response = null;
-
-        // Call route handlers until one is able to handle the route,
-        // or until we run out of handlers
-        User user = null;
-        RouteInfo authorizedRoute = null;
-        ArrayList<RouteInfo> allRoutes = GribbitServer.siteResources.getAllRoutes();
-        for (int i = 0, n = allRoutes.size(); i < n; i++) {
-            RouteInfo route = allRoutes.get(i);
-            // If the request URI matches this route path
-            if (route.matches(reqURI)) {
-                Class<? extends RouteHandler> handler = route.getHandler();
-
-                if (!(request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.POST)) {
-
-                    // We only support GET and POST at this point
-                    Log.error("Unsupported HTTP method " + request.getMethod().name() + " for path " + reqURI);
-                    response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
-
-                } else if ((request.getMethod() == HttpMethod.GET && !route.hasGetMethod())
-                        || (request.getMethod() == HttpMethod.POST && !route.hasPostMethod())) {
-
-                    // Tried to call an HTTP method that is not defined for this route
-                    Log.error("HTTP method " + request.getMethod().name() + " not implemented in handler "
-                            + handler.getName());
-                    response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
-
-                } else if (RouteHandlerAuthRequired.class.isAssignableFrom(handler)) {
-
-                    // This handler requires authentication -- check if user is logged in
-                    user = User.getLoggedInUser(request);
-                    if (user == null) {
-
-                        // User is not logged in: handle request with OnUnauthorized handler instead
-                        response =
-                                getResponseForErrorHandlerRoute(GribbitServer.siteResources.getUnauthorizedRoute(),
-                                        request, user)
-                                // Redirect the user back to the page they were trying to get to once they
-                                // do manage to log in successfully
-                                        .setCookie(
-                                                new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", reqURI, 300));
-
-                    } else if (RouteHandlerAuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
-                            && !user.emailIsValidated()) {
-
-                        // User is logged in, but their email address has not been validated:
-                        // handle request with EmailNotValidated handler instead
-                        response =
-                                getResponseForErrorHandlerRoute(
-                                        GribbitServer.siteResources.getEmailNotValidatedRoute(), request, user);
-
-                    } else {
-
-                        // Authorization required and user logged in: OK to handle request
-                        // with this route
-                        authorizedRoute = route;
-                    }
-                } else {
-
-                    // Authorization not required -- OK to handle request with this route
-                    authorizedRoute = route;
+                if (expect100Continue) {
+                    ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE,
+                            Unpooled.EMPTY_BUFFER));
+                    requestComplete = true;
+                    return;
                 }
 
-                // URI matches, so don't need to search further URIs
-                break;
-            }
-        }
+                closeAfterWrite = !HttpHeaderUtil.isKeepAlive(httpReq);
+                addKeepAliveHeader = !closeAfterWrite && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
 
-        // ------------------------------------------------------------------------------
-        // Handle static file requests
-        // ------------------------------------------------------------------------------
-
-        // If no error has occurred so far, and no route handler matched the request URI, and this is a
-        // GET request, then see if the URI points to a static file resource, and if so, serve the file.
-        if (response == null && authorizedRoute == null && request.getMethod() == HttpMethod.GET) {
-            File staticResourceFile = GribbitServer.siteResources.getStaticResource(reqURI);
-            if (staticResourceFile == null) {
-
-                // Neither a route handler nor a static resource matched the request URI.
-                // Return 404 Not Found.
-                response =
-                        getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(), request, user);
-
-            } else {
-
-                // A static resource matched the request URI, check last-modified timestamp
-                // against the If-Modified-Since header timestamp in the request.
-                long lastModifiedEpochSeconds = staticResourceFile.lastModified() / 1000;
-                if (!request.cachedVersionIsOlderThan(lastModifiedEpochSeconds)) {
-                    // File has not been modified since it was last cached -- return Not Modified
-                    response = new NotModifiedResponse(lastModifiedEpochSeconds);
-
-                } else {
-                    // If file is newer than what is in the browser cache, or is not in cache, serve the file
-                    serveStaticFile(reqURI, hashKey, staticResourceFile, lastModifiedEpochSeconds, ctx);
-
-                    Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
-                            + staticResourceFile.getPath() + "\t" + HttpResponseStatus.OK + "\t"
-                            + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
-
-                    // Finished request
+                if (httpReq.method() == HttpMethod.POST) {
+                    // Start decoding HttpContent chunks
                     destroyDecoder();
+                    decoder = new HttpPostRequestDecoder(factory, httpReq);
+
+                } else {
+                    // Non-POST (probably GET) -- start handling the request
+                    requestComplete = true;
+                }
+
+                // TODO: will this return failure before all POST chunks have been received?
+                if (!httpReq.decoderResult().isSuccess()) {
+                    sendHttpErrorResponse(ctx, httpReq, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.BAD_REQUEST));
+                    requestComplete = true;
                     return;
                 }
             }
-        }
 
-        // ------------------------------------------------------------------------------
-        // Handle GET or POST requests
-        // ------------------------------------------------------------------------------
+            // ------------------------------------------------------------------------------
+            // Decode HTTP POST body
+            // ------------------------------------------------------------------------------
 
-        ZonedDateTime timeNow = null;
+            if (msg instanceof HttpContent && decoder != null) {
+                HttpContent chunk = (HttpContent) msg;
+                // Offer chunk to decoder (this decreases refcount of chunk, so it doesn't have to
+                // be separately released). Decoder is released after message has been handled.
+                decoder.offer(chunk);
 
-        // If an error response hasn't yet been generated and this is a (non-static-file) GET or POST request,
-        // then call the get() or post() method for the route handler bound to the request URI to obtain the
-        // response object.
-        boolean hashTheResponse = false;
-        long hashKeyRemainingAgeSeconds = 0;
-        if (response == null && authorizedRoute != null) {
+                try {
+                    while (decoder.hasNext()) {
+                        InterfaceHttpData data = decoder.next();
+                        if (data != null) {
+                            HttpDataType httpDataType = data.getHttpDataType();
+                            if (httpDataType == HttpDataType.Attribute) {
+                                try {
+                                    Attribute attribute = (Attribute) data;
+                                    request.setPostParam(attribute.getName(), attribute.getString(attribute
+                                            .getCharset() == null ? Charset.forName("UTF-8") : attribute.getCharset()));
+                                } finally {
+                                    // Decrease refcount, freeing data
+                                    data.release();
+                                }
 
-            // ----------------------------------
-            // See if response should be hashed
-            // ----------------------------------
-
-            // For hashed *non-file* URIs, the actual last modified timestamp of dynamically-served
-            // content can't be read directly, so read the last modified timestamp stored for the
-            // previously hashed version in the CacheExtension class, as long as the max age of the
-            // cached version hasn't been exceeded, and see if the last modified timestamp is more
-            // recent than the version cached in the browser.
-            //
-            // The important ramification of this is that when the resource identified by the non-file
-            // URI changes, the CacheExtension class must be notified of that change (including in cases
-            // where the database is modified by another database client) if the modified version should
-            // start being served at a new hash URI immediately, otherwise the web client connected to
-            // this web server will continue to serve old resources until the max age of the cached
-            // content is exceeded.
-            if (isHashURI) {
-                HashInfo hashInfo = CacheExtension.getHashInfo(reqURI);
-                if (hashInfo != null) {
-                    long lastModifiedEpochSeconds = hashInfo.getLastModifiedEpochSeconds();
-                    timeNow = ZonedDateTime.now();
-                    long timeNowEpochSeconds = timeNow.toEpochSecond();
-
-                    long maxAgeSeconds = authorizedRoute.getMaxAgeSeconds();
-                    hashKeyRemainingAgeSeconds = lastModifiedEpochSeconds + maxAgeSeconds - timeNowEpochSeconds;
-
-                    if (maxAgeSeconds == 0) {
-                        // Content is not hash-cached
-                        hashKeyRemainingAgeSeconds = 0;
+                            } else if (httpDataType == HttpDataType.FileUpload) {
+                                FileUpload fileUpload = (FileUpload) data;
+                                // TODO consider imposing size limit and returning 413 (Request Entity Too
+                                // Large) once the amount of data that has been sent hits the limit
+                                if (fileUpload.isCompleted()) {
+                                    // Save the FileUpload object (which wraps a DiskFileUpload in /tmp).
+                                    // Need to release this resource later.
+                                    request.setPostFileUploadParam(fileUpload.getName(), fileUpload);
+                                }
+                            } else {
+                                Log.warning("Got unknown data chunk type: " + httpDataType);
+                            }
+                        }
                     }
+                } catch (EndOfDataDecoderException e) {
+                    // Apparently decoder.hasNext() doesn't actually work
+                }
 
-                    if (maxAgeSeconds > 0 && hashKeyRemainingAgeSeconds <= 0) {
-                        // Resource has expired -- call the route handler to generate a new response rather
-                        // than serving a Not Modified response, and schedule the response to be hashed or
-                        // re-hashed once the response has been generated.
-                        hashTheResponse = true;
-
-                        // Reset the expiry time at the requested number of seconds in the future
-                        hashKeyRemainingAgeSeconds = maxAgeSeconds;
-
-                    } else if (!request.cachedVersionIsOlderThan(lastModifiedEpochSeconds)) {
-                        // Resource has not expired in cache, but client has requested it anyway.
-                        // However, resource has not been modified since it was last hashed --
-                        // return Not Modified.
-                        response = new NotModifiedResponse(lastModifiedEpochSeconds);
-
-                    } else {
-                        // Resource has not expired in cache, but client has requested it anyway.
-                        // Resource *has* been modified since it was last hashed -- serve it the
-                        // normal way using the route handler, but don't hash the response, since
-                        // it has not expired yet.
-                    }
-                } else {
-                    // There is no original URI matching this hash URI, so the hash key was stale
-                    // (i.e. a URI whose hashcode has been spoofed, or a very old hashcode from
-                    // the previous time the server was run), but we still got a valid request URI
-                    // by stripping away the hash code, so that is served below in the normal way.
+                if (chunk instanceof LastHttpContent) {
+                    requestComplete = true;
                 }
             }
 
-            // If the response wasn't just set to "Not Modified" above, serve the request
-            if (response == null) {
-
-                // -----------------------------------------------------------------
-                // Call the route handler for this request, generating the response
-                // -----------------------------------------------------------------
-
-                response = getResponseForRoute(authorizedRoute, request, user);
+            if (!requestComplete) {
+                // Wait for more chunks
+                return;
             }
-        }
 
-        // ------------------------------------------------------------------------------------
-        // Serve an HTTP result (except in the case of static files, they were served already)
-        // ------------------------------------------------------------------------------------
+            // ------------------------------------------------------------------------------
+            // Figure out how to handle HTTP request
+            // ------------------------------------------------------------------------------
 
-        // If we have a non-null response (i.e. if we didn't already serve a static file), then turn the
-        // Response object into an HttpResponse object and serve it to the user over Netty.
-        if (response != null) {
+            // All POST chunks have been received (or there are no chunks); ready to start handling the request
+
+            String origReqURI = request.getURI();
+
+            // If this is a hash URI, look up original URI whose served resource was hashed to give this hash URI.
+            // We only need to serve the resource at a hash URI once per resource per client, since resources served
+            // from hash URIs are indefinitely cached in the browser.
+            String hashKey = CacheExtension.getHashKey(origReqURI);
+            boolean isHashURI = hashKey != null;
+            String reqURI = isHashURI ? CacheExtension.getOrigURI(origReqURI) : origReqURI;
+
+            InetSocketAddress requestor = (InetSocketAddress) ctx.channel().remoteAddress();
+            if (requestor != null) {
+                InetAddress address = requestor.getAddress();
+                if (address != null) {
+                    request.setRequestor(address.getHostAddress());
+                }
+            }
+
+            boolean isHEAD = request.getMethod() == HttpMethod.HEAD;
+
+            // Run the GET method if HEAD is requested, just don't return a body.
+            HttpMethod origReqMethod = request.getMethod();
+            if (isHEAD) {
+                request.setMethod(HttpMethod.GET);
+            }
+
+            // ------------------------------------------------------------------------------
+            // Authenticate user
+            // ------------------------------------------------------------------------------
+
+            // The response object generated by a RestHandler
+            Response response = null;
+
+            // Call route handlers until one is able to handle the route,
+            // or until we run out of handlers
+            User user = null;
+            RouteInfo authorizedRoute = null;
+            ArrayList<RouteInfo> allRoutes = GribbitServer.siteResources.getAllRoutes();
+            for (int i = 0, n = allRoutes.size(); i < n; i++) {
+                RouteInfo route = allRoutes.get(i);
+                // If the request URI matches this route path
+                if (route.matches(reqURI)) {
+                    Class<? extends RouteHandler> handler = route.getHandler();
+
+                    if (!(request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.POST)) {
+
+                        // We only support GET and POST at this point
+                        Log.error("Unsupported HTTP method " + request.getMethod().name() + " for path " + reqURI);
+                        response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
+
+                    } else if ((request.getMethod() == HttpMethod.GET && !route.hasGetMethod())
+                            || (request.getMethod() == HttpMethod.POST && !route.hasPostMethod())) {
+
+                        // Tried to call an HTTP method that is not defined for this route
+                        Log.error("HTTP method " + request.getMethod().name() + " not implemented in handler "
+                                + handler.getName());
+                        response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
+
+                    } else if (RouteHandlerAuthRequired.class.isAssignableFrom(handler)) {
+
+                        // This handler requires authentication -- check if user is logged in
+                        user = User.getLoggedInUser(request);
+                        if (user == null) {
+
+                            // User is not logged in: handle request with OnUnauthorized handler instead
+                            response =
+                                    getResponseForErrorHandlerRoute(GribbitServer.siteResources.getUnauthorizedRoute(),
+                                            request, user)
+                                    // Redirect the user back to the page they were trying to get to once they
+                                    // do manage to log in successfully
+                                            .setCookie(
+                                                    new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", reqURI,
+                                                            300));
+
+                        } else if (RouteHandlerAuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
+                                && !user.emailIsValidated()) {
+
+                            // User is logged in, but their email address has not been validated:
+                            // handle request with EmailNotValidated handler instead
+                            response =
+                                    getResponseForErrorHandlerRoute(
+                                            GribbitServer.siteResources.getEmailNotValidatedRoute(), request, user);
+
+                        } else {
+
+                            // Authorization required and user logged in: OK to handle request
+                            // with this route
+                            authorizedRoute = route;
+                        }
+                    } else {
+
+                        // Authorization not required -- OK to handle request with this route
+                        authorizedRoute = route;
+                    }
+
+                    // URI matches, so don't need to search further URIs
+                    break;
+                }
+            }
+
+            // ------------------------------------------------------------------------------
+            // Handle static file requests
+            // ------------------------------------------------------------------------------
+
+            // If no error has occurred so far, and no route handler matched the request URI, and this is a
+            // GET request, then see if the URI points to a static file resource, and if so, serve the file.
+            if (response == null && authorizedRoute == null) {
+                // Static file requests can only use GET method
+                if (request.getMethod() != HttpMethod.GET) {
+                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.FORBIDDEN));
+                    return;
+                }
+
+                File staticResourceFile = GribbitServer.siteResources.getStaticResource(reqURI);
+                if (staticResourceFile == null) {
+
+                    // Neither a route handler nor a static resource matched the request URI.
+                    // Return 404 Not Found.
+                    response =
+                            getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(), request,
+                                    user);
+
+                } else {
+
+                    // A static resource matched the request URI, check last-modified timestamp
+                    // against the If-Modified-Since header timestamp in the request.
+                    long lastModifiedEpochSeconds = staticResourceFile.lastModified() / 1000;
+                    if (!request.cachedVersionIsOlderThan(lastModifiedEpochSeconds)) {
+                        // File has not been modified since it was last cached -- return Not Modified
+                        response = new NotModifiedResponse(lastModifiedEpochSeconds);
+
+                    } else {
+                        // If file is newer than what is in the browser cache, or is not in cache, serve the file
+                        serveStaticFile(reqURI, hashKey, staticResourceFile, lastModifiedEpochSeconds, ctx);
+
+                        Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
+                                + staticResourceFile.getPath() + "\t" + HttpResponseStatus.OK + "\t"
+                                + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+
+                        // Finished request
+                        return;
+                    }
+                }
+            }
+
+            // ------------------------------------------------------------------------------
+            // Handle GET or POST requests
+            // ------------------------------------------------------------------------------
+
+            ZonedDateTime timeNow = null;
+
+            // If an error response hasn't yet been generated and this is a (non-static-file) GET or POST request,
+            // then call the get() or post() method for the route handler bound to the request URI to obtain the
+            // response object.
+            boolean hashTheResponse = false;
+            long hashKeyRemainingAgeSeconds = 0;
+            if (response == null && authorizedRoute != null) {
+
+                // ----------------------------------
+                // See if response should be hashed
+                // ----------------------------------
+
+                // For hashed *non-file* URIs, the actual last modified timestamp of dynamically-served
+                // content can't be read directly, so read the last modified timestamp stored for the
+                // previously hashed version in the CacheExtension class, as long as the max age of the
+                // cached version hasn't been exceeded, and see if the last modified timestamp is more
+                // recent than the version cached in the browser.
+                //
+                // The important ramification of this is that when the resource identified by the non-file
+                // URI changes, the CacheExtension class must be notified of that change (including in cases
+                // where the database is modified by another database client) if the modified version should
+                // start being served at a new hash URI immediately, otherwise the web client connected to
+                // this web server will continue to serve old resources until the max age of the cached
+                // content is exceeded.
+                if (isHashURI) {
+                    HashInfo hashInfo = CacheExtension.getHashInfo(reqURI);
+                    if (hashInfo != null) {
+                        long lastModifiedEpochSeconds = hashInfo.getLastModifiedEpochSeconds();
+                        timeNow = ZonedDateTime.now();
+                        long timeNowEpochSeconds = timeNow.toEpochSecond();
+
+                        long maxAgeSeconds = authorizedRoute.getMaxAgeSeconds();
+                        hashKeyRemainingAgeSeconds = lastModifiedEpochSeconds + maxAgeSeconds - timeNowEpochSeconds;
+
+                        if (maxAgeSeconds == 0) {
+                            // Content is not hash-cached
+                            hashKeyRemainingAgeSeconds = 0;
+                        }
+
+                        if (maxAgeSeconds > 0 && hashKeyRemainingAgeSeconds <= 0) {
+                            // Resource has expired -- call the route handler to generate a new response rather
+                            // than serving a Not Modified response, and schedule the response to be hashed or
+                            // re-hashed once the response has been generated.
+                            hashTheResponse = true;
+
+                            // Reset the expiry time at the requested number of seconds in the future
+                            hashKeyRemainingAgeSeconds = maxAgeSeconds;
+
+                        } else if (!request.cachedVersionIsOlderThan(lastModifiedEpochSeconds)) {
+                            // Resource has not expired in cache, but client has requested it anyway.
+                            // However, resource has not been modified since it was last hashed --
+                            // return Not Modified.
+                            response = new NotModifiedResponse(lastModifiedEpochSeconds);
+
+                        } else {
+                            // Resource has not expired in cache, but client has requested it anyway.
+                            // Resource *has* been modified since it was last hashed -- serve it the
+                            // normal way using the route handler, but don't hash the response, since
+                            // it has not expired yet.
+                        }
+                    } else {
+                        // There is no original URI matching this hash URI, so the hash key was stale
+                        // (i.e. a URI whose hashcode has been spoofed, or a very old hashcode from
+                        // the previous time the server was run), but we still got a valid request URI
+                        // by stripping away the hash code, so that is served below in the normal way.
+                    }
+                }
+
+                // If the response wasn't just set to "Not Modified" above, serve the request
+                if (response == null) {
+
+                    // -----------------------------------------------------------------
+                    // Call the route handler for this request, generating the response
+                    // -----------------------------------------------------------------
+
+                    response = getResponseForRoute(authorizedRoute, request, user);
+
+                    if (response == null) {
+                        // Should not happen
+                        throw new RuntimeException("Didn't generate a response");
+                    }
+
+                }
+
+            }
+            if (response == null) {
+                // Should not happen
+                throw new RuntimeException("Didn't generate a response");
+            }
+
+            // ------------------------------------------------------------------------------------
+            // Serve an HTTP result (except in the case of static files, they were served already)
+            // ------------------------------------------------------------------------------------
+
+            // Turn the Response object into an HttpResponse object and serve it to the user over Netty.
             if (timeNow == null) {
                 timeNow = ZonedDateTime.now();
             }
@@ -945,15 +990,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // Log at level "warning" for errors, or 404 for non-favicon
                 Log.warningWithoutCallerRef(logMsg);
             }
-        }
 
-        if (response == null) {
-            // Should not happen
-            throw new RuntimeException("Didn't generate a response");
+        } finally {
+            if (requestComplete) {
+                // Finished request -- destroy the multipart decoder and remove temporary files
+                destroyDecoder();
+            }
         }
-
-        // Finished request -- destroy the multipart decoder and remove temporary files
-        destroyDecoder();
     }
 
     // -----------------------------------------------------------------------------------------------------------------

@@ -163,13 +163,16 @@ public class CacheExtension {
                 // Check if another thread has already enqueued the URI for hashing.
                 Object alreadyInQueue = scheduledURIsToHash.put(origURI, new Object());
                 if (alreadyInQueue == null) {
+                    content.retain();
                     // This URI is not currently queued for hashing by background workers, add it to the queue
                     scheduleHasher(origURI, lastModifiedEpochSeconds, new Hasher() {
                         @Override
                         public String computeHashKey() {
                             // Compute MD5 hash of the ByteBuf contents, then base64-encode the results
                             try {
-                                return Base64Safe.base64Encode(DigestUtils.md5(new ByteBufInputStream(content)));
+                                String hash = Base64Safe.base64Encode(DigestUtils.md5(new ByteBufInputStream(content)));
+                                content.release();  // TODO: does ByteBufInputStream call release()?
+                                return hash;
                             } catch (IOException e) {
                                 return null;
                             }
