@@ -27,6 +27,7 @@ package gribbit.request;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT;
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_CHARSET;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_LANGUAGE;
 import static io.netty.handler.codec.http.HttpHeaderNames.COOKIE;
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
@@ -63,6 +64,7 @@ public class Request {
     private CharSequence accept;
     private CharSequence acceptCharset;
     private CharSequence acceptLanguage;
+    private boolean acceptEncodingGzip;
     private CharSequence referer;
     private CharSequence userAgent;
     private long ifModifiedSinceEpochSecond = 0;
@@ -121,7 +123,7 @@ public class Request {
         }
 
         this.method = httpReq.method();
-        
+
         CharSequence host = headers.get(HOST);
         this.host = host == null ? null : host.toString();
 
@@ -132,6 +134,9 @@ public class Request {
         this.origin = headers.get(ORIGIN);
         this.referer = headers.get(REFERER);
         this.userAgent = headers.get(USER_AGENT);
+
+        CharSequence acceptEncoding = headers.get(ACCEPT_ENCODING);
+        this.acceptEncodingGzip = acceptEncoding != null && acceptEncoding.toString().toLowerCase().contains("gzip");
 
         CharSequence cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
         if (cacheDateHeader != null && cacheDateHeader.length() > 0) {
@@ -235,7 +240,7 @@ public class Request {
     }
 
     // -----------------------------------------------------------------------------------------------------------------
-    
+
     /** Used for sorting cookies into decreasing order of path length */
     private static final Comparator<Cookie> cookiePathLengthComparator = new Comparator<Cookie>() {
         @Override
@@ -399,6 +404,10 @@ public class Request {
 
     public CharSequence getAcceptLanguage() {
         return acceptLanguage;
+    }
+
+    public boolean acceptEncodingGzip() {
+        return acceptEncodingGzip;
     }
 
     public CharSequence getReferer() {

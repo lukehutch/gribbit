@@ -366,9 +366,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Serve an HTTP response (anything other than a static file). */
-    private void serveHttpResponse(String reqURI, Response response, boolean isHEAD, ZonedDateTime timeNow,
-            boolean hashTheResponse, long hashKeyMaxRemainingAgeSeconds, String hashKey, ChannelHandlerContext ctx)
-            throws Exception {
+    private void serveHttpResponse(String reqURI, Response response, boolean isHEAD, boolean acceptEncodingGzip,
+            ZonedDateTime timeNow, boolean hashTheResponse, long hashKeyMaxRemainingAgeSeconds, String hashKey,
+            ChannelHandlerContext ctx) throws Exception {
 
         // Add any pending flash messages to the response, if the response is an HTML page
         if (response instanceof HTMLPageResponse) {
@@ -407,9 +407,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
         // Gzip content if it's larger than 1kb and has a compressible content type 
         // TODO: compare speed to using JZlib.GZIPOutputStream
-        boolean gzipContent = content.readableBytes() > 1024 && WebUtils.isCompressibleContentType(contentType);
         ByteBuf gzippedContent = null;
-        if (gzipContent) {
+        if (acceptEncodingGzip //
+                && content.readableBytes() > 1024 //
+                && WebUtils.isCompressibleContentType(contentType)) {
             gzippedContent = Unpooled.buffer(/* initialCapacity = */content.readableBytes());
             GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
             gzipStream.write(contentBytes);
@@ -419,11 +420,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // Create a FullHttpResponse object that wraps the response status and content
         HttpResponseStatus status = response.getStatus();
         DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, //
-                gzipContent ? gzippedContent : content);
+                gzippedContent != null ? gzippedContent : content);
         httpRes.headers().set(CONTENT_TYPE, contentType);
         httpRes.headers().set(CONTENT_LENGTH,
-                Integer.toString(gzipContent ? gzippedContent.readableBytes() : content.readableBytes()));
-        if (gzipContent) {
+                Integer.toString(gzippedContent != null ? gzippedContent.readableBytes() : content.readableBytes()));
+        if (gzippedContent != null) {
             httpRes.headers().set(CONTENT_ENCODING, GZIP);
         }
 
@@ -443,9 +444,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             CacheExtension.updateHashURI(reqURI, content, response.getLastModifiedEpochSeconds());
         }
 
-        // After last use of content, release the content ByteBuf if gzippedContent is being passed back 
-        // in the response instead of content
-        if (gzipContent) {
+        // After last use of the content ByteBuf, release content if gzippedContent is being used instead
+        if (gzippedContent != null) {
             content.release();
         }
 
@@ -562,7 +562,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         String responseText =
                 requestText.toUpperCase() + " -- "
                         + (wsAuthenticatedUser == null ? "not logged in" : wsAuthenticatedUser.id);
-        
+
         ctx.channel().writeAndFlush(new TextWebSocketFrame(responseText));
     }
 
@@ -816,10 +816,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // ------------------------------------------------------------------------------
 
             if (response == null && authorizedRoute == null && msg instanceof HttpRequest
+            // TODO: Read WS routes from class annotations
                     && reqURI.endsWith("/websocket")) {
                 HttpRequest httpReq = (HttpRequest) msg;
 
-                // Record which user was logged in when websocket upgrade request was made
+                // Record which user was authenticated (if any) when websocket upgrade request was made.
+                // TODO: Reject WS upgrade request for websockets that require authentication.
+                // TODO: Also provide a means for revoking WS login.
                 wsAuthenticatedUser = User.getLoggedInUser(request);
 
                 WebSocketServerHandshakerFactory wsFactory =
@@ -989,7 +992,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             // Serve the response to the client 
-            serveHttpResponse(reqURI, response, isHEAD, //
+            serveHttpResponse(reqURI, response, isHEAD, request.acceptEncodingGzip(),//
                     timeNow, hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, ctx);
 
             // Log the request and response
