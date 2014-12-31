@@ -398,13 +398,18 @@ public class User extends DBModelStringKey {
 
             // Create new session token
             sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
+            
+            // Create new random CSRF token every time user logs in
             csrfTok = CSRF.generateRandomCSRFToken();
-            save();
+            
             if (sessionTokHasExpired()) {
                 // Shouldn't happen, since we just created session tok, but just in case
                 clearSessionTok();
                 throw new UnauthorizedException("Couldn't create auth session");
             }
+
+            // Save tokens in database
+            save();
 
             // Save login cookies in result
             response.setCookie(new Cookie(Cookie.SESSION_COOKIE_NAME, "/", sessionTok.token,

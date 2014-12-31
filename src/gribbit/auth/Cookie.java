@@ -167,7 +167,9 @@ public class Cookie {
         nettyCookie.setDiscard(discardAtEndOfBrowserSession);
         nettyCookie.setHttpOnly(true);  // TODO
         if (GribbitProperties.SSL) {
-            nettyCookie.setSecure(true);  // TODO
+            // If SSL is enabled, force cookies to only be delivered over SSL, to prevent cookie hijacking
+            // on public wifi networks
+            nettyCookie.setSecure(true);
         }
         return nettyCookie;
     }

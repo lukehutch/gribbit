@@ -75,9 +75,11 @@ public class Request {
     private Map<String, List<String>> queryParamToVals;
 
     /**
-     * Header for CORS.
+     * Header for CORS, and for protecting against CSWSH. See:
      * 
-     * See http://en.wikipedia.org/wiki/Cross-origin_resource_sharing
+     * http://en.wikipedia.org/wiki/Cross-origin_resource_sharing
+     * 
+     * http://www.christian-schneider.net/CrossSiteWebSocketHijacking.html
      **/
     private CharSequence origin;
 
