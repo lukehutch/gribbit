@@ -25,6 +25,7 @@
  */
 package gribbit.auth;
 
+import gribbit.server.config.GribbitProperties;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.DefaultCookie;
@@ -165,6 +166,9 @@ public class Cookie {
         nettyCookie.setMaxAge(maxAgeSeconds);
         nettyCookie.setDiscard(discardAtEndOfBrowserSession);
         nettyCookie.setHttpOnly(true);  // TODO
+        if (GribbitProperties.SSL) {
+            nettyCookie.setSecure(true);  // TODO
+        }
         return nettyCookie;
     }
 
