@@ -27,17 +27,17 @@ package gribbit.request;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
-import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
-import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
 import static io.netty.handler.codec.http.HttpHeaderNames.DATE;
 import static io.netty.handler.codec.http.HttpHeaderNames.ETAG;
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPECT;
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPIRES;
 import static io.netty.handler.codec.http.HttpHeaderNames.LAST_MODIFIED;
 import static io.netty.handler.codec.http.HttpHeaderNames.PRAGMA;
+import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
+import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
@@ -58,6 +58,7 @@ import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.util.Log;
 import gribbit.util.WebUtils;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -101,7 +102,6 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.stream.ChunkedFile;
 import io.netty.util.CharsetUtil;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -399,32 +399,35 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             content = ((HTMLResponse) response).getContent(isGetModelRequest);
             contentType = isGetModelRequest ? "application/json;charset=utf-8" : response.getContentType();
         } else {
+            // Not a "getmodel" request, just get the content from the response
             content = response.getContent();
             contentType = response.getContentType();
         }
         byte[] contentBytes = content.array();
 
-        // Gzip content if it's longer than 1kb and is a compressible type 
-        int contentLength = content.readableBytes();
-        boolean gzipContent = contentLength > 1024 && WebUtils.isCompressibleContentType(contentType);
+        // Gzip content if it's larger than 1kb and has a compressible content type 
+        // TODO: compare speed to using JZlib.GZIPOutputStream
+        boolean gzipContent = content.readableBytes() > 1024 && WebUtils.isCompressibleContentType(contentType);
         ByteBuf gzippedContent = null;
         if (gzipContent) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream(contentLength);
-            GZIPOutputStream gzip = new GZIPOutputStream(out);
-            gzip.write(contentBytes);
-            gzip.close();
-            gzippedContent = Unpooled.wrappedBuffer(out.toByteArray());
+            gzippedContent = Unpooled.buffer(/* initialCapacity = */content.readableBytes());
+            GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
+            gzipStream.write(contentBytes);
+            gzipStream.close();
         }
 
         // Create a FullHttpResponse object that wraps the response status and content
         HttpResponseStatus status = response.getStatus();
         DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, //
                 gzipContent ? gzippedContent : content);
-        httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
-
+        httpRes.headers().set(CONTENT_TYPE, contentType);
         httpRes.headers().set(CONTENT_LENGTH,
                 Integer.toString(gzipContent ? gzippedContent.readableBytes() : content.readableBytes()));
-        httpRes.headers().set(CONTENT_TYPE, contentType);
+        if (gzipContent) {
+            httpRes.headers().set(CONTENT_ENCODING, GZIP);
+        }
+
+        httpRes.headers().add("Server", GribbitServer.SERVER_IDENTIFIER);
 
         // Set headers for caching
         setDateAndCacheHeaders(httpRes.headers(), timeNow, response.getLastModifiedEpochSeconds(),
@@ -444,7 +447,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // in the response instead of content
         if (gzipContent) {
             content.release();
-            httpRes.headers().set(CONTENT_ENCODING, GZIP);
         }
 
         if (isHEAD) {
@@ -533,6 +535,39 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     // -----------------------------------------------------------------------------------------------------------------
 
+    /** Websocket handshaker. */
+    private WebSocketServerHandshaker handshaker;
+
+    /** The user that was authenticated when the websocket upgrade was requested. */
+    private User wsAuthenticatedUser;
+
+    /** Handle a websocket frame. */
+    private void handleWebsocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame) {
+        // Check for closing frame
+        if (frame instanceof CloseWebSocketFrame) {
+            handshaker.close(ctx.channel(), (CloseWebSocketFrame) frame.retain());
+            return;
+        }
+        if (frame instanceof PingWebSocketFrame) {
+            ctx.channel().write(new PongWebSocketFrame(frame.content().retain()));
+            return;
+        }
+        if (!(frame instanceof TextWebSocketFrame)) {
+            throw new UnsupportedOperationException(String.format("%s frame types not supported", frame.getClass()
+                    .getName()));
+        }
+
+        // TODO: placeholder
+        String requestText = ((TextWebSocketFrame) frame).text();
+        String responseText =
+                requestText.toUpperCase() + " -- "
+                        + (wsAuthenticatedUser == null ? "not logged in" : wsAuthenticatedUser.id);
+        
+        ctx.channel().writeAndFlush(new TextWebSocketFrame(responseText));
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
     private static void sendHttpErrorResponse(ChannelHandlerContext ctx, HttpRequest req, FullHttpResponse res) {
         // Generate an error page if response getStatus code is not OK (200).
         if (res.status().code() != 200) {
@@ -550,62 +585,17 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    private WebSocketServerHandshaker handshaker;
-
     /** Decode an HTTP message. */
     @Override
     public void messageReceived(ChannelHandlerContext ctx, Object msg) throws Exception {
 
         // ------------------------------------------------------------------------------
-        // Handle WebSocket frame
+        // Handle WebSocket frames
         // ------------------------------------------------------------------------------
 
         if (msg instanceof WebSocketFrame) {
-            WebSocketFrame frame = (WebSocketFrame) msg;
-
-            // Check for closing frame
-            if (frame instanceof CloseWebSocketFrame) {
-                handshaker.close(ctx.channel(), (CloseWebSocketFrame) frame.retain());
-                return;
-            }
-            if (frame instanceof PingWebSocketFrame) {
-                ctx.channel().write(new PongWebSocketFrame(frame.content().retain()));
-                return;
-            }
-            if (!(frame instanceof TextWebSocketFrame)) {
-                throw new UnsupportedOperationException(String.format("%s frame types not supported", frame.getClass()
-                        .getName()));
-            }
-
-            // Send the uppercase string back.
-            String request = ((TextWebSocketFrame) frame).text();
-            // Log.info("GOT: " + request);
-            ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase()));
+            handleWebsocketFrame(ctx, (WebSocketFrame) msg);
             return;
-        }
-
-        // ------------------------------------------------------------------------------
-        // Complete websocket handshake if present
-        // ------------------------------------------------------------------------------
-
-        if (msg instanceof HttpRequest) {
-            HttpRequest httpReq = (HttpRequest) msg;
-            if (httpReq.uri().endsWith("/websocket")) {
-                // Websocket handshake
-                WebSocketServerHandshakerFactory wsFactory =
-                        new WebSocketServerHandshakerFactory(GribbitServer.wsUri.toString(), null, true);
-                handshaker = wsFactory.newHandshaker(httpReq);
-                if (handshaker == null) {
-                    WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
-                } else {
-                    // TODO: file bug report, handshaker.handshake should take HttpRequest, not FullHttpRequest
-                    DefaultFullHttpRequest fullReq =
-                            new DefaultFullHttpRequest(httpReq.protocolVersion(), httpReq.method(), httpReq.uri());
-                    fullReq.headers().add(httpReq.headers());
-                    handshaker.handshake(ctx.channel(), (FullHttpRequest) fullReq);
-                }
-                return;
-            }
         }
 
         // ------------------------------------------------------------------------------
@@ -710,7 +700,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             if (!requestComplete) {
-                // Wait for more chunks
+                // Wait for more chunks.
+                // (Since requestComplete is false, calling return here will not call destroyDecoder()
+                // in the finally block, so it will still exist when the next chunk is received.)
                 return;
             }
 
@@ -817,6 +809,33 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     // URI matches, so don't need to search further URIs
                     break;
                 }
+            }
+
+            // ------------------------------------------------------------------------------
+            // Complete websocket handshake if requested
+            // ------------------------------------------------------------------------------
+
+            if (response == null && authorizedRoute == null && msg instanceof HttpRequest
+                    && reqURI.endsWith("/websocket")) {
+                HttpRequest httpReq = (HttpRequest) msg;
+
+                // Record which user was logged in when websocket upgrade request was made
+                wsAuthenticatedUser = User.getLoggedInUser(request);
+
+                WebSocketServerHandshakerFactory wsFactory =
+                        new WebSocketServerHandshakerFactory(GribbitServer.wsUri.toString(), null, true);
+                handshaker = wsFactory.newHandshaker(httpReq);
+                if (handshaker == null) {
+                    WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
+                } else {
+                    // Attempt websocket handshake, and if it succeeds, upgrade connection to websocket
+                    // TODO: filed bug report, handshaker.handshake should take HttpRequest, not FullHttpRequest
+                    DefaultFullHttpRequest fullReq =
+                            new DefaultFullHttpRequest(httpReq.protocolVersion(), httpReq.method(), httpReq.uri());
+                    fullReq.headers().add(httpReq.headers());
+                    handshaker.handshake(ctx.channel(), (FullHttpRequest) fullReq);
+                }
+                return;
             }
 
             // ------------------------------------------------------------------------------

@@ -164,6 +164,7 @@ public class Cookie {
         }
         nettyCookie.setMaxAge(maxAgeSeconds);
         nettyCookie.setDiscard(discardAtEndOfBrowserSession);
+        nettyCookie.setHttpOnly(true);  // TODO
         return nettyCookie;
     }
 
