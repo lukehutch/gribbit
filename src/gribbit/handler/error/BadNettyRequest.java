@@ -29,14 +29,19 @@ import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.response.Response;
 import gribbit.response.TextResponse;
 import gribbit.route.RouteHandlerAuthNotRequired;
+import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Default handler for "bad request" errors.
+ * Default handler for "bad request" HTTP errors generated in the Netty pipeline before we even get the data.
+ * 
+ * Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed, so we have a special
+ * handler for this case.
  */
-@RouteOverride("/gribbit/err/bad-request")
-public class BadRequest extends RouteHandlerAuthNotRequired {
+@RouteOverride("/bad-request")
+public class BadNettyRequest extends RouteHandlerAuthNotRequired {
     public Response get() {
+        Log.warning("Bad request error generated within Netty pipeline");
         return new TextResponse(HttpResponseStatus.BAD_REQUEST, "Bad request");
     }
 }

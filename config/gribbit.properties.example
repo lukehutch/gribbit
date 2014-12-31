@@ -15,6 +15,9 @@ loglevel=INFO
 
 #dbname=gribbit
 
+
+#staticresourceroot=/path/to/static/resource/root  # where to serve static files from
+
 prettyprint.html=true
 prettyprint.json=true
 

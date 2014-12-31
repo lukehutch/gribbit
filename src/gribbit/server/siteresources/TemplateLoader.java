@@ -41,7 +41,6 @@ import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
-import java.io.File;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
@@ -83,7 +82,7 @@ public class TemplateLoader {
 
     // -----------------------------------------------------------------------------------------------------
 
-    TemplateLoader(SiteResources siteResources, File polymerModuleRootDir, DataModelLoader dataModelLoader) {
+    TemplateLoader(SiteResources siteResources, DataModelLoader dataModelLoader) {
         this.siteResources = siteResources;
         this.dataModelLoader = dataModelLoader;
     }

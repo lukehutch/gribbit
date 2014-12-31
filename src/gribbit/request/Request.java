@@ -121,7 +121,9 @@ public class Request {
         }
 
         this.method = httpReq.method();
-        this.host = headers.get(HOST).toString();
+        
+        CharSequence host = headers.get(HOST);
+        this.host = host == null ? null : host.toString();
 
         this.xRequestedWith = headers.get("X-Requested-With");
         this.accept = headers.get(ACCEPT);

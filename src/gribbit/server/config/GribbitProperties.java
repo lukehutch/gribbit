@@ -110,6 +110,8 @@ public class GribbitProperties {
 
     public static String DB_NAME = properties.getProperty("dbname", "gribbit");
 
+    public static String STATIC_RESOURCE_ROOT = properties.getProperty("staticresourceroot", null);
+
     public static boolean PRETTY_PRINT_HTML = getPropertyBoolean("prettyprint.html", true);
     public static boolean PRETTY_PRINT_JSON = getPropertyBoolean("prettyprint.json", true);
 

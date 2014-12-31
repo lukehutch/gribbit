@@ -31,6 +31,7 @@ import gribbit.route.RouteHandler;
 import gribbit.route.RouteInfo;
 import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
+import gribbit.server.config.GribbitProperties;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 
@@ -53,7 +54,6 @@ public class SiteResources {
 
     // Location of static resources on filesystem
     private File staticResourceRootDir;
-    private File polymerModuleRootDir;
 
     private final FastClasspathScanner classpathScanner;
 
@@ -153,6 +153,9 @@ public class SiteResources {
         if (!reqURI.startsWith("/")) {
             return null;
         }
+        if (staticResourceRootDir == null || !staticResourceRootDir.exists()) {
+            return null;
+        }
         File currFileOrDir = staticResourceRootDir;
         int depth = 0;
         String[] parts = StringUtils.split(reqURI, "/");
@@ -202,49 +205,31 @@ public class SiteResources {
     /**
      * Set up classpath scanner for detecting handler classes, models and templates.
      */
-    public SiteResources(String appPackageName, String staticResourceRootPath) {
+    public SiteResources(String appPackageName) {
         // Locate static resources
         staticResourceRootDir = null;
-        String polymerModulePath = "polymer" + File.separator + "bower_components";
-        for (File pathElement : FastClasspathScanner.getUniqueClasspathElements()) {
-            if (pathElement.isDirectory()) {
-                File resourceDir = new File(pathElement, staticResourceRootPath);
-                if (resourceDir.exists()) {
-                    if (staticResourceRootDir != null) {
-                        throw new RuntimeException("Found two matches for static resource root \""
-                                + staticResourceRootPath + "\" on classpath: " + staticResourceRootDir.getPath()
-                                + " , " + resourceDir.getPath());
-                    }
-                    staticResourceRootDir = resourceDir;
-                }
-                File polymerDir = new File(pathElement.getPath() + File.separator + polymerModulePath);
-                if (polymerDir.exists()) {
-                    if (polymerModuleRootDir != null) {
-                        throw new RuntimeException("Found two matches for Polymer module root \"" + polymerModulePath
-                                + "\" on classpath: " + polymerModuleRootDir.getPath() + " , " + polymerDir.getPath());
-                    }
-                    polymerModuleRootDir = polymerDir;
-                }
+
+        if (GribbitProperties.STATIC_RESOURCE_ROOT != null) {
+            staticResourceRootDir = new File(GribbitProperties.STATIC_RESOURCE_ROOT);
+            if (!staticResourceRootDir.exists()) {
+                throw new RuntimeException("Static resource root dir specified in gribbit.properties does not exist: "
+                        + GribbitProperties.STATIC_RESOURCE_ROOT);
             }
-        }
-        if (staticResourceRootDir == null) {
-            throw new RuntimeException("Could not find static resource path \"" + staticResourceRootPath
-                    + "\" in a directory on the classpath (N.B. cannot be in zipfiles or jarfiles "
-                    + "on the classpath)");
-        }
-        if (polymerModuleRootDir == null) {
-            throw new RuntimeException("Could not find Polymer module root \"" + polymerModulePath
-                    + "\" in a directory on the classpath (N.B. cannot be in zipfiles or jarfiles "
-                    + "on the classpath)");
+            if (!staticResourceRootDir.isDirectory()) {
+                throw new RuntimeException("Static resource root specified in gribbit.properties is not a directory: "
+                        + GribbitProperties.STATIC_RESOURCE_ROOT);
+            }
         }
 
         routeMapping = new RouteMapping();
         dataModelLoader = new DataModelLoader();
-        templateLoader = new TemplateLoader(this, polymerModuleRootDir, dataModelLoader);
+        templateLoader = new TemplateLoader(this, dataModelLoader);
 
         // Set up classpath scanner
         classpathScanner = new FastClasspathScanner(//
-                new String[] { "gribbit", appPackageName, staticResourceRootPath, "org/polymerproject" })
+                staticResourceRootDir == null //
+                        ? new String[] { "gribbit", appPackageName } //
+                        : new String[] { "gribbit", appPackageName, staticResourceRootDir.getPath() })
         //
                 .matchSubclassesOf(RouteHandler.class, new SubclassMatchProcessor<RouteHandler>() {
                     @Override

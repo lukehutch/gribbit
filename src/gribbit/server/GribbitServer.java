@@ -33,14 +33,17 @@ import gribbit.util.Log;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
@@ -52,6 +55,8 @@ public class GribbitServer {
 
     /** The URI the server is running on. */
     public static URI uri;
+
+    public static URI wsUri;
 
     public static String appPackageName;
 
@@ -89,10 +94,10 @@ public class GribbitServer {
 
     // -----------------------------------------------------------------------------------------------------
 
-    private static void loadSiteResources(String appPackageName, String staticResourceRoot) {
+    private static void loadSiteResources(String appPackageName) {
         try {
             long startTime = System.currentTimeMillis();
-            GribbitServer.siteResources = new SiteResources(appPackageName, staticResourceRoot);
+            GribbitServer.siteResources = new SiteResources(appPackageName);
             Log.info("Site resource loading took "
                     + String.format("%.3f", (System.currentTimeMillis() - startTime) * 0.001f) + " sec");
 
@@ -132,15 +137,7 @@ public class GribbitServer {
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
      * after all routes and handlers have been added.
      */
-    public static void config(String appPackageName, String staticResourceRoot) {
-        init("localhost", GribbitProperties.PORT, appPackageName, staticResourceRoot);
-    }
-
-    /**
-     * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
-     * after all routes and handlers have been added.
-     */
-    public static void init(String domain, int port, String appPackageName, String staticResourceRoot) {
+    public static void init(String domain, int port, String appPackageName) {
         // Initialize logger
         Log.info("Initializing Gribbit");
 
@@ -162,7 +159,7 @@ public class GribbitServer {
 
         try {
             // Scan classpath for handlers, templates etc.
-            loadSiteResources(appPackageName, staticResourceRoot);
+            loadSiteResources(appPackageName);
 
             // Poll for classpath changes, and provide hot-reload of changed HTML/JS/CSS/image resources.
             // We also support hot-reload of inline HTML templates in static final "_template" fields of
@@ -181,7 +178,7 @@ public class GribbitServer {
 
                             // Reload site resources from classpath if something changed, and atomically
                             // replace GribbitServer.siteResources
-                            loadSiteResources(appPackageName, staticResourceRoot);
+                            loadSiteResources(appPackageName);
                         }
                         GribbitServer.backgroundTaskGroup.schedule(this,
                                 GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
@@ -190,7 +187,6 @@ public class GribbitServer {
                 GribbitServer.backgroundTaskGroup.schedule(classpathChangeDetector,
                         GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             }
-
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("\nFailed to load site resources, cannot initialize web server");
@@ -203,18 +199,14 @@ public class GribbitServer {
     public static void start() {
         Log.info("Starting Gribbit server");
         try {
-            // TODO: These SSL classes seem to be absent in Java 8.
-            // TODO: Also need to listen on both SSL and non-SSL ports. Don't allow auth-required
-            // TODO: RestHandler classes to be served on non-https paths, or forms to be submitted to them
-            //                        final SslContext sslCtx;
-            //                        if (GribbitProperties.SSL) {
-            //                            SelfSignedCertificate ssc = new SelfSignedCertificate();
-            //                            sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
-            //                        } else {
-            //                            sslCtx = null;
-            //                        }
-            // TODO: Add SslHandler to pipeline to support SSL, its presence is tested for by 
-            // TODO: HttpRequestHandler
+            // TODO: Listen on both SSL and non-SSL ports; redirect non-SSL to SSL; make cookies SSL-only
+            final SslContext sslCtx;
+            if (GribbitProperties.SSL) {
+                SelfSignedCertificate ssc = new SelfSignedCertificate();
+                sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
+            } else {
+                sslCtx = null;
+            }
 
             EventLoopGroup bossGroup = new NioEventLoopGroup(1);
             EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -223,7 +215,7 @@ public class GribbitServer {
             // Configure the server.
             try {
                 ServerBootstrap b = new ServerBootstrap();
-                b.option(ChannelOption.SO_BACKLOG, 1024);
+                // b.option(ChannelOption.SO_BACKLOG, 1024);
                 b.group(bossGroup, workerGroup) //
                         .channel(NioServerSocketChannel.class) //
                         // .handler(new LoggingHandler(LogLevel.INFO)) //
@@ -233,37 +225,41 @@ public class GribbitServer {
                             @Override
                             public void initChannel(SocketChannel ch) {
                                 ChannelPipeline p = ch.pipeline();
-                                //            if (sslCtx != null) {
-                                //                p.addLast(sslCtx.newHandler(ch.alloc()));
-                                //            }
+                                if (sslCtx != null) {
+                                    p.addLast(sslCtx.newHandler(ch.alloc()));
+                                }
 
-                                // p.addLast(new HttpServerCodec());
-                                p.addLast(new HttpRequestDecoder());
-                                p.addLast(new HttpResponseEncoder());
+                                p.addLast(new LoggingHandler(LogLevel.INFO));
+
+                                p.addLast(new HttpServerCodec());
+
+                                // TODO: look at HttpServerUpgradeHandler for web socket and SPDY/Http2 reqs
 
                                 // TODO: I get a 330 error in the browser on static file requests if this is
                                 // enabled -- see http://goo.gl/lPAzQC
-                                // p.addLast(new HttpContentCompressor());
-
-                                // TODO can client HTTP reqs be compressed too, and do I just add this here?
-                                //            p.addLast(new HttpContentDecompressor());
+                                //  p.addLast(new HttpContentCompressor());
+                                
+                                //  p.addLast(new HttpContentDecompressor());
+                                
+                                p.addLast(new WebSocketServerCompressionHandler());
 
                                 p.addLast(routeHandlerGroup, new HttpRequestHandler());
                             }
                         });
 
-                // TODO: test these options suggested in http://goo.gl/AHvjmq
-                // See also http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#11.0
-                b.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
-                b.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 64 * 1024);
-                b.childOption(ChannelOption.SO_SNDBUF, 1048576);
-                b.childOption(ChannelOption.SO_RCVBUF, 1048576);
-                // bootstrap.childOption(ChannelOption.TCP_NODELAY, true);
+                //                // TODO: test these options suggested in http://goo.gl/AHvjmq
+                //                // See also http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#11.0
+                //                b.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
+                //                b.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 64 * 1024);
+                //                b.childOption(ChannelOption.SO_SNDBUF, 1048576);
+                //                b.childOption(ChannelOption.SO_RCVBUF, 1048576);
+                //                // bootstrap.childOption(ChannelOption.TCP_NODELAY, true);
 
                 Channel ch = b.bind(port).sync().channel();
 
-                // TODO: This should be the serving domain, not localhost
-                uri = new URI((GribbitProperties.SSL ? "https" : "http") + "://" + domain + ":" + port);
+                String bareUri = domain + (port == 80 || port == 443 ? "" : ":" + port);
+                uri = new URI((GribbitProperties.SSL ? "https" : "http") + "://" + bareUri);
+                wsUri = new URI((GribbitProperties.SSL ? "wss" : "ws") + "://" + bareUri + "/websocket");
 
                 Log.info("Gribbit web server started at " + uri + '/');
 
