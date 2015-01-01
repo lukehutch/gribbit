@@ -117,9 +117,6 @@ public class HttpUtils {
             httpHeaders.add(PRAGMA, "no-cache"); // HTTP 1.0
             httpHeaders.add(EXPIRES, "0"); // Proxies
         }
-
     }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
+    
 }
