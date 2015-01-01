@@ -861,31 +861,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 }
                 // Log.info("Origin: " + origin.toString());
 
-                // For authenticated websockets, check if the user is logged in
-                User loggedInUser = User.getLoggedInUser(request);
-                if (loggedInUser == null) {
-                    // Not logged in, so can't connect to this websocket
-                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                            HttpResponseStatus.FORBIDDEN));
-                    return;
-                }
-
                 // To further mitigate CSWSH attacks: check for the CSRF token in the URL parameter "_csrf";
                 // the passed token must match the user's CSRF token. This means the websocket URL has to
                 // be dynamically generated and inserted into the webpage that opened the websocket.
                 // TODO: generate this URL an insert into the page somehow (i.e. require a form on the page
                 // so that the CSRF token is available)
-                String csrfTok = loggedInUser.csrfTok;
-                if (csrfTok == null || csrfTok.isEmpty() || csrfTok.equals(CSRF.CSRF_TOKEN_UNKNOWN)
-                        || csrfTok.equals(CSRF.CSRF_TOKEN_PLACEHOLDER)) {
+                if (!CSRF.csrfTokMatches(request.getQueryParam("_csrf"), user)) {
                     // No valid CSRF token in User object
-                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                            HttpResponseStatus.FORBIDDEN));
-                    return;
-                }
-                String csrfParam = request.getQueryParam("_csrf");
-                if (csrfParam == null || csrfParam.isEmpty() || !csrfParam.equals(csrfTok)) {
-                    // The CSRF URL query parameter is missing, or doesn't match the user's token 
                     sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                             HttpResponseStatus.FORBIDDEN));
                     return;

@@ -117,7 +117,7 @@ public class RouteInfo {
                 response.setLastModifiedEpochSeconds(0);
                 response.setMaxAgeSeconds(0);
             }
-            
+
             return response;
 
         } catch (Throwable e) {
@@ -338,21 +338,13 @@ public class RouteInfo {
                 // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
                 // unathenticated route
                 if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass)) {
-                    String postToken = request.getPostParam(CSRF.CSRF_PARAM_NAME);
-                    if (postToken == null || postToken.isEmpty()) {
-                        throw new AppException("Missing CSRF token in POST request");
-                    }
-                    String userCSRFToken = null;
-                    if (user != null && user.csrfTok != null) {
-                        // If user is logged in and this is an authenticated route, use the CSRF token
-                        // saved along with the session in the User object
-                        userCSRFToken = user.csrfTok;
+                    if (user == null) {
+                        throw new AppException("User not logged in, could not check CSRF token. "
+                                + "POST requests are only accepted from logged-in users.");
                     } else {
-                        throw new AppException("User not logged in, could not check CSRF token");
-                    }
-                    if (!userCSRFToken.equals(postToken) || postToken.equals(CSRF.CSRF_TOKEN_PLACEHOLDER)
-                            || postToken.equals(CSRF.CSRF_TOKEN_UNKNOWN)) {
-                        throw new AppException("CSRF token mismatch");
+                        if (!CSRF.csrfTokMatches(request.getPostParam(CSRF.CSRF_PARAM_NAME), user)) {
+                            throw new AppException("Missing or incorrect CSRF token in POST request");
+                        }
                     }
                 }
 

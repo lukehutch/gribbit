@@ -64,4 +64,25 @@ public class CSRF {
         return RandomTokenGenerator.generateRandomTokenBase64(Cookie.SESSION_COOKIE_LENGTH);
     }
 
+    /**
+     * Test if the given CSRF token matches the user's CSRF token. Returns false if the token or the user are null, or
+     * if the tokens don't match.
+     */
+    public static boolean csrfTokMatches(String testCsrfTok, User user) {
+        if (testCsrfTok == null || user == null) {
+            return false;
+        } else {
+            String userCsrfTok = user.csrfTok;
+            // if no valid CSRF token in User object
+            if (userCsrfTok == null || userCsrfTok.isEmpty() || userCsrfTok.isEmpty() //
+                    // or if using a placeholder (placeholders can never match)
+                    || userCsrfTok.equals(CSRF_TOKEN_UNKNOWN) || userCsrfTok.equals(CSRF_TOKEN_PLACEHOLDER) //
+                    // or if the test token doesn't match the user's token 
+                    || !userCsrfTok.equals(testCsrfTok)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }
