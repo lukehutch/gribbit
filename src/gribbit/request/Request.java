@@ -96,6 +96,11 @@ public class Request {
      */
     private boolean isGetModelRequest;
 
+    /**
+     * If set to true by appending "?_ws=1" to the URL, then upgrade the connection to a websocket.
+     */
+    private boolean isWebSocketRequest;
+
     /** Flash messages. */
     private ArrayList<FlashMessage> flashMessages;
 
@@ -151,12 +156,14 @@ public class Request {
         this.path = decoder.path();
         this.queryParamToVals = decoder.parameters();
 
-        // Look for _getmodel=1 query parameter setting
-        String getModel = this.getQueryParam("_getmodel");
-        if (getModel != null) {
-            this.isGetModelRequest = getModel.equals("1");
-            // Remove _getmodel param so that user doesn't see it
+        // Look for _getmodel=1 and _ws=1 query parameters, then remove them if present so the user doesn't see them
+        this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
+        this.isWebSocketRequest = "1".equals(this.getQueryParam("_ws"));
+        if (this.isGetModelRequest) {
             this.queryParamToVals.remove("_getmodel");
+        }
+        if (this.isWebSocketRequest) {
+            this.queryParamToVals.remove("_ws");
         }
 
         // Get flash messages from cookie, if any
@@ -434,5 +441,13 @@ public class Request {
      */
     public boolean isGetModelRequest() {
         return isGetModelRequest;
+    }
+
+    /**
+     * True if the request URL contained the query parameter "?_ws=1", in which case upgrade the connection to a
+     * websocket.
+     */
+    public boolean isWebSocketRequest() {
+        return isWebSocketRequest;
     }
 }

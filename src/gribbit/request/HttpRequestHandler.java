@@ -554,6 +554,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
     /** The user that was authenticated when the websocket upgrade was requested. */
     private User wsAuthenticatedUser;
 
+    /** The route that the websocket upgrade was requested on. */
+    private RouteInfo wsRequestedRoute;
+
     /** Handle a websocket frame. */
     private void handleWebsocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame) {
         // Check for closing frame
@@ -573,7 +576,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // TODO: placeholder
         String requestText = ((TextWebSocketFrame) frame).text();
         String responseText =
-                requestText.toUpperCase() + " -- "
+                wsRequestedRoute.getRoutePath() + " -> " + requestText.toUpperCase() + " -- "
                         + (wsAuthenticatedUser == null ? "not logged in" : wsAuthenticatedUser.id);
 
         ctx.channel().writeAndFlush(new TextWebSocketFrame(responseText));
@@ -828,13 +831,14 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // Complete websocket handshake if requested
             // ------------------------------------------------------------------------------
 
-            // FIXME: Make these into class annotations
-            String websocketPath = "/websocket";
-            boolean isAuthenticatedWebsocket = true;
-
-            if (response == null && authorizedRoute == null && msg instanceof HttpRequest
-            // TODO: Read WS routes from class annotations, rather than using hardcoded "/websocket"
-                    && reqURI.endsWith(websocketPath)) {
+            // Websockets have the same authorization requirements as the routes they are requested on,
+            // i.e. if the route /app/handler is of type RouteHandlerAuthRequired, then the WS request
+            // /app/handler?_ws=1 also requires the user to be logged in first. If we get to here and
+            // response is still null but authorizedRoute is non-null, then there was no error response
+            // such as Unauthorized, and the user is authorized for this route (so they are also
+            // authorized for the WebSocket attached to the route).
+            // TODO: Read WS routes from class annotations to see if WS is allowed? Or always allow WS connections so that GET/POST can be submitted via WS?
+            if (request.isWebSocketRequest() && authorizedRoute != null && response == null) {
                 HttpRequest httpReq = (HttpRequest) msg;
 
                 // Protect against CSWSH: (Cross-Site WebSocket Hijacking)
@@ -849,18 +853,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     } catch (Exception e) {
                     }
                 }
-                // If port number is set but it is the default for the URI scheme, revert the port number
-                // back to -1 (which means unspecified), so that it matches the server port number, 
-                // which is unspecified when serving http on port 80 and https on port 443
-                int originPort = originUri == null ? -1 //
-                        : originUri.getPort() == 80 && "http".equals(originUri.getScheme()) ? -1 //
-                                : originUri.getPort() == 443 && "https".equals(originUri.getScheme()) ? -1 //
-                                        : originUri.getPort();
-                // Scheme, host and port all must match to forbid cross-origin requests
-                if (originUri == null //
-                        || !GribbitServer.uri.getScheme().equals(originUri.getScheme()) //
-                        || !GribbitServer.uri.getHost().equals(originUri.getHost()) //
-                        || GribbitServer.uri.getPort() != originPort) { //
+                if (originUri == null || !WebUtils.sameOrigin(originUri, GribbitServer.uri)) {
                     // Reject scripted requests to open this websocket from a different domain
                     sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                             HttpResponseStatus.FORBIDDEN));
@@ -868,44 +861,47 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 }
                 // Log.info("Origin: " + origin.toString());
 
-                if (isAuthenticatedWebsocket) {
-                    // For authenticated websockets, check if the user is logged in
-                    User loggedInUser = User.getLoggedInUser(request);
-                    if (loggedInUser == null) {
-                        // Not logged in, so can't connect to this websocket
-                        sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                                HttpResponseStatus.FORBIDDEN));
-                        return;
-                    }
-
-                    // To further mitigate CSWSH attacks: check for the CSRF token in the URL parameter "_csrf";
-                    // the passed token must match the user's CSRF token. This means the websocket URL has to
-                    // be dynamically generated and inserted into the webpage that opened the websocket.
-                    // TODO: generate this URL an insert into the page somehow
-                    String csrfTok = loggedInUser.csrfTok;
-                    if (csrfTok == null || csrfTok.isEmpty() || csrfTok.equals(CSRF.CSRF_TOKEN_UNKNOWN)
-                            || csrfTok.equals(CSRF.CSRF_TOKEN_PLACEHOLDER)) {
-                        // No valid CSRF token in User object
-                        sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                                HttpResponseStatus.FORBIDDEN));
-                        return;
-                    }
-                    String csrfParam = request.getQueryParam("_csrf");
-                    if (csrfParam == null || csrfParam.isEmpty() || !csrfParam.equals(csrfTok)) {
-                        // The CSRF URL query parameter is missing, or doesn't match the user's token 
-                        sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                                HttpResponseStatus.FORBIDDEN));
-                        return;                        
-                    }
-
-                    // Record which user was authenticated when the websocket upgrade request was made.
-                    // TODO: Also provide a means for revoking user's session while WS is still open,
-                    // e.g. poll the user table every few seconds to see if user's session token has
-                    // changed in the database? (Although this would mean that logging in on a new
-                    // device would log you out of all other sessions...)
-                    wsAuthenticatedUser = loggedInUser;
+                // For authenticated websockets, check if the user is logged in
+                User loggedInUser = User.getLoggedInUser(request);
+                if (loggedInUser == null) {
+                    // Not logged in, so can't connect to this websocket
+                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.FORBIDDEN));
+                    return;
                 }
 
+                // To further mitigate CSWSH attacks: check for the CSRF token in the URL parameter "_csrf";
+                // the passed token must match the user's CSRF token. This means the websocket URL has to
+                // be dynamically generated and inserted into the webpage that opened the websocket.
+                // TODO: generate this URL an insert into the page somehow (i.e. require a form on the page
+                // so that the CSRF token is available)
+                String csrfTok = loggedInUser.csrfTok;
+                if (csrfTok == null || csrfTok.isEmpty() || csrfTok.equals(CSRF.CSRF_TOKEN_UNKNOWN)
+                        || csrfTok.equals(CSRF.CSRF_TOKEN_PLACEHOLDER)) {
+                    // No valid CSRF token in User object
+                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.FORBIDDEN));
+                    return;
+                }
+                String csrfParam = request.getQueryParam("_csrf");
+                if (csrfParam == null || csrfParam.isEmpty() || !csrfParam.equals(csrfTok)) {
+                    // The CSRF URL query parameter is missing, or doesn't match the user's token 
+                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.FORBIDDEN));
+                    return;
+                }
+
+                // Record which user was authenticated when the websocket upgrade request was made.
+                // TODO: Also provide a means for revoking user's session while WS is still open,
+                // e.g. poll the user table every few seconds to see if user's session token has
+                // changed in the database? (Although this would mean that logging in on a new
+                // device would log you out of all other sessions...)
+                wsAuthenticatedUser = user;
+
+                // The route that the websocket was requested on
+                wsRequestedRoute = authorizedRoute;
+
+                // Try upgrading the connection to a websocket
                 WebSocketServerHandshakerFactory wsFactory =
                         new WebSocketServerHandshakerFactory(GribbitServer.wsUri.toString(), null, true);
                 handshaker = wsFactory.newHandshaker(httpReq);
@@ -919,6 +915,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     fullReq.headers().add(httpReq.headers());
                     handshaker.handshake(ctx.channel(), (FullHttpRequest) fullReq);
                 }
+
+                // Finished handling the websocket upgrade request, return
                 return;
             }
 

@@ -59,9 +59,9 @@ public class GribbitServer {
 
     public static String appPackageName;
 
-    private static String domain;
+    public static String host;
 
-    private static int port;
+    public static int port;
 
     public static SiteResources siteResources;
 
@@ -140,7 +140,7 @@ public class GribbitServer {
         // Initialize logger
         Log.info("Initializing Gribbit");
 
-        GribbitServer.domain = domain;
+        GribbitServer.host = domain;
 
         if (!portAvailable(port)) {
             System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
@@ -250,7 +250,7 @@ public class GribbitServer {
 
                 Channel ch = b.bind(port).sync().channel();
 
-                String bareUri = domain + (port == 80 || port == 443 ? "" : ":" + port);
+                String bareUri = host + (port == 80 || port == 443 ? "" : ":" + port);
                 uri = new URI((GribbitProperties.SSL ? "https" : "http") + "://" + bareUri);
                 wsUri = new URI((GribbitProperties.SSL ? "wss" : "ws") + "://" + bareUri + "/websocket");
 

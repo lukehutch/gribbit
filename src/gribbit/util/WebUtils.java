@@ -25,8 +25,10 @@
  */
 package gribbit.util;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import gribbit.server.GribbitServer;
+import gribbit.server.config.GribbitProperties;
 import gribbit.util.thirdparty.UTF8;
 import io.netty.handler.codec.http.HttpHeaders;
 
@@ -703,6 +705,60 @@ public class WebUtils {
         if (isValidEmailAddr(emailNormalized))
             return emailNormalized;
         return null;
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
+    /**
+     * Return true if the scheme, host and port match between the two URIs. Also returns null if one or both URIs are
+     * null.
+     */
+    public static boolean sameOrigin(URI uri1, URI uri2) {
+        if (uri1 == null || uri2 == null) {
+            return false;
+        }
+        String scheme1 = uri1.getScheme();
+        if (scheme1 == null) {
+            scheme1 = GribbitProperties.SSL ? "https" : "http";
+        }
+        String scheme2 = uri2.getScheme();
+        if (scheme2 == null) {
+            scheme2 = GribbitProperties.SSL ? "https" : "http";
+        }
+        if (!scheme1.equals(scheme2)) {
+            return false;
+        }
+        String host1 = uri1.getHost();
+        if (host1 == null) {
+            host1 = GribbitServer.host;
+        }
+        String host2 = uri2.getHost();
+        if (host2 == null) {
+            host2 = GribbitServer.host;
+        }
+        if (!host1.equals(host2)) {
+            return false;
+        }
+        int port1 = uri1.getPort();
+        if (port1 < 0) {
+            if ("http".equals(scheme1) || "ws".equals(scheme1)) {
+                port1 = 80;
+            } else if ("https".equals(scheme1) || "wss".equals(scheme1)) {
+                port1 = 443;
+            }
+        }
+        int port2 = uri2.getPort();
+        if (port2 < 0) {
+            if ("http".equals(scheme2) || "ws".equals(scheme2)) {
+                port2 = 80;
+            } else if ("https".equals(scheme2) || "wss".equals(scheme2)) {
+                port2 = 443;
+            }
+        }
+        if (port1 != port2) {
+            return false;
+        }
+        return true;
     }
 
     // -----------------------------------------------------------------------------------------------------

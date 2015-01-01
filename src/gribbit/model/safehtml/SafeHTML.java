@@ -4,9 +4,6 @@ import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import gribbit.util.WebUtils.EscapeAmpersand;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -115,6 +112,11 @@ public class SafeHTML {
                                 String attrVal = a.getValue();
                                 if (attrVal != null && !attrVal.isEmpty()) {
                                     buf.append("=\"");
+
+                                    if (WebUtils.isURLAttr(tagName, attrName)) {
+                                        // FIXME: make URLs absolute (need to add a baseURL param to sanitize())
+                                    }
+
                                     // If an ampersand is present in an attribute value, don't escape it,
                                     // because for example it could be used in a URL parameter.
                                     WebUtils.encodeForHTML(attrVal, //
@@ -152,16 +154,16 @@ public class SafeHTML {
         return sanitizedHTML;
     }
 
-    public static void main(String[] args) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-        StringBuilder buf = new StringBuilder();
-        do {
-            String inp = reader.readLine();
-            if (inp.equals("*")) {
-                break;
-            }
-            buf.append(inp + "\n");
-        } while (true);
-        System.out.println(new SafeHTML(buf.toString()));
-    }
+    //    public static void main(String[] args) throws IOException {
+    //        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+    //        StringBuilder buf = new StringBuilder();
+    //        do {
+    //            String inp = reader.readLine();
+    //            if (inp.equals("*")) {
+    //                break;
+    //            }
+    //            buf.append(inp + "\n");
+    //        } while (true);
+    //        System.out.println(new SafeHTML(buf.toString()));
+    //    }
 }
