@@ -39,6 +39,7 @@ import gribbit.util.AppException;
 import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
+import gribbit.util.WebUtils.EscapeAmpersand;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.lang.reflect.Array;
@@ -498,7 +499,7 @@ public abstract class DataModel {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /**
+    /*
      * Templates with context-aware escaping for near-complete protection against stored and reflected XSS attacks.
      * 
      * See:
@@ -521,7 +522,7 @@ public abstract class DataModel {
             if (isURLAttr) {
                 // This parameter may be just one part of a URI, so we need to check the whole composed URI string
                 // for validity after all params have been substituted -- just insert unsafe param string directly
-                // for now. URI attributes are checked after all parameters have been substituted. 
+                // for now. URI attribute values are validated after all parameters have been substituted. 
                 buf.append(unsafeStr);
             } else {
                 // OWASP Rule #2:
@@ -531,23 +532,12 @@ public abstract class DataModel {
         } else {
             // OWASP Rule #1:
             //     HTML Escape Before Inserting Untrusted Data into HTML Element Content
-            if (unsafeStr.indexOf("\n") >= 0) {
-                // Turn "\n" within text params into <br> for convenience
-                ArrayList<CharSequence> parts = StringUtils.splitAsList(unsafeStr, "\n");
-                for (int i = 0; i < parts.size(); i++) {
-                    if (i > 0) {
-                        // Can insert a raw <br> here because this text is not an attribute val,
-                        // it is part of a text node.
-                        buf.append("<br>");
-                    }
-                    // Separately escape each part split by a newline character
-                    WebUtils.encodeForHTML(parts.get(i), buf);
-                }
-
-            } else {
-                // No newline characters, HTML-escape the whole parameter string
-                WebUtils.encodeForHTML(unsafeStr, buf);
-            }
+            WebUtils.encodeForHTML(unsafeStr, //
+                    // See http://stackoverflow.com/questions/3705591/do-i-encode-ampersands-in-a-href
+                    /* escapeAmpersand = */EscapeAmpersand.ALWAYS, //
+                    /* preserveWhitespaceRuns = */false, /* preserveNewline = */false, //
+                    // Turn "\n" within the text that is substituted into param into <br> for convenience
+                    /* turnNewlineIntoBreak = */true, buf);
         }
     }
 
@@ -666,7 +656,9 @@ public abstract class DataModel {
      * part starts in a space, skip initial spaces in the text part so as not to create a run of spaces, which can throw
      * off indenting if the text is at the beginning of an indented line.
      */
-    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint, StringBuilder buf) {
+    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint,
+            StringBuilder buf) {
+        CharSequence suffixAfterInitialSpaces = textPart;
         if (prettyPrint && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ') && textPart.length() > 0
                 && textPart.charAt(0) == ' ') {
             boolean hasNonSpace = false;
@@ -674,16 +666,20 @@ public abstract class DataModel {
                 char c = textPart.charAt(i);
                 if (c != ' ') {
                     hasNonSpace = true;
-                    textPart = textPart.subSequence(i, textPart.length());
+                    suffixAfterInitialSpaces = textPart.subSequence(i, textPart.length());
                     break;
                 }
             }
             if (!hasNonSpace) {
-                textPart = "";
+                suffixAfterInitialSpaces = "";
             }
         }
-        // Encode and insert string into the buffer 
-        WebUtils.encodeForHTML(textPart, buf);
+        // Encode and insert the part of the text after the initial spaces into the buffer 
+        WebUtils.encodeForHTML(suffixAfterInitialSpaces, //
+                // See http://stackoverflow.com/questions/3705591/do-i-encode-ampersands-in-a-href
+                /* escapeAmpersand = */EscapeAmpersand.ALWAYS, //
+                /* preserveWhitespaceRuns = */false, /* preserveNewline = */false, //
+                /* turnNewlineIntoBreak = */false, buf);
     }
 
     /**

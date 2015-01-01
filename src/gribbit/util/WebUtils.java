@@ -431,17 +431,72 @@ public class WebUtils {
 
     // -----------------------------------------------------------------------------------------------------
 
+    public static final Pattern VALID_ENTITY = Pattern
+            .compile("^&(#\\d\\d?\\d?\\d?\\d?|#x[\\da-fA-F][\\da-fA-F]?[\\da-fA-F]?[\\da-fA-F]?|[a-zA-Z]\\w+);.*");
+
+    public static enum EscapeAmpersand {
+        NEVER, IF_NOT_VALID_ENTITY, ALWAYS;
+    }
+
     /**
      * Encodes HTML-unsafe characters as HTML entities.
      * 
      * See OWASP XSS Rule #1 at https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
+     * 
+     * @param unsafeStr
+     *            The string to escape to make HTML-safe.
+     * 
+     * @param escapeAmpersand
+     *            If ALWAYS, turn '&' into "&amp;". If IF_NOT_VALID_ENTITY, leave ampersands in place (i.e. assume they
+     *            are already valid entity references of the form "&lt;", but if they don't validate as valid entity
+     *            references, e.g. "H&M", then escape them (=> "H&amp;M"). If NEVER, leave '&' as it is -- this could be
+     *            used to force ampersands to be left alone, e.g. in URL attribute values.
+     * 
+     *            However, there is some ambiguity in the case of URL attributes containing '&', see:
+     * 
+     *            http://stackoverflow.com/questions/3705591/do-i-encode-ampersands-in-a-href
+     * 
+     *            This indicates that attribute values should probably always use ALWAYS, even in the case of URL
+     *            attributes. Use NEVER at your peril.
+     * 
+     * @param preserveWhitespaceRuns
+     *            If true, don't collapse multiple successive whitespaces into a single space.
+     * 
+     * @param preserveNewline
+     *            If true, leave newline characters in the text, rather than turning them into a space.
+     * 
+     * @param turnNewlineIntoBreak
+     *            If true, turn '\n' into a break element in the output.
+     * 
+     * @return The sanitized/escaped HTML-safe string.
      */
-    public static void encodeForHTML(CharSequence unsafeStr, StringBuilder buf) {
+    public static void encodeForHTML(CharSequence unsafeStr, EscapeAmpersand escapeAmpersand,
+            boolean preserveWhitespaceRuns, boolean preserveNewline, boolean turnNewlineIntoBreak, StringBuilder buf) {
         for (int i = 0, n = unsafeStr.length(); i < n; i++) {
             char c = unsafeStr.charAt(i);
             switch (c) {
             case '&':
-                buf.append("&amp;");
+                switch (escapeAmpersand) {
+                case ALWAYS:
+                    buf.append('&');
+                    break;
+                case NEVER:
+                    buf.append("&amp;");
+                    break;
+                case IF_NOT_VALID_ENTITY:
+                    // If not escaping ampersands, still do smart escaping: if we come across an ampersand,
+                    // it must start a valid entity. If not, escape the ampersand as &amp; .
+                    int end = Math.min(i + 32, n); // Assume entities can't be more than 32 chars long
+                    int start = i + 1;
+                    boolean validEntity = end > start && //
+                            VALID_ENTITY.matcher(unsafeStr.subSequence(start, end)).matches();
+                    if (validEntity) {
+                        buf.append('&');
+                    } else {
+                        buf.append("&amp;");
+                    }
+                    break;
+                }
                 break;
             case '<':
                 buf.append("&lt;");
@@ -450,12 +505,20 @@ public class WebUtils {
                 buf.append("&gt;");
                 break;
             case '"':
+                // We always escape double quotes, that way there's no chance that an HTML attribute renderer
+                // accidentally forgets to set an option to true to escape quotes. (This would allow content
+                // injection by breaking out of the attribute value)
                 buf.append("&quot;");
                 break;
-            case '\'':
-                // See http://goo.gl/FzoP6m
-                buf.append("&#x27;");
+            case '\\':
+                buf.append("&lsol;");
                 break;
+            case '\'':
+                // Always escape single quotes, in case some consumer of this HTML chooses to render attribute values
+                // in single quotes and forgets to escape the content.
+                buf.append("&#x27;"); // See http://goo.gl/FzoP6m
+                break;
+
             // We don't escape '/', since this is not a dangerous char if attr values are always quoted
             //            case '/':
             //                buf.append("&#x2F;");
@@ -480,14 +543,49 @@ public class WebUtils {
             case '’':
                 buf.append("&rsquo;");
                 break;
+            case '«':
+                buf.append("&laquo;");
+                break;
+            case '»':
+                buf.append("&raquo;");
+                break;
+            case '£':
+                buf.append("&pound;");
+                break;
+            case '©':
+                buf.append("&copy;");
+                break;
+            case '®':
+                buf.append("&reg;");
+                break;
             case StringUtils.NBSP_CHAR:
                 buf.append("&nbsp;");
                 break;
-
+            case '\n':
+                if (turnNewlineIntoBreak) {
+                    buf.append("<br>");
+                    break;
+                } else if (preserveNewline) {
+                    buf.append('\n');
+                    break;
+                }
+                // else fall through to default, and handle newline as another control character
             default:
-                // Non-escaped characters
-                buf.append(c);
-                break;
+                // Non-escaped characters: turn control characters and Unicode whitespaces into regular spaces
+                if (c <= 32 || StringUtils.isUnicodeWhitespace(c)) {
+                    if (preserveWhitespaceRuns) {
+                        buf.append(' ');
+                    } else {
+                        if (buf.length() > 0 && buf.charAt(buf.length() - 1) != ' ') {
+                            // Don't insert another space if there's already one in the buffer
+                            buf.append(' ');
+                        }
+                    }
+                } else {
+                    // Some other regular non-escaped / not-whitespace character, just add the character to the buffer
+                    buf.append(c);
+                    break;
+                }
             }
         }
     }
@@ -499,7 +597,9 @@ public class WebUtils {
      */
     public static String encodeForHTML(CharSequence unsafeStr) {
         StringBuilder buf = new StringBuilder(unsafeStr.length() * 2);
-        encodeForHTML(unsafeStr, buf);
+        encodeForHTML(unsafeStr, /* escapeAmpersand = */EscapeAmpersand.ALWAYS, //
+                /* preserveWhitespaceRuns = */false, //
+                /* preserveNewline = */false, /* turnNewlineIntoBreak = */false, buf);
         return buf.toString();
     }
 
@@ -515,47 +615,13 @@ public class WebUtils {
          * with many characters, including [space] % * + , - / ; < = > ^ and |."
          * 
          * However, if we escape as aggressively as this, then we get URLs like href="&#x2F;action&#x2F;log&#x2D;out".
-         * Since attributes are all being quoted, and URL attrs are handled specially, just perform regular HTML
-         * escaping inside HTML attribute values.
+         * In Gribbit, attributes are all being quoted (with double quotes), and URL attrs are handled specially, so
+         * just perform regular HTML escaping inside HTML attribute values, although we'll escape the apostrophe just to
+         * be safe.
          */
-        encodeForHTML(unsafeStr, buf);
-
-        //        for (int i = 0, n = unsafeStr.length(); i < n; i++) {
-        //            char c = unsafeStr.charAt(i);
-        //            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-        //                    || ((int) c > 0xff)) {
-        //                buf.append(c);
-        //            } else {
-        //                switch (c) {
-        //                case '&':
-        //                    buf.append("&amp;");
-        //                    break;
-        //                case '<':
-        //                    buf.append("&lt;");
-        //                    break;
-        //                case '>':
-        //                    buf.append("&gt;");
-        //                    break;
-        //                case '"':
-        //                    buf.append("&quot;");
-        //                    break;
-        //                case '\'':
-        //                    buf.append("&#x27;");
-        //                    break;
-        //                case '/':
-        //                    buf.append("&#x2F;");
-        //                    break;
-        //                default:
-        //                    buf.append("&#x");
-        //                    int d1 = ((int) c) >> 4;
-        //                    buf.append(d1 <= 9 ? (char) ('0' + d1) : (char) ('A' + d1 - 10));
-        //                    int d2 = ((int) c) & 0xf;
-        //                    buf.append(d2 <= 9 ? (char) ('0' + d2) : (char) ('A' + d2 - 10));
-        //                    buf.append(';');
-        //                    break;
-        //                }
-        //            }
-        //        }
+        encodeForHTML(unsafeStr, /* escapeAmpersand = */EscapeAmpersand.ALWAYS, //
+                /* preserveWhitespaceRuns = */false, //
+                /* preserveNewline = */false, /* turnNewlineIntoBreak = */false, buf);
     }
 
     /**
