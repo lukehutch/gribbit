@@ -54,7 +54,7 @@ import java.time.ZonedDateTime;
 public class HttpSendStaticFile {
 
     /** Serve a static file. */
-    public static void sendStaticFile(String reqURI, String hashKey, File staticResourceFile,
+    public static void sendStaticFile(String reqURI, boolean isHEAD, String hashKey, File staticResourceFile,
             long lastModifiedEpochSeconds, boolean addKeepAliveHeader, boolean closeAfterWrite,
             ChannelHandlerContext ctx) throws ExceptionResponse {
 
@@ -97,6 +97,13 @@ public class HttpSendStaticFile {
             // Write HTTP headers to channel
             ctx.write(httpRes);
 
+            // For HEAD requests, don't send the body
+            if (isHEAD) {
+                ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+                fileToServe.close();
+                return;
+            }
+            
             // Write file content to channel.
             // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
             // progress (e.g. to update user's UI over a web socket to show download progress.)
