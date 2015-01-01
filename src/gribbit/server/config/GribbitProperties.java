@@ -25,64 +25,13 @@
  */
 package gribbit.server.config;
 
-import gribbit.server.GribbitServer;
-import gribbit.util.Log;
-
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Properties;
 import java.util.logging.Level;
 
 public class GribbitProperties {
 
     private static String propFilename = "gribbit.properties";
-    public static Properties properties = new Properties();
-    static {
-        // Read properties file
-        try (InputStream inputStream = GribbitServer.class.getClassLoader().getResourceAsStream(propFilename)) {
-            if (inputStream == null) {
-                System.err.println(propFilename + " not found on the classpath");
-                System.exit(1);
-            }
-            properties.load(inputStream);
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------------------
-
-    private static final boolean getPropertyBoolean(String propName, boolean defaultValue) {
-        String opt = properties.getProperty(propName);
-        if (opt == null) {
-            return defaultValue;
-        } else {
-            opt = opt.toLowerCase().trim();
-            if (opt.equals("1") || opt.equals("true") || opt.equals("t") || opt.equals("yes") || opt.equals("y")) {
-                return true;
-            } else if (opt.equals("0") || opt.equals("false") || opt.equals("f") || opt.equals("no") || opt.equals("n")) {
-                return false;
-            } else {
-                Log.warning("Unrecognized property value: " + propName + "=" + properties.getProperty(propName));
-                return defaultValue;
-            }
-        }
-    }
-
-    private static final int getPropertyInt(String propName, int defaultValue) {
-        String opt = properties.getProperty(propName);
-        if (opt == null || opt.isEmpty()) {
-            return defaultValue;
-        } else {
-            try {
-                return Integer.parseInt(opt.trim());
-            } catch (NumberFormatException e) {
-                Log.warning("Illegal property value: " + propName + "=" + properties.getProperty(propName));
-                return defaultValue;
-            }
-        }
-    }
+    public static Properties properties = PropertyUtils.load(propFilename);
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -95,12 +44,11 @@ public class GribbitProperties {
             throw new RuntimeException("Could not parse loglevel in properties file");
         }
     }
-
-    public static boolean SSL = getPropertyBoolean("ssl", true);
-    public static int PORT = getPropertyInt("port", SSL ? 8443 : 8080);
+    public static boolean SSL = PropertyUtils.getPropertyBoolean(properties, "ssl", true);
+    public static int PORT = PropertyUtils.getPropertyInt(properties, "port", SSL ? 8443 : 8080);
 
     public static String SMTP_SERVER = properties.getProperty("smtp.server");
-    public static int SMTP_PORT = getPropertyInt("smtp.port", 587);
+    public static int SMTP_PORT = PropertyUtils.getPropertyInt(properties, "smtp.port", 587);
     public static String SEND_EMAIL_ADDRESS = properties.getProperty("email.address");
     public static String SEND_EMAIL_NAME = properties.getProperty("email.fullname");
     public static String SEND_EMAIL_PASSWORD = properties.getProperty("email.password");
@@ -112,12 +60,15 @@ public class GribbitProperties {
 
     public static String STATIC_RESOURCE_ROOT = properties.getProperty("staticresourceroot", null);
 
-    public static boolean CONTENT_GZIP = getPropertyBoolean("content.gzip", true);
-    public static boolean PRETTY_PRINT_HTML = getPropertyBoolean("prettyprint.html", true);
-    public static boolean PRETTY_PRINT_JSON = getPropertyBoolean("prettyprint.json", true);
+    public static boolean ALLOW_WEBSOCKETS = PropertyUtils.getPropertyBoolean(properties, "websockets.allow", true);
 
-    public static boolean ALLOW_GET_MODEL = getPropertyBoolean("_getmodel.allow", true);
+    public static boolean CONTENT_GZIP = PropertyUtils.getPropertyBoolean(properties, "content.gzip", true);
+    public static boolean PRETTY_PRINT_HTML = PropertyUtils.getPropertyBoolean(properties, "prettyprint.html", true);
+    public static boolean PRETTY_PRINT_JSON = PropertyUtils.getPropertyBoolean(properties, "prettyprint.json", true);
 
-    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = getPropertyInt("classpath.poll.ms", 5000);
+    public static boolean ALLOW_GET_MODEL = PropertyUtils.getPropertyBoolean(properties, "_getmodel.allow", true);
+
+    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = PropertyUtils.getPropertyInt(properties,
+            "classpath.poll.ms", 5000);
 
 }
