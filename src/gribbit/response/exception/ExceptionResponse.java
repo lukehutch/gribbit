@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler.exception;
+package gribbit.response.exception;
 
 import gribbit.response.ErrorResponse;
 import gribbit.response.Response;
@@ -73,5 +73,23 @@ public abstract class ExceptionResponse extends Exception {
         } else {
             return exceptionResponse;
         }
+    }
+
+    /**
+     * Return the exception name without the "Exception" suffix, if present, and insert spaces at lowercase-uppercase
+     * transitions, i.e. "InternalServerErrorException" -> "Internal Server Error".
+     */
+    public String getResponseType() {
+        String name = getClass().getName();
+        int end = name.endsWith("Exception") ? name.length() - 9 : name.length();
+        StringBuilder buf = new StringBuilder(64);
+        for (int i = 0; i < end; i++) {
+            char c = name.charAt(i);
+            if (buf.length() > 0 && Character.isLowerCase(buf.charAt(buf.length() - 1)) && Character.isUpperCase(c)) {
+                buf.append(' ');
+            }
+            buf.append(c);
+        }
+        return buf.toString();
     }
 }

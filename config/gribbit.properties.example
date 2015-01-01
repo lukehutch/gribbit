@@ -18,6 +18,8 @@ loglevel=INFO
 
 #staticresourceroot=/path/to/static/resource/root  # where to serve static files from
 
+#websockets.allow=true
+
 prettyprint.html=true
 prettyprint.json=true
 

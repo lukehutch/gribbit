@@ -99,7 +99,7 @@ public class Request {
     /**
      * If set to true by appending "?_ws=1" to the URL, then upgrade the connection to a websocket.
      */
-    private boolean isWebSocketRequest;
+    private boolean isWebSocketUpgradeRequest;
 
     /** Flash messages. */
     private ArrayList<FlashMessage> flashMessages;
@@ -158,11 +158,11 @@ public class Request {
 
         // Look for _getmodel=1 and _ws=1 query parameters, then remove them if present so the user doesn't see them
         this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
-        this.isWebSocketRequest = "1".equals(this.getQueryParam("_ws"));
+        this.isWebSocketUpgradeRequest = "1".equals(this.getQueryParam("_ws"));
         if (this.isGetModelRequest) {
             this.queryParamToVals.remove("_getmodel");
         }
-        if (this.isWebSocketRequest) {
+        if (this.isWebSocketUpgradeRequest) {
             this.queryParamToVals.remove("_ws");
         }
 
@@ -447,7 +447,7 @@ public class Request {
      * True if the request URL contained the query parameter "?_ws=1", in which case upgrade the connection to a
      * websocket.
      */
-    public boolean isWebSocketRequest() {
-        return isWebSocketRequest;
+    public boolean isWebSocketUpgradeRequest() {
+        return isWebSocketUpgradeRequest;
     }
 }

@@ -28,8 +28,8 @@ package gribbit.model;
 import gribbit.auth.CSRF;
 import gribbit.model.field.annotation.IsURL;
 import gribbit.request.Request;
-import gribbit.request.handler.exception.BadRequestException;
-import gribbit.request.handler.exception.ExceptionResponse;
+import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.ExceptionResponse;
 import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -228,7 +228,7 @@ public abstract class DataModel {
                     }
 
                 } catch (NumberFormatException | DateTimeParseException e) {
-                    throw new BadRequestException("Could not parse value " + fieldName + " from the request", e);
+                    throw new BadRequestException("Could not parse value " + fieldName + " from the request");
 
                 } catch (IllegalArgumentException | IllegalAccessException e) {
                     throw new RuntimeException("Could not set field " + fieldName

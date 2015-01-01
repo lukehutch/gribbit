@@ -41,6 +41,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderUtil;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
 
 import java.time.Instant;
@@ -51,8 +52,9 @@ import java.time.format.DateTimeFormatter;
 public class HttpUtils {
 
     public static void sendHttpErrorResponse(ChannelHandlerContext ctx, HttpRequest req, FullHttpResponse res) {
-        // Generate an error page if response getStatus code is not OK (200).
-        if (res.status().code() != 200) {
+        // Generate an plaintext error page if response status code is not OK (200).
+        if (res.status() != HttpResponseStatus.OK) {
+            // Use the HTTP status message as the content of the error page
             ByteBuf buf = Unpooled.copiedBuffer(res.status().toString(), CharsetUtil.UTF_8);
             res.content().writeBytes(buf);
             buf.release();
@@ -60,7 +62,7 @@ public class HttpUtils {
             HttpHeaderUtil.setContentLength(res, res.content().readableBytes());
         }
         ChannelFuture f = ctx.channel().writeAndFlush(res);
-        if (req == null || !HttpHeaderUtil.isKeepAlive(req) || res.status().code() != 200) {
+        if (req == null || !HttpHeaderUtil.isKeepAlive(req) || res.status() != HttpResponseStatus.OK) {
             f.addListener(ChannelFutureListener.CLOSE);
         }
     }
@@ -118,5 +120,4 @@ public class HttpUtils {
             httpHeaders.add(EXPIRES, "0"); // Proxies
         }
     }
-
 }

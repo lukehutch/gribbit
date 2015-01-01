@@ -85,9 +85,8 @@ public class WebSocketHandler {
         ctx.channel().writeAndFlush(new TextWebSocketFrame(responseText));
     }
 
-    public WebSocketHandler(ChannelHandlerContext ctx, Object msg, CharSequence origin, String csrfQueryParam, User user,
-            RouteInfo authorizedRoute) {
-        HttpRequest httpReq = (HttpRequest) msg;
+    public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin, String csrfQueryParam,
+            User user, RouteInfo authorizedRoute) {
 
         // Protect against CSWSH: (Cross-Site WebSocket Hijacking)
         // http://www.christian-schneider.net/CrossSiteWebSocketHijacking.html

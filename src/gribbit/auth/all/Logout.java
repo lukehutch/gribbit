@@ -26,8 +26,8 @@
 package gribbit.auth.all;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.request.handler.exception.RedirectException;
 import gribbit.response.Response;
+import gribbit.response.exception.RedirectException;
 import gribbit.route.RouteHandlerAuthNotRequired;
 
 /**

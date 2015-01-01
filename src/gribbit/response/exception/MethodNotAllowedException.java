@@ -23,21 +23,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler.exception;
+package gribbit.response.exception;
 
 import gribbit.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when user-supplied data in the request is invalid.
+ * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
  */
-public class BadRequestException extends ExceptionResponse {
-    public BadRequestException() {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"));
-    }
-
-    public BadRequestException(String msg) {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), msg);
+public class MethodNotAllowedException extends ExceptionResponse {
+    public MethodNotAllowedException() {
+        super(new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "Method not allowed"));
     }
 
     /**

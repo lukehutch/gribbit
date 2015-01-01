@@ -23,25 +23,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler.exception;
+package gribbit.response.exception;
 
 import gribbit.response.ErrorResponse;
-import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource that doesn't exist (404).
+ * This exception is thrown when user-supplied data in the request is invalid.
  */
-public class NotFoundException extends ExceptionResponse {
-    public NotFoundException() {
-        super(new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found"));
+public class BadRequestException extends ExceptionResponse {
+    public BadRequestException() {
+        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"));
     }
 
-    public NotFoundException(String uri) {
-        this();
-        if (!uri.endsWith(".ico") && !uri.contains("favico")) {
-            Log.fine("404 Not Found: " + uri);
-        }
+    public BadRequestException(String msg) {
+        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), msg);
     }
 
     /**

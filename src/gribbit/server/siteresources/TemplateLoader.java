@@ -474,8 +474,9 @@ public class TemplateLoader {
                     }
                     if (attrName.equals("style") || attrName.equals("data") || attrName.equals("action")
                             || attrName.startsWith("on")) {
-                        throw new RuntimeException("Tried to use a template param in attribute \"" + attrName
-                                + "\" in template \"" + templateName + "\" -- this is unsafe");
+                        // TODO: double-check there are not more attributes that can take style or script
+                        throw new RuntimeException("Tried to use a template param in XSS-unsafe attribute \""
+                                + attrName + "\" in template \"" + templateName + "\"");
                     }
 
                     if (attrName.equals("id") || attrName.equals("name") || attrName.equals("class")) {

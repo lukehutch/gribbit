@@ -23,28 +23,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler.exception;
+package gribbit.response.exception;
 
-import gribbit.auth.Cookie;
 import gribbit.response.ErrorResponse;
+import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs their
- * email address to be validated before they are allowed to log in.
+ * This exception is thrown when a user tries to access a resource that doesn't exist (404).
  */
-public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
-    /**
-     * Return Unauthorized: Email Not Validated, and set the redirect cookie so that if the user does successfully log
-     * in, they'll end up where they were originally trying to go when they were denied access.
-     */
-    public UnauthorizedEmailNotValidatedException(String originalRequestURI) {
-        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized: email not validated"));
+public class NotFoundException extends ExceptionResponse {
+    public NotFoundException() {
+        super(new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found"));
+    }
 
-        // Redirect the user back to the page they were trying to get to once they do log in successfully
-        this.exceptionResponse //
-                .logOutUser() //
-                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", originalRequestURI, 300));
+    public NotFoundException(String uri) {
+        this();
+        if (!uri.endsWith(".ico") && !uri.contains("favico")) {
+            Log.fine("404 Not Found: " + uri);
+        }
     }
 
     /**

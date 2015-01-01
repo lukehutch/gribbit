@@ -25,7 +25,7 @@
  */
 package gribbit.util;
 
-import gribbit.request.handler.exception.BadRequestException;
+import gribbit.response.exception.BadRequestException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.io.DataOutputStream;

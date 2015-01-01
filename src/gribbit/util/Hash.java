@@ -26,7 +26,7 @@
 package gribbit.util;
 
 import gribbit.auth.User;
-import gribbit.request.handler.exception.BadRequestException;
+import gribbit.response.exception.BadRequestException;
 import gribbit.util.thirdparty.BCrypt;
 
 /**

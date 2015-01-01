@@ -23,17 +23,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler.exception;
+package gribbit.response.exception;
 
 import gribbit.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
+ * This exception is thrown when a user tries to access a resource that hasn't changed. This ExceptionResponse is
+ * special in that it does not take an exception message in the constructor, instead it takes the last modified time of
+ * the resource that has not been modified since the timestamp of the version stored in the browser's cache.
  */
-public class ForbiddenException extends ExceptionResponse {
-    public ForbiddenException() {
-        super(new ErrorResponse(HttpResponseStatus.FORBIDDEN, "Forbidden"));
+public class NotModifiedException extends ExceptionResponse {
+    public NotModifiedException(long lastModifiedEpochSeconds) {
+        super(new ErrorResponse(HttpResponseStatus.NOT_MODIFIED, "") //
+                .setLastModifiedEpochSeconds(lastModifiedEpochSeconds));
     }
 
     /**
