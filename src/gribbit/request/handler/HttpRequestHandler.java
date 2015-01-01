@@ -448,7 +448,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     } else {
                         // If file is newer than what is in the browser cache, or is not in cache, serve the file
-                        HttpSendStaticFile.serveStaticFile(reqURI, hashKey, staticResourceFile,
+                        HttpSendStaticFile.sendStaticFile(reqURI, hashKey, staticResourceFile,
                                 lastModifiedEpochSeconds, addKeepAliveHeader, closeAfterWrite, ctx);
 
                         Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
@@ -566,7 +566,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             // Serve the response to the client 
-            HttpSendResponse.serveHttpResponse(reqURI, request, response, isHEAD, request.acceptEncodingGzip(),
+            HttpSendResponse.sendResponse(reqURI, request, response, isHEAD, request.acceptEncodingGzip(),
                     timeNow, hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite,
                     ctx);
 

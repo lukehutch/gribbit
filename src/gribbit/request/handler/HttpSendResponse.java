@@ -65,7 +65,7 @@ import java.util.zip.GZIPOutputStream;
 public class HttpSendResponse {
 
     /** Serve an HTTP response (anything other than a static file). */
-    public static void serveHttpResponse(String reqURI, Request request, Response response, boolean isHEAD,
+    public static void sendResponse(String reqURI, Request request, Response response, boolean isHEAD,
             boolean acceptEncodingGzip, ZonedDateTime timeNow, boolean hashTheResponse,
             long hashKeyMaxRemainingAgeSeconds, String hashKey, boolean addKeepAliveHeader, boolean closeAfterWrite,
             ChannelHandlerContext ctx) throws Exception {

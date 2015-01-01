@@ -52,7 +52,7 @@ import java.time.ZonedDateTime;
 public class HttpSendStaticFile {
 
     /** Serve a static file. */
-    public static void serveStaticFile(String reqURI, String hashKey, File staticResourceFile,
+    public static void sendStaticFile(String reqURI, String hashKey, File staticResourceFile,
             long lastModifiedEpochSeconds, boolean addKeepAliveHeader, boolean closeAfterWrite,
             ChannelHandlerContext ctx) throws Exception {
 
