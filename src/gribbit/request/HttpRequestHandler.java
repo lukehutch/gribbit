@@ -574,6 +574,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         }
 
         // TODO: placeholder
+        // TODO: Read: http://lucumr.pocoo.org/2012/9/24/websockets-101/
+        // TODO: See also links here: http://security.stackexchange.com/questions/48378/anti-dos-websockets-best-practices
         String requestText = ((TextWebSocketFrame) frame).text();
         String responseText =
                 wsRequestedRoute.getRoutePath() + " -> " + requestText.toUpperCase() + " -- "
@@ -861,16 +863,22 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 }
                 // Log.info("Origin: " + origin.toString());
 
-                // To further mitigate CSWSH attacks: check for the CSRF token in the URL parameter "_csrf";
-                // the passed token must match the user's CSRF token. This means the websocket URL has to
-                // be dynamically generated and inserted into the webpage that opened the websocket.
-                // TODO: generate this URL an insert into the page somehow (i.e. require a form on the page
-                // so that the CSRF token is available)
-                if (!CSRF.csrfTokMatches(request.getQueryParam("_csrf"), user)) {
-                    // No valid CSRF token in User object
-                    sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                            HttpResponseStatus.FORBIDDEN));
-                    return;
+                // Allow websocket connections to routes that do not require authentication (i.e. if user == null
+                // here, authenticatedRoute will be non-null, and it will be a RouteHandlerAuthNotRequired).
+                // FIXME: Does this open us up to websocket DoS attacks from non-authenticated users?
+                if (user != null) {
+                    // To further mitigate CSWSH attacks (beyond the same-origin check performed above):
+                    // check for the CSRF token in the URL parameter "_csrf": the passed token must match
+                    // the user's CSRF token. This means the websocket URL has to be dynamically generated
+                    // and inserted into the webpage that opened the websocket.
+                    // TODO: generate this URL and insert into the page somehow (i.e. require a form on the page
+                    // TODO: so that the CSRF token is available)
+                    if (!CSRF.csrfTokMatches(request.getQueryParam("_csrf"), user)) {
+                        // No valid CSRF token in User object
+                        sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                                HttpResponseStatus.FORBIDDEN));
+                        return;
+                    }
                 }
 
                 // Record which user was authenticated when the websocket upgrade request was made.
