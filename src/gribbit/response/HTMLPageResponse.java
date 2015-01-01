@@ -105,6 +105,6 @@ public class HTMLPageResponse extends HTMLResponse {
      * element. The flashMessages parameter is filled in after the response is returned.
      */
     public static final String _template = "<!DOCTYPE html>" //
-            + "<html><head><title>${title}</title></head>" //
+            + "<html><head><title>${title}</title><meta charset=\"utf-8\"></head>" //
             + "<body>${flashMessages}${content}</body></html>";
 }
