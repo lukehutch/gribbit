@@ -61,7 +61,7 @@ public class HttpUtils {
             res.headers().set(CONTENT_TYPE, "text/plain;charset=utf-8");
             HttpHeaderUtil.setContentLength(res, res.content().readableBytes());
         }
-        ChannelFuture f = ctx.channel().writeAndFlush(res);
+        ChannelFuture f = ctx.writeAndFlush(res);
         if (req == null || !HttpHeaderUtil.isKeepAlive(req) || res.status() != HttpResponseStatus.OK) {
             f.addListener(ChannelFutureListener.CLOSE);
         }

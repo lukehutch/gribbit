@@ -31,8 +31,10 @@ import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.SiteResources;
 import gribbit.util.Log;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -214,6 +216,10 @@ public class GribbitServer {
             // Configure the server.
             try {
                 ServerBootstrap b = new ServerBootstrap();
+
+                // http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#14.0
+                b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+                
                 // b.option(ChannelOption.SO_BACKLOG, 1024);
                 b.group(bossGroup, workerGroup) //
                         .channel(NioServerSocketChannel.class) //

@@ -218,35 +218,18 @@ public class HttpSendResponse {
         // closeAfterWrite = true;  // FIXME: test this, it doesn't seem to work ====================================================================
 
         if (ctx.channel().isOpen()) {
-            // Check Channel.isWritable() to prevent OutOfMemoryError,
-            // see http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#10.0
-            long startTime = System.currentTimeMillis();
-            while (!ctx.channel().isWritable() && (System.currentTimeMillis() - startTime < 5000)) {
-                // TODO: replace this spinlock (usually channel is immediately writeable;
-                // is this even needed?)
-                try {
-                    Thread.sleep(2);
-                } catch (InterruptedException e) {
-                }
-            }
-            if (ctx.channel().isWritable()) {
-                // Write the ByteBuffer returned by httpRes.content() back into the pipeline
-                // See http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#4.0
-                ChannelFuture future = ctx.channel().writeAndFlush(httpRes);
+            // Write the ByteBuffer returned by httpRes.content() back into the pipeline
+            // See http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#4.0
+            ChannelFuture future = ctx.writeAndFlush(httpRes);
 
-                // Close the connection after the write operation is done if necessary.
-                // TODO: Apache closes KeepAlive connections after a few seconds,
-                // see http://en.wikipedia.org/wiki/HTTP_persistent_connection
-                // TODO: implement a stale connection tracker
-                if (closeAfterWrite || status != HttpResponseStatus.OK) { // FIXME: should I close the channel for redirects? (probably not...)
-                    future.addListener(ChannelFutureListener.CLOSE);
-                }
-
-            } else {
-                // Tried for a period of time but could not send response; close channel
-                ctx.channel().close();
-                // throw new InternalServerErrorException("Could not send response after repeated attempts");
+            // Close the connection after the write operation is done if necessary.
+            // TODO: Apache closes KeepAlive connections after a few seconds, see
+            //       http://en.wikipedia.org/wiki/HTTP_persistent_connection
+            // TODO: implement a stale connection tracker
+            if (closeAfterWrite || status != HttpResponseStatus.OK) { // FIXME: should I close the channel for redirects? (probably not...)
+                future.addListener(ChannelFutureListener.CLOSE);
             }
+
         } else {
             // Client already closed the connection, nothing can be sent
             // Log.info("Channel closed by client before response sent");

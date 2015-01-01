@@ -82,7 +82,7 @@ public class WebSocketHandler {
                 wsRequestedRoute.getRoutePath() + " -> " + requestText.toUpperCase() + " -- "
                         + (wsAuthenticatedUser == null ? "not logged in" : wsAuthenticatedUser.id);
 
-        ctx.channel().writeAndFlush(new TextWebSocketFrame(responseText));
+        ctx.writeAndFlush(new TextWebSocketFrame(responseText));
     }
 
     public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin, String csrfQueryParam,
