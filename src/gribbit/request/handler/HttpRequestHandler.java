@@ -559,21 +559,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             // Log the request and response
             HttpResponseStatus status = response.getStatus();
-            String logMsg =
-                    request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI
-                            + (request.getMethod() == origReqMethod ? "" : "\t" + request.getMethod()) + "\t" + status
-                            + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec";
-            if (status == HttpResponseStatus.OK //
-                    || status == HttpResponseStatus.NOT_MODIFIED //
-                    || status == HttpResponseStatus.FOUND //
-                    || (status == HttpResponseStatus.NOT_FOUND //
-                    && (reqURI.equals("favicon.ico") || reqURI.endsWith("/favicon.ico")))) {
-                // Log at level "fine" for non-errors, or 404 for favicon
-                Log.fine(logMsg);
-            } else {
-                // Log at level "warning" for errors, or 404 for non-favicon
-                Log.warningWithoutCallerRef(logMsg);
-            }
+            Log.fine(request.getRequestor() + "\t" + origReqMethod
+                    + (request.getMethod() == origReqMethod ? "" : "\t=>" + request.getMethod()) + "\t" + reqURI + "\t"
+                    + status + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
 
         } catch (ExceptionResponse e) {
 
@@ -599,10 +587,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         || status == HttpResponseStatus.NOT_MODIFIED //
                         || status == HttpResponseStatus.FOUND //
                         || (status == HttpResponseStatus.NOT_FOUND && !isFavicoReq)) {
-                    Log.fine(request.getRequestor() + "\t" + request.getMethod() + "\t" + reqURI + "\t" + status + "\t"
+                    Log.fine(request.getRequestor() + "\t" + request.getMethod() + "\t" + reqURI + "\t"
+                            + e.getResponseType() + "\t"
                             + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
                 } else {
-                    Log.info(request.getRequestor() + "\t" + request.getMethod() + "\t" + reqURI + "\t" + status + "\t"
+                    Log.info(request.getRequestor() + "\t" + request.getMethod() + "\t" + reqURI + "\t"
+                            + e.getResponseType() + "\t"
                             + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
                 }
                 Log.info("Caught exception response " + e.getClass().getSimpleName() + " for " + request.getURI());
