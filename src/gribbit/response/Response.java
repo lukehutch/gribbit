@@ -59,24 +59,27 @@ public abstract class Response extends DataModel {
         return lastModifiedEpochSeconds;
     }
 
-    public void setLastModifiedEpochSeconds(long lastModifiedEpochSeconds) {
+    public Response setLastModifiedEpochSeconds(long lastModifiedEpochSeconds) {
         this.lastModifiedEpochSeconds = lastModifiedEpochSeconds;
+        return this;
     }
 
     public String getCsrfTok() {
         return csrfTok;
     }
 
-    public void setCsrfTok(String csrfTok) {
+    public Response setCsrfTok(String csrfTok) {
         this.csrfTok = csrfTok;
+        return this;
     }
 
     public long getMaxAgeSeconds() {
         return maxAgeSeconds;
     }
 
-    public void setMaxAgeSeconds(long maxAgeSeconds) {
+    public Response setMaxAgeSeconds(long maxAgeSeconds) {
         this.maxAgeSeconds = maxAgeSeconds;
+        return this;
     }
 
     public HttpResponseStatus getStatus() {
@@ -87,19 +90,22 @@ public abstract class Response extends DataModel {
         return mimeType;
     }
 
-    public void setStatus(HttpResponseStatus status) {
+    public Response setStatus(HttpResponseStatus status) {
         this.status = status;
+        return this;
     }
 
-    public void setMimeType(String mimeType) {
+    public Response setMimeType(String mimeType) {
         this.mimeType = mimeType;
+        return this;
     }
 
-    public void addCustomHeader(String key, String value) {
+    public Response addCustomHeader(String key, String value) {
         if (customHeaders == null) {
             customHeaders = new HashMap<>();
         }
         customHeaders.put(key, value);
+        return this;
     }
 
     public HashMap<String, String> getCustomHeaders() {
