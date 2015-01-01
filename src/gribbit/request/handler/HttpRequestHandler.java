@@ -28,20 +28,21 @@ package gribbit.request.handler;
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPECT;
 import gribbit.auth.User;
 import gribbit.request.Request;
-import gribbit.request.handler.exception.BadRequestException;
-import gribbit.request.handler.exception.ExceptionResponse;
-import gribbit.request.handler.exception.InternalServerErrorException;
-import gribbit.request.handler.exception.MethodNotAllowedException;
-import gribbit.request.handler.exception.NotFoundException;
-import gribbit.request.handler.exception.NotModifiedException;
-import gribbit.request.handler.exception.UnauthorizedEmailNotValidatedException;
-import gribbit.request.handler.exception.UnauthorizedException;
 import gribbit.response.Response;
+import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.ExceptionResponse;
+import gribbit.response.exception.InternalServerErrorException;
+import gribbit.response.exception.MethodNotAllowedException;
+import gribbit.response.exception.NotFoundException;
+import gribbit.response.exception.NotModifiedException;
+import gribbit.response.exception.UnauthorizedEmailNotValidatedException;
+import gribbit.response.exception.UnauthorizedException;
 import gribbit.route.RouteHandler;
 import gribbit.route.RouteHandlerAuthAndValidatedEmailRequired;
 import gribbit.route.RouteHandlerAuthRequired;
 import gribbit.route.RouteInfo;
 import gribbit.server.GribbitServer;
+import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.util.Log;
@@ -133,7 +134,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // Handle WebSocket frames
         // ------------------------------------------------------------------------------
 
-        if (msg instanceof WebSocketFrame) {
+        if (GribbitProperties.ALLOW_WEBSOCKETS && msg instanceof WebSocketFrame) {
             if (webSocketHandler == null) {
                 // Got a web socket frame when no web socket exists
                 HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
@@ -152,12 +153,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // Decode HTTP headers
             // ------------------------------------------------------------------------------
 
-            if (msg instanceof HttpRequest && request == null) {
+            if (msg instanceof HttpRequest) {
                 HttpRequest httpReq = (HttpRequest) msg;
 
                 // System.out.println("REQUEST: " + httpReq.getUri());
 
-                // Start a new request
+                // Start a new request.
+                // N.B. if connection is re-used, this will overwrite the previous request object. 
                 request = new Request(httpReq);
 
                 // Handle expect-100-continue
@@ -181,7 +183,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 addKeepAliveHeader = !closeAfterWrite && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
 
                 if (httpReq.method() == HttpMethod.POST) {
-                    // Start decoding HttpContent chunks
+                    // Start decoding HttpContent chunks.
+                    // N.B. in case connection is re-used, need to free the previous decoder object.
+                    decoder.destroy();
                     decoder = new HttpPostRequestDecoder(factory, httpReq);
 
                 } else {
@@ -264,7 +268,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             if (request == null) {
-                // Got something other than a WebSocket frame or an HttpRequest message
+                // Got something other than a WebSocket frame or an HttpRequest message (or got a WebSocket frame,
+                // but WebSockets are disabled for this server)
                 throw new BadRequestException();
             }
 
@@ -375,12 +380,18 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // response is still null but authorizedRoute is non-null, then there was no error response
             // such as Unauthorized, and the user is authorized for this route (so they are also
             // authorized for the WebSocket attached to the route).
+
             // TODO: Read WS routes from class annotations to see if WS is allowed?
             // TODO: Or always allow WS connections so that GET/POST can be submitted via WS?
+            // TODO: Throttle the number of websockets requests per second per user (and have one pool
+            // TODO: of requests for anonymous users); limit the total number of websockets that may
+            // TODO: be opened by one user
 
-            if (request.isWebSocketRequest() && authorizedRoute != null && response == null) {
+            if (GribbitProperties.ALLOW_WEBSOCKETS //
+                    && authorizedRoute != null && response == null //
+                    && request.isWebSocketUpgradeRequest() && msg instanceof HttpRequest) {
                 this.webSocketHandler =
-                        new WebSocketHandler(ctx, (WebSocketFrame) msg, request.getOrigin(),
+                        new WebSocketHandler(ctx, (HttpRequest) msg, request.getOrigin(),
                                 request.getQueryParam("_csrf"), user, authorizedRoute);
                 // Finished handling the websocket upgrade request (or returned an error)
                 return;
@@ -417,7 +428,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     } else {
                         // If file is newer than what is in the browser cache, or is not in cache, serve the file
-                        HttpSendStaticFile.sendStaticFile(reqURI, hashKey, staticResourceFile,
+                        HttpSendStaticFile.sendStaticFile(reqURI, isHEAD, hashKey, staticResourceFile,
                                 lastModifiedEpochSeconds, addKeepAliveHeader, closeAfterWrite, ctx);
 
                         Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
@@ -513,7 +524,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     try {
                         // Call the RestHandler for the route
                         response = authorizedRoute.callHandler(request, user);
+
                     } catch (ExceptionResponse e) {
+
+                        Log.info("Caught method exception response " + e.getClass().getSimpleName() + " for " + reqURI);
+
                         // If there was an ExceptionResponse type exception, use the provided response object
                         // as the response from the handler
                         response = e.getResponse();
@@ -573,12 +588,28 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 return;
 
             } else {
-                // Get the Response object generated by the ExceptionResponse subclass
+                String reqURI = request.getURI();
+
+                // Get the Response object generated by the ExceptionResponse that was thrown
                 Response exceptionResponse = e.getResponse();
 
+                HttpResponseStatus status = exceptionResponse.getStatus();
+                boolean isFavicoReq = reqURI.equals("favicon.ico") || reqURI.endsWith("/favicon.ico");
+                if (status == HttpResponseStatus.OK //
+                        || status == HttpResponseStatus.NOT_MODIFIED //
+                        || status == HttpResponseStatus.FOUND //
+                        || (status == HttpResponseStatus.NOT_FOUND && !isFavicoReq)) {
+                    Log.fine(request.getRequestor() + "\t" + request.getMethod() + "\t" + reqURI + "\t" + status + "\t"
+                            + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+                } else {
+                    Log.info(request.getRequestor() + "\t" + request.getMethod() + "\t" + reqURI + "\t" + status + "\t"
+                            + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+                }
+                Log.info("Caught exception response " + e.getClass().getSimpleName() + " for " + request.getURI());
+
                 boolean closeChannelAfterWrite = closeAfterWrite //
-                        // TODO: For redirects, don't close channel?
-                        || exceptionResponse.getStatus() != HttpResponseStatus.FOUND;
+                // TODO: For redirects, don't close channel?
+                ;//|| exceptionResponse.getStatus() != HttpResponseStatus.FOUND;
 
                 // Send the exception response
                 HttpSendResponse.sendResponse(request.getURI(), request, exceptionResponse, /* isHEAD = */false,
