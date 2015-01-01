@@ -23,20 +23,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.handler.route.annotation;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.response.Response;
-import gribbit.response.TextResponse;
-import gribbit.route.RouteHandlerAuthNotRequired;
-import io.netty.handler.codec.http.HttpResponseStatus;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-/**
- * Default handler for internal server errors.
- */
-@RouteOverride("/gribbit/err/internal-server-error")
-public class InternalServerError extends RouteHandlerAuthNotRequired {
-    public Response get() {
-        return new TextResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal server error");
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface OnEmailNotValidated {
 }

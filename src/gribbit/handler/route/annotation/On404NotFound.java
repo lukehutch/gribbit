@@ -23,20 +23,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.handler.route.annotation;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.response.Response;
-import gribbit.response.TextResponse;
-import gribbit.route.RouteHandlerAuthNotRequired;
-import io.netty.handler.codec.http.HttpResponseStatus;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-/**
- * Default handler for "bad request" errors.
- */
-@RouteOverride("/gribbit/err/bad-request")
-public class BadRequest extends RouteHandlerAuthNotRequired {
-    public Response get() {
-        return new TextResponse(HttpResponseStatus.BAD_REQUEST, "Bad request");
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface On404NotFound {
 }

@@ -23,19 +23,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.util;
+package gribbit.request.handler.exception;
 
-public class AppException extends Exception {
+import gribbit.response.ErrorResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
-    public AppException(String msg) {
-        super(msg);
+/**
+ * This exception is thrown when a user tries to access a resource that hasn't changed. This ExceptionResponse is
+ * special in that it does not take an exception message in the constructor, instead it takes the last modified time of
+ * the resource that has not been modified since the timestamp of the version stored in the browser's cache.
+ */
+public class NotModifiedException extends ExceptionResponse {
+
+    public NotModifiedException(long lastModifiedEpochSeconds) {
+        super(new ErrorResponse(HttpResponseStatus.NOT_MODIFIED, "") //
+                .setLastModifiedEpochSeconds(lastModifiedEpochSeconds));
     }
 
-    public AppException(Exception e) {
-        super(e);
-    }
-
-    public AppException(String msg, Exception e) {
-        super(msg, e);
-    }
 }

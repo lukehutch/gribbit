@@ -23,14 +23,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error.annotation;
+package gribbit.request.handler.exception;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import gribbit.response.ErrorResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface On404NotFound {
+/**
+ * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
+ */
+public class ForbiddenException extends ExceptionResponse {
+    public ForbiddenException() {
+        super(new ErrorResponse(HttpResponseStatus.FORBIDDEN, "Forbidden"));
+    }
 }

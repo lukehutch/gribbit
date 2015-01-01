@@ -23,20 +23,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.request.handler.exception;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.response.Response;
-import gribbit.response.TextResponse;
-import gribbit.route.RouteHandlerAuthNotRequired;
+import gribbit.response.ErrorResponse;
+import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Default handler called when user is not authorized to see a given resource.
+ * This exception is thrown when a user tries to access a resource that doesn't exist (404).
  */
-@RouteOverride("/gribbit/err/unauthorized")
-public class Unauthorized extends RouteHandlerAuthNotRequired {
-    public Response get() {
-        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized").logOutUser(request);
+public class NotFoundException extends ExceptionResponse {
+    public NotFoundException() {
+        super(new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found"));
     }
+
+    public NotFoundException(String uri) {
+        this();
+        if (!uri.endsWith(".ico") && !uri.contains("favico")) {
+            Log.fine("404 Not Found: " + uri);
+        }
+    }
+
 }

@@ -23,12 +23,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response;
+package gribbit.handler.route.annotation;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public class NotFoundResponse extends ErrorResponse {
-    public NotFoundResponse() {
-        super(HttpResponseStatus.NOT_FOUND, "404 Not Found");
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface OnUnauthorized {
 }

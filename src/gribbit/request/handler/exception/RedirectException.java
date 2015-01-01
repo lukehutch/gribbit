@@ -23,37 +23,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response;
+package gribbit.request.handler.exception;
 
+import gribbit.response.ErrorResponse;
 import gribbit.route.RouteHandler;
 import gribbit.route.RouteInfo;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-public class RedirectResponse extends TextResponse {
-
-    private String redirectToURI;
+/**
+ * This exception is thrown to redirect a user to another URL. This ExceptionResponse is special in that the constructor
+ * does not optionally take an exception message, instead it takes the URI to redirect to, or a route handler to
+ * redirect to, in the from of a Class<? extends RouteHandler> or RouteInfo object, optionally (in the static factory
+ * methods) with parameters to append to the get() method's URI.
+ */
+public class RedirectException extends ExceptionResponse {
 
     /**
-     * Redirect to a raw redirect URL string. Not recommended for site-local URLs; it's better to use one of the other
-     * constructors that takes a Route as a parameter.
+     * Redirect to a raw URL. Not recommended for site-local URLs; it's better to use one of the other constructors that
+     * takes a Route as a parameter.
      */
-    public RedirectResponse(String redirectToURI) {
-        super(HttpResponseStatus.FOUND, "");
-        addCustomHeader("Location", redirectToURI);
-        this.redirectToURI = redirectToURI;
+    public RedirectException(String redirectToURI) {
+        super(new ErrorResponse(HttpResponseStatus.FOUND, "") //
+                .addCustomHeader("Location", redirectToURI));
     }
 
     /**
      * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
-    public RedirectResponse(Class<? extends RouteHandler> redirectToHandler) {
+    public RedirectException(Class<? extends RouteHandler> redirectToHandler) {
         this(RouteInfo.forGet(redirectToHandler));
     }
 
     /**
      * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
-    public RedirectResponse(RouteInfo redirectToRoute) {
+    public RedirectException(RouteInfo redirectToRoute) {
         this(redirectToRoute.getRoutePath());
     }
 
@@ -61,20 +65,17 @@ public class RedirectResponse extends TextResponse {
      * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
      * params into the URL for the handler. Can call with zero urlParams if the handler takes no URI params.
      */
-    public static RedirectResponse redirectWithParams(Class<? extends RouteHandler> redirectToHandler,
-            Object... urlParams) {
-        return new RedirectResponse(RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
+    public static void throwRedirectWithParams(Class<? extends RouteHandler> redirectToHandler, Object... urlParams)
+            throws RedirectException {
+        throw new RedirectException(RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
     }
 
     /**
      * Redirect to a given route, substituting URL params into the URL for the handler. Can call with zero urlParams if
      * the handler takes no URI params.
      */
-    public static RedirectResponse redirectWithParams(RouteInfo redirectToRoute, Object... urlParams) {
-        return new RedirectResponse(RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
+    public static void throwRedirectWithParams(RouteInfo redirectToRoute, Object... urlParams) throws RedirectException {
+        throw new RedirectException(RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
     }
 
-    public String getRedirectURI() {
-        return redirectToURI;
-    }
 }

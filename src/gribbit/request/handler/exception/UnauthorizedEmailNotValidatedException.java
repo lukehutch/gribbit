@@ -30,31 +30,21 @@ import gribbit.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource they are not authorized to access.
+ * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs their
+ * email address to be validated before they are allowed to log in.
  */
-public class UnauthorizedException extends ExceptionResponse {
+public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
 
     /**
-     * Return Unauthorized, and set the redirect cookie so that if the user does successfully log in, they'll end up
-     * where they were originally trying to go when they were denied access.
+     * Return Unauthorized: Email Not Validated, and set the redirect cookie so that if the user does successfully log
+     * in, they'll end up where they were originally trying to go when they were denied access.
      */
-    public UnauthorizedException(String originalRequestURI) {
-        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized"));
+    public UnauthorizedEmailNotValidatedException(String originalRequestURI) {
+        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized: email not validated"));
 
         // Redirect the user back to the page they were trying to get to once they do log in successfully
         this.exceptionResponse //
                 .logOutUser() //
                 .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", originalRequestURI, 300));
     }
-
-    /** Return Unauthorized. */
-    public UnauthorizedException() {
-        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized"));
-
-        // Clear the redirect cookie
-        this.exceptionResponse //
-                .logOutUser() //
-                .deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
-    }
-
 }

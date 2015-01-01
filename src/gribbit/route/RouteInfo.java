@@ -31,11 +31,12 @@ import gribbit.handler.route.annotation.Cached;
 import gribbit.model.DataModel;
 import gribbit.request.Request;
 import gribbit.request.handler.exception.BadRequestException;
+import gribbit.request.handler.exception.ExceptionResponse;
+import gribbit.request.handler.exception.InternalServerErrorException;
 import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLResponse;
 import gribbit.response.Response;
 import gribbit.server.GribbitServer;
-import gribbit.util.AppException;
 import gribbit.util.Log;
 import gribbit.util.Reflection;
 import gribbit.util.WebUtils;
@@ -223,7 +224,7 @@ public class RouteInfo {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** If a post() method takes exactly one parameter, then bind the param value from the POST data. */
-    private Object[] bindPostParamFromPOSTData(Request request) throws AppException {
+    private Object[] bindPostParamFromPOSTData(Request request) throws ExceptionResponse {
         if (postParamType == null) {
             // post() takes no params
             return null;
@@ -236,7 +237,8 @@ public class RouteInfo {
             } catch (InstantiationException e) {
                 // Should never happen, we already tried instantiating all DataModel subclasses
                 // that are bound to POST request handlers when site resources were loaded
-                throw new AppException("Could not instantiate POST parameter of type " + postParamType.getName(), e);
+                throw new InternalServerErrorException("Could not instantiate POST parameter of type "
+                        + postParamType.getName(), e);
             }
 
             // Bind POST param object from request
@@ -311,7 +313,7 @@ public class RouteInfo {
      * 
      * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed etc.
      */
-    public Response callHandler(Request request, User user) throws Exception {
+    public Response callHandler(Request request, User user) throws ExceptionResponse {
         Response response;
         if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass) && user == null) {
             // Should not happen (the user object should only be non-null if the user is authorized),
@@ -339,11 +341,11 @@ public class RouteInfo {
                 // unathenticated route
                 if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass)) {
                     if (user == null) {
-                        throw new AppException("User not logged in, could not check CSRF token. "
+                        throw new BadRequestException("User not logged in, could not check CSRF token. "
                                 + "POST requests are only accepted from logged-in users.");
                     } else {
                         if (!CSRF.csrfTokMatches(request.getPostParam(CSRF.CSRF_PARAM_NAME), user)) {
-                            throw new AppException("Missing or incorrect CSRF token in POST request");
+                            throw new BadRequestException("Missing or incorrect CSRF token in POST request");
                         }
                     }
                 }

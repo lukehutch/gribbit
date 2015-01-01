@@ -26,7 +26,7 @@
 package gribbit.auth.all;
 
 import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.response.RedirectResponse;
+import gribbit.request.handler.exception.RedirectException;
 import gribbit.response.Response;
 import gribbit.route.RouteHandlerAuthNotRequired;
 
@@ -35,11 +35,13 @@ import gribbit.route.RouteHandlerAuthNotRequired;
  */
 @RouteOverride("/logout")
 public class Logout extends RouteHandlerAuthNotRequired {
-    public Response get() {
-        return new RedirectResponse("/").logOutUser(request);
+    public Response get() throws RedirectException {
+        RedirectException redir = new RedirectException("/");
+        redir.getResponse().logOutUser(request);
+        throw redir;
     }
 
-    public Response post() {
+    public Response post() throws RedirectException {
         return get();
     }
 }

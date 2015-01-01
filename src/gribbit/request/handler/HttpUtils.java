@@ -32,15 +32,6 @@ import static io.netty.handler.codec.http.HttpHeaderNames.ETAG;
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPIRES;
 import static io.netty.handler.codec.http.HttpHeaderNames.LAST_MODIFIED;
 import static io.netty.handler.codec.http.HttpHeaderNames.PRAGMA;
-import gribbit.auth.User;
-import gribbit.request.Request;
-import gribbit.request.handler.exception.BadRequestException;
-import gribbit.response.ErrorResponse;
-import gribbit.response.Response;
-import gribbit.route.RouteInfo;
-import gribbit.server.GribbitServer;
-import gribbit.util.AppException;
-import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
@@ -49,9 +40,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderUtil;
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
 
 import java.time.Instant;
@@ -81,8 +70,9 @@ public class HttpUtils {
     /**
      * Set Date and cache-related headers.
      * 
-     * TODO: read http://www.mobify.com/blog/beginners-guide-to-http-cache-headers/ TODO: read
-     * https://www.mnot.net/cache_docs/
+     * TODO: read http://www.mobify.com/blog/beginners-guide-to-http-cache-headers/
+     * 
+     * TODO: read https://www.mnot.net/cache_docs/
      */
     public static void setDateAndCacheHeaders(HttpHeaders httpHeaders, ZonedDateTime timeNow,
             long lastModifiedEpochSeconds, long hashKeyMaxRemainingAgeSeconds, String hashKey) {
@@ -127,57 +117,6 @@ public class HttpUtils {
             httpHeaders.add(PRAGMA, "no-cache"); // HTTP 1.0
             httpHeaders.add(EXPIRES, "0"); // Proxies
         }
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /** Call the route handler for the given route. */
-    public static Response callRouteHandler(RouteInfo route, Request req, User user) throws Exception {
-        Response response;
-        try {
-            // Call the RestHandler for the route
-            response = route.callHandler(req, user);
-
-        } catch (Exception e) {
-            Log.exception("Exception while handling URI " + req.getURI(), e);
-            try {
-                // Call Internal Server Error handler on exception
-                response = GribbitServer.siteResources.getInternalServerErrorRoute().callHandler(req, user);
-
-            } catch (BadRequestException | AppException e1) { 
-                response = new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request");
-    
-            } catch (Exception e1) {
-                // Fallback in case there's an exception in the Internal Server Error handler
-                Log.exception("Error in internal server error handler while handling URI " + req.getURI(), e1);
-                response = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
-            }
-        }
-        return response;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /**
-     * Call the given error handler in place of the route handler. The error handler's get() method will be called (even
-     * if the original request was of type POST), but all fields of the request (query params, post data etc.) will be
-     * passed on to the error handler, as will the user object if the user was succesfully authenticated before the
-     * error occurred.
-     */
-    public static Response callErrorHandlerInPlaceOfRouteHandler(RouteInfo errorRoute, Request req, User user)
-            throws Exception {
-        // Temporarily replace the method with GET and the route with the error handler's route,
-        // but keep the rest of the request the same (cookies etc.)
-        String origURI = req.getURI();
-        HttpMethod origMethod = req.getMethod();
-        req.setURI(errorRoute.getRoutePath());
-        req.setMethod(HttpMethod.GET);
-        // Call the error handler
-        Response response = callRouteHandler(errorRoute, req, user);
-        // Restore the original request URI and request method
-        req.setURI(origURI);
-        req.setMethod(origMethod);
-        return response;
     }
 
 }

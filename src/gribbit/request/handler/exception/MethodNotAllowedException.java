@@ -23,21 +23,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.error;
+package gribbit.request.handler.exception;
 
-import gribbit.handler.route.annotation.RouteOverride;
-import gribbit.response.Response;
-import gribbit.response.TextResponse;
-import gribbit.route.RouteHandlerAuthNotRequired;
+import gribbit.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * Handler for cases where the user is logged in but their email address has not yet been validated, and where the
- * user's email address must be validated for them to be able to access a given route.
+ * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
  */
-@RouteOverride("/gribbit/err/email-not-validated")
-public class EmailNotValidated extends RouteHandlerAuthNotRequired {
-    public Response get() {
-        return new TextResponse(HttpResponseStatus.UNAUTHORIZED, "Email address has not yet been validated");
+public class MethodNotAllowedException extends ExceptionResponse {
+    public MethodNotAllowedException() {
+        super(new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "Method not allowed"));
     }
 }

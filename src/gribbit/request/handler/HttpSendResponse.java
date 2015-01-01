@@ -56,6 +56,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.ServerCookieEncoder;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -68,7 +69,7 @@ public class HttpSendResponse {
     public static void sendResponse(String reqURI, Request request, Response response, boolean isHEAD,
             boolean acceptEncodingGzip, ZonedDateTime timeNow, boolean hashTheResponse,
             long hashKeyMaxRemainingAgeSeconds, String hashKey, boolean addKeepAliveHeader, boolean closeAfterWrite,
-            ChannelHandlerContext ctx) throws Exception {
+            ChannelHandlerContext ctx) {
 
         // Add any pending flash messages to the response, if the response is an HTML page
         if (response instanceof HTMLPageResponse) {
@@ -114,9 +115,14 @@ public class HttpSendResponse {
                 && WebUtils.isCompressibleContentType(contentType)) {
             gzippedContent = Unpooled.buffer(/* initialCapacity = */content.readableBytes());
             // TODO: compare speed to using JZlib.GZIPOutputStream
-            GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
-            gzipStream.write(contentBytes);
-            gzipStream.close();
+            try {
+                GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
+                gzipStream.write(contentBytes);
+                gzipStream.close();
+            } catch (IOException e) {
+                // Should not happen
+                throw new RuntimeException("Could not gzip content", e);
+            }
         }
 
         // Create a FullHttpResponse object that wraps the response status and content
@@ -218,6 +224,10 @@ public class HttpSendResponse {
             while (!ctx.channel().isWritable() && (System.currentTimeMillis() - startTime < 5000)) {
                 // TODO: replace this spinlock (usually channel is immediately writeable;
                 // is this even needed?)
+                try {
+                    Thread.sleep(2);
+                } catch (InterruptedException e) {
+                }
             }
             if (ctx.channel().isWritable()) {
                 // Write the ByteBuffer returned by httpRes.content() back into the pipeline
@@ -235,7 +245,7 @@ public class HttpSendResponse {
             } else {
                 // Tried for a period of time but could not send response; close channel
                 ctx.channel().close();
-                throw new RuntimeException("Could not send response after repeated attempts");
+                // throw new InternalServerErrorException("Could not send response after repeated attempts");
             }
         } else {
             // Client already closed the connection, nothing can be sent

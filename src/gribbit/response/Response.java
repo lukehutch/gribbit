@@ -154,22 +154,34 @@ public abstract class Response extends DataModel {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /** Log out the currently logged-in user. */
+    /** Delete login cookies in the user's browser. */
+    public Response logOutUser() {
+        User.removeLoginCookies(this);
+        return this;
+    }
+
+    /**
+     * Log out the currently logged-in user, if the request contains cookies that indicate a valid user is logged in:
+     * delete login cookies in the user's browser, and invalidate the user's login tokens in the database.
+     */
     public Response logOutUser(Request request) {
-        if (request != null) {
-            User.logOutUser(request, this);
+        if (request == null) {
+            logOutUser();
         } else {
-            User.removeLoginCookies(this);
+            User.logOutUser(request, this);
         }
         return this;
     }
 
-    /** Log out the currently logged-in user. */
+    /**
+     * Log out the currently logged-in user: delete login cookies in the user's browser, and invalidate the user's login
+     * tokens in the database.
+     */
     public Response logOutUser(User user) {
-        if (user != null) {
-            user.logOut(this);
+        if (user == null) {
+            logOutUser();
         } else {
-            User.removeLoginCookies(this);
+            user.logOut(this);
         }
         return this;
     }

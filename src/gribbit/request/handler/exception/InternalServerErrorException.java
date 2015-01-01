@@ -29,22 +29,22 @@ import gribbit.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when user-supplied data in the request is invalid.
+ * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
  */
-public class BadRequestException extends ExceptionResponse {
-    public BadRequestException() {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"));
+public class InternalServerErrorException extends ExceptionResponse {
+    public InternalServerErrorException() {
+        super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"));
     }
 
-    public BadRequestException(String msg) {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), msg);
+    public InternalServerErrorException(String msg) {
+        super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), msg);
     }
 
-    public BadRequestException(Exception e) {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), e);
+    public InternalServerErrorException(Exception e) {
+        super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), e);
     }
 
-    public BadRequestException(String msg, Exception e) {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), msg, e);
+    public InternalServerErrorException(String msg, Exception e) {
+        super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), msg, e);
     }
 }

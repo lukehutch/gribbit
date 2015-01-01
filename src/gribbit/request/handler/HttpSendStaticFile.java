@@ -28,6 +28,8 @@ package gribbit.request.handler;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
+import gribbit.request.handler.exception.ExceptionResponse;
+import gribbit.request.handler.exception.InternalServerErrorException;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.util.WebUtils;
@@ -54,7 +56,7 @@ public class HttpSendStaticFile {
     /** Serve a static file. */
     public static void sendStaticFile(String reqURI, String hashKey, File staticResourceFile,
             long lastModifiedEpochSeconds, boolean addKeepAliveHeader, boolean closeAfterWrite,
-            ChannelHandlerContext ctx) throws Exception {
+            ChannelHandlerContext ctx) throws ExceptionResponse {
 
         RandomAccessFile fileToServe = null;
         try {
@@ -155,7 +157,7 @@ public class HttpSendStaticFile {
                 } catch (IOException e1) {
                 }
             }
-            throw new RuntimeException("Exception serving static file", e);
+            throw new InternalServerErrorException("Exception serving static file", e);
         }
     }
 }

@@ -28,11 +28,12 @@ package gribbit.auth;
 import gribbit.auth.User.Token.TokenType;
 import gribbit.model.DBModelStringKey;
 import gribbit.request.Request;
+import gribbit.request.handler.exception.BadRequestException;
+import gribbit.request.handler.exception.ExceptionResponse;
 import gribbit.request.handler.exception.UnauthorizedException;
 import gribbit.response.Response;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.Database;
-import gribbit.util.AppException;
 import gribbit.util.Hash;
 import gribbit.util.WebUtils;
 
@@ -133,18 +134,18 @@ public class User extends DBModelStringKey {
      * Throws an exception if any of this fails. Returns the user if it all succeeds.
      */
     // FIXME: remove this, and store tokens in user
-    public static User validateTok(String email, String suppliedToken, TokenType tokType) throws Exception {
+    public static User validateTok(String email, String suppliedToken, TokenType tokType) throws ExceptionResponse {
         if (email.isEmpty() || email.equals("null") || email.indexOf('@') < 0) {
-            throw new AppException("Invalid email address");
+            throw new BadRequestException("Invalid email address");
         }
         if (suppliedToken == null || suppliedToken.isEmpty()) {
-            throw new AppException("Invalid token");
+            throw new BadRequestException("Invalid token");
         }
 
         // Look up user with this email addr
         User user = User.findByEmail(email);
         if (user == null) {
-            throw new AppException("User account does not exist");
+            throw new BadRequestException("User account does not exist");
         }
 
         switch (tokType) {
@@ -190,7 +191,7 @@ public class User extends DBModelStringKey {
         default:
             break;
         }
-        throw new AppException("Token has expired or does not match");
+        throw new BadRequestException("Token has expired or does not match");
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -276,7 +277,7 @@ public class User extends DBModelStringKey {
      * @throws UnauthorizedException
      *             if user is not whitelisted for login
      */
-    public void changePassword(String newPassword, Response response) throws UnauthorizedException, AppException {
+    public void changePassword(String newPassword, Response response) throws ExceptionResponse {
         if (sessionTokHasExpired()) {
             throw new UnauthorizedException("Session has expired");
         }

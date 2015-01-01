@@ -28,6 +28,8 @@ package gribbit.model;
 import gribbit.auth.CSRF;
 import gribbit.model.field.annotation.IsURL;
 import gribbit.request.Request;
+import gribbit.request.handler.exception.BadRequestException;
+import gribbit.request.handler.exception.ExceptionResponse;
 import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -35,7 +37,6 @@ import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.server.siteresources.DataModelLoader;
 import gribbit.server.siteresources.TemplateLoader;
-import gribbit.util.AppException;
 import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
@@ -89,7 +90,7 @@ public abstract class DataModel {
      * @throws AppException
      *             if any of the constraint annotations are not specified
      */
-    public void bindFromPost(Request req) throws AppException {
+    public void bindFromPost(Request req) throws ExceptionResponse {
 
         // Match field names against POST param names, and set values of fields whenever there is a match
         HashSet<String> unusedPostParams = new HashSet<String>(req.getPostParamNames());
@@ -132,7 +133,8 @@ public abstract class DataModel {
                             // There is a field in formModelInstance DataModel that is not in the
                             // POST request
                             if (DataModelLoader.fieldIsRequired(field)) {
-                                throw new AppException("Field " + fieldName + " required, but not sent in POST request");
+                                throw new BadRequestException("Field " + fieldName
+                                        + " required, but not sent in POST request");
                             }
                         }
 
@@ -190,8 +192,9 @@ public abstract class DataModel {
                             // Character fields are bound from text, but limited to a length of 1
 
                             if (postParamValForField.length() > 1) {
-                                throw new AppException("Field " + fieldName + " requires a single character, got "
-                                        + postParamValForField.length() + " characters");
+                                throw new BadRequestException("Field " + fieldName
+                                        + " requires a single character, got " + postParamValForField.length()
+                                        + " characters");
                             } else if (postParamValForField.length() == 1) {
                                 char c = postParamValForField.charAt(0);
                                 if (fieldType == Character.class) {
@@ -215,7 +218,7 @@ public abstract class DataModel {
                                 Enum<?> enumVal = Enum.valueOf((Class<Enum>) fieldType, postParamValForField);
                                 field.set(this, enumVal);
                             } catch (IllegalArgumentException e) {
-                                throw new AppException("Illegal value " + postParamValForField + " for field "
+                                throw new BadRequestException("Illegal value " + postParamValForField + " for field "
                                         + fieldName);
                             }
 
@@ -225,7 +228,7 @@ public abstract class DataModel {
                     }
 
                 } catch (NumberFormatException | DateTimeParseException e) {
-                    throw new AppException("Could not parse value " + fieldName + " from the request", e);
+                    throw new BadRequestException("Could not parse value " + fieldName + " from the request", e);
 
                 } catch (IllegalArgumentException | IllegalAccessException e) {
                     throw new RuntimeException("Could not set field " + fieldName
@@ -238,7 +241,7 @@ public abstract class DataModel {
         try {
             DataModelLoader.checkFieldValuesAgainstConstraints(this);
         } catch (Exception e) {
-            throw new AppException("Form values invalid: " + e.getMessage());
+            throw new BadRequestException("Form values invalid: " + e.getMessage());
         }
 
         for (String unusedParam : unusedPostParams) {
@@ -656,8 +659,7 @@ public abstract class DataModel {
      * part starts in a space, skip initial spaces in the text part so as not to create a run of spaces, which can throw
      * off indenting if the text is at the beginning of an indented line.
      */
-    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint,
-            StringBuilder buf) {
+    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint, StringBuilder buf) {
         CharSequence suffixAfterInitialSpaces = textPart;
         if (prettyPrint && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ') && textPart.length() > 0
                 && textPart.charAt(0) == ' ') {

@@ -26,6 +26,7 @@
 package gribbit.util;
 
 import gribbit.auth.User;
+import gribbit.request.handler.exception.BadRequestException;
 import gribbit.util.thirdparty.BCrypt;
 
 /**
@@ -42,12 +43,12 @@ public class Hash {
      * @param cleartextPassword
      *            the cleartext password
      * @return the salted, hashed password.
-     * @throws AppException
-     *             Thrown if password is null or too short.
+     * @throws BadRequestException
+     *             If the password is null or too short.
      */
-    public static String hashPassword(String cleartextPassword) throws AppException {
+    public static String hashPassword(String cleartextPassword) throws BadRequestException {
         if (cleartextPassword == null || cleartextPassword.length() < MIN_PASSWORD_LENGTH) {
-            throw new AppException("Password is too short");
+            throw new BadRequestException("Password is too short");
         }
         return BCrypt.hashpw(cleartextPassword, BCrypt.gensalt());
     }
