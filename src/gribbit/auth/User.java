@@ -26,9 +26,9 @@
 package gribbit.auth;
 
 import gribbit.auth.User.Token.TokenType;
-import gribbit.exception.UnauthorizedException;
 import gribbit.model.DBModelStringKey;
 import gribbit.request.Request;
+import gribbit.request.handler.exception.UnauthorizedException;
 import gribbit.response.Response;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.Database;

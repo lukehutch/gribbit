@@ -23,13 +23,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.exception;
+package gribbit.request.handler.exception;
 
 /**
- * This exception is thrown when a user tries to access a resource they are not authorized to access.
+ * This exception is thrown when user-supplied data in the request is invalid.
  */
-public class UnauthorizedException extends Exception {
-    public UnauthorizedException(String msg) {
+public class BadRequestException extends Exception {
+    public BadRequestException(String msg) {
         super(msg);
     }
 }

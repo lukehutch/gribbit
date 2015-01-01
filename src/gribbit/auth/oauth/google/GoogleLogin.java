@@ -27,9 +27,9 @@ package gribbit.auth.oauth.google;
 
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
-import gribbit.exception.BadRequestException;
-import gribbit.exception.UnauthorizedException;
 import gribbit.handler.route.annotation.RouteOverride;
+import gribbit.request.handler.exception.BadRequestException;
+import gribbit.request.handler.exception.UnauthorizedException;
 import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;

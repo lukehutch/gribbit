@@ -27,10 +27,10 @@ package gribbit.route;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
-import gribbit.exception.BadRequestException;
 import gribbit.handler.route.annotation.Cached;
 import gribbit.model.DataModel;
 import gribbit.request.Request;
+import gribbit.request.handler.exception.BadRequestException;
 import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLResponse;
 import gribbit.response.Response;

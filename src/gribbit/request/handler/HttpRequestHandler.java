@@ -119,48 +119,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Call the route handler for the given route. */
-    private static Response getResponseForRoute(RouteInfo route, Request req, User user) throws Exception {
-        Response response;
-        try {
-            // Call the RestHandler for the route
-            response = route.callHandler(req, user);
-
-        } catch (Exception e) {
-            Log.exception("Exception while handling URI " + req.getURI(), e);
-            try {
-                // Call Internal Server Error handler on exception
-                response = GribbitServer.siteResources.getInternalServerErrorRoute().callHandler(req, user);
-            } catch (Exception e1) {
-                // Fallback in case there's an exception in the Internal Server Error handler
-                Log.exception("Error in internal server error handler while handling URI " + req.getURI(), e1);
-                response = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
-            }
-        }
-        return response;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /** Call the given error handler route. */
-    private static Response getResponseForErrorHandlerRoute(RouteInfo route, Request req, User user) throws Exception {
-        // Temporarily replace the method with GET and the route with the error handler's route,
-        // but keep the rest of the request the same (cookies etc.)
-        // FIXME: (I forget the reason for this, why not just call the route handler for the route?)
-        String origURI = req.getURI();
-        HttpMethod origMethod = req.getMethod();
-        req.setURI(route.getRoutePath());
-        req.setMethod(HttpMethod.GET);
-        // Call the error handler
-        Response response = getResponseForRoute(route, req, user);
-        // Restore the original request URI and request method
-        req.setURI(origURI);
-        req.setMethod(origMethod);
-        return response;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
     /** Decode an HTTP message. */
     @Override
     public void messageReceived(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -360,8 +318,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                             // User is not logged in: handle request with OnUnauthorized handler instead
                             response =
-                                    getResponseForErrorHandlerRoute(GribbitServer.siteResources.getUnauthorizedRoute(),
-                                            request, user)
+                                    HttpUtils.callErrorHandlerInPlaceOfRouteHandler(
+                                            GribbitServer.siteResources.getUnauthorizedRoute(), request, user)
                                     // Redirect the user back to the page they were trying to get to once they
                                     // do manage to log in successfully
                                             .setCookie(
@@ -374,7 +332,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                             // User is logged in, but their email address has not been validated:
                             // handle request with EmailNotValidated handler instead
                             response =
-                                    getResponseForErrorHandlerRoute(
+                                    HttpUtils.callErrorHandlerInPlaceOfRouteHandler(
                                             GribbitServer.siteResources.getEmailNotValidatedRoute(), request, user);
 
                         } else {
@@ -434,8 +392,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     // Neither a route handler nor a static resource matched the request URI.
                     // Return 404 Not Found.
                     response =
-                            getResponseForErrorHandlerRoute(GribbitServer.siteResources.getNotFoundRoute(), request,
-                                    user);
+                            HttpUtils.callErrorHandlerInPlaceOfRouteHandler(
+                                    GribbitServer.siteResources.getNotFoundRoute(), request, user);
 
                 } else {
 
@@ -541,7 +499,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     // Call the route handler for this request, generating the response
                     // -----------------------------------------------------------------
 
-                    response = getResponseForRoute(authorizedRoute, request, user);
+                    response = HttpUtils.callRouteHandler(authorizedRoute, request, user);
 
                     if (response == null) {
                         // Should not happen
@@ -566,9 +524,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             // Serve the response to the client 
-            HttpSendResponse.sendResponse(reqURI, request, response, isHEAD, request.acceptEncodingGzip(),
-                    timeNow, hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite,
-                    ctx);
+            HttpSendResponse.sendResponse(reqURI, request, response, isHEAD, request.acceptEncodingGzip(), timeNow,
+                    hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite, ctx);
 
             // Log the request and response
             HttpResponseStatus status = response.getStatus();

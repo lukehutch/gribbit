@@ -39,7 +39,21 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 
-public class SafeHTML {
+/**
+ * Sanitized HTML.
+ * 
+ * Used to clean HTML-typed data received from the user.
+ * 
+ * Can also be used to render custom dynamic HTML directly into a template if needed, although:
+ * 
+ * (1) Using sanitized HTML is slower than template rendering, because the HTML has to be parsed by Jsoup, cleaned of
+ * illegal tags and escaped before it can be rendered into the template in string format.
+ * 
+ * (2) Custom-generating dynamic HTML rather than creating a template is akin to the failure to separate content and
+ * presentation (in this case, the failure to separate model and view). It is almost always better to create a new
+ * template and corresponding DataModel rather than dynamically generating ad-hoc HTML.
+ */
+public class SanitizedHTML {
 
     private final String sanitizedHTML;
 
@@ -56,7 +70,7 @@ public class SafeHTML {
      *            used to track the viewer, so if this HTML is user-supplied, users could track other users on the site
      *            that view their content.
      */
-    public SafeHTML(String unsafeHTML, String[] tagAttrWhitelist) {
+    public SanitizedHTML(String unsafeHTML, String[] tagAttrWhitelist) {
         HashMap<String, HashSet<String>> whitelist =
                 tagAttrWhitelist == null ? defaultWhitelist : createWhitelist(tagAttrWhitelist);
         StringBuilder buf = new StringBuilder();
@@ -72,7 +86,7 @@ public class SafeHTML {
      * @param unsafeHTML
      *            The unsafe HTML to sanitize.
      */
-    public SafeHTML(String unsafeHTML) {
+    public SanitizedHTML(String unsafeHTML) {
         this(unsafeHTML, null);
     }
 
