@@ -35,4 +35,13 @@ public class ForbiddenException extends ExceptionResponse {
     public ForbiddenException() {
         super(new ErrorResponse(HttpResponseStatus.FORBIDDEN, "Forbidden"));
     }
+
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }

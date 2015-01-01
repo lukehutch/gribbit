@@ -33,7 +33,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * This exception is thrown when a user tries to access a resource they are not authorized to access.
  */
 public class UnauthorizedException extends ExceptionResponse {
-
     /**
      * Return Unauthorized, and set the redirect cookie so that if the user does successfully log in, they'll end up
      * where they were originally trying to go when they were denied access.
@@ -57,4 +56,12 @@ public class UnauthorizedException extends ExceptionResponse {
                 .deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
     }
 
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }

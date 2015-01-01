@@ -40,11 +40,12 @@ public class BadRequestException extends ExceptionResponse {
         super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), msg);
     }
 
-    public BadRequestException(Exception e) {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), e);
-    }
-
-    public BadRequestException(String msg, Exception e) {
-        super(new ErrorResponse(HttpResponseStatus.BAD_REQUEST, "Bad Request"), msg, e);
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
     }
 }

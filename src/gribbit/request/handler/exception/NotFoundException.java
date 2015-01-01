@@ -44,4 +44,12 @@ public class NotFoundException extends ExceptionResponse {
         }
     }
 
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }

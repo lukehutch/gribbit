@@ -78,4 +78,12 @@ public class RedirectException extends ExceptionResponse {
         throw new RedirectException(RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
     }
 
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }

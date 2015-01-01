@@ -34,10 +34,17 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * the resource that has not been modified since the timestamp of the version stored in the browser's cache.
  */
 public class NotModifiedException extends ExceptionResponse {
-
     public NotModifiedException(long lastModifiedEpochSeconds) {
         super(new ErrorResponse(HttpResponseStatus.NOT_MODIFIED, "") //
                 .setLastModifiedEpochSeconds(lastModifiedEpochSeconds));
     }
 
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
+    }
 }

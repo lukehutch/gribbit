@@ -34,7 +34,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * email address to be validated before they are allowed to log in.
  */
 public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
-
     /**
      * Return Unauthorized: Email Not Validated, and set the redirect cookie so that if the user does successfully log
      * in, they'll end up where they were originally trying to go when they were denied access.
@@ -46,5 +45,14 @@ public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
         this.exceptionResponse //
                 .logOutUser() //
                 .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", originalRequestURI, 300));
+    }
+
+    /**
+     * Don't pay the cost of filling in the stack trace -- see
+     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
+     */
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        return this;
     }
 }
