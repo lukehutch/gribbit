@@ -43,7 +43,9 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
+import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 
 import java.io.IOException;
@@ -201,10 +203,23 @@ public class GribbitServer {
         Log.info("Starting Gribbit server");
         try {
             // TODO: Listen on both SSL and non-SSL ports; redirect non-SSL to SSL; make cookies SSL-only
-            final SslContext sslCtx;
+            SslContext sslCtx;
             if (GribbitProperties.SSL) {
                 SelfSignedCertificate ssc = new SelfSignedCertificate();
-                sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
+                // TODO: netty-tcnative seems to always throw this error if added to the .pom
+                if (OpenSsl.isAvailable()) {
+                    try {
+                        // Use OpenSSL if the netty-tcnative Maven artifact is available (it is 30% faster than JDK)
+                        sslCtx = SslContext.newServerContext(SslProvider.OPENSSL, ssc.certificate(), ssc.privateKey());
+                    } catch (Exception | Error e) {
+                        throw new RuntimeException("Could not link with OpenSSL libraries");
+                    }
+                } else {
+                    Log.warning("OpenSSL libraries are not available; falling back to the slower SslProvider.JDK. "
+                            + "Please add the appropriate netty-tcnative maven artifact for your platform. "
+                            + "See also: http://netty.io/wiki/forked-tomcat-native.html");
+                    sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
+                }
             } else {
                 sslCtx = null;
             }
@@ -219,8 +234,9 @@ public class GribbitServer {
 
                 // http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#14.0
                 b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
-                
+
                 // b.option(ChannelOption.SO_BACKLOG, 1024);
+                final SslContext sslCtxFinal = sslCtx;
                 b.group(bossGroup, workerGroup) //
                         .channel(NioServerSocketChannel.class) //
                         // .handler(new LoggingHandler(LogLevel.INFO)) //
@@ -230,8 +246,8 @@ public class GribbitServer {
                             @Override
                             public void initChannel(SocketChannel ch) {
                                 ChannelPipeline p = ch.pipeline();
-                                if (sslCtx != null) {
-                                    p.addLast(sslCtx.newHandler(ch.alloc()));
+                                if (sslCtxFinal != null) {
+                                    p.addLast(sslCtxFinal.newHandler(ch.alloc()));
                                 }
 
                                 // p.addLast(new LoggingHandler(LogLevel.INFO));
