@@ -28,7 +28,7 @@ package gribbit.response.exception;
 import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -46,7 +46,7 @@ public class NotFoundException extends ExceptionResponse {
      */
     public NotFoundException(Request request, User user) throws ExceptionResponse {
         String uri = request.getURI();
-        RouteInfo customHandlerRoute = GribbitServer.siteResources.getNotFoundRoute();
+        Route customHandlerRoute = GribbitServer.siteResources.getNotFoundRoute();
         if (customHandlerRoute != null) {
             if (favicon.matcher(uri).matches()) {
                 // Don't give favicon requests a custom 404 page when there is a custom handler registered

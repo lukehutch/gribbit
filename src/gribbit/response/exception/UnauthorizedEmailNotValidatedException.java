@@ -29,7 +29,7 @@ import gribbit.auth.Cookie;
 import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -46,7 +46,7 @@ public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
      * access.
      */
     public UnauthorizedEmailNotValidatedException(Request request, User user) throws ExceptionResponse {
-        RouteInfo customHandlerRoute = GribbitServer.siteResources.getUnauthorizedEmailNotValidatedRoute();
+        Route customHandlerRoute = GribbitServer.siteResources.getUnauthorizedEmailNotValidatedRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route. 
             // Throws ExceptionResponse in the place of the object that is currently being constructed if

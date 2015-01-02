@@ -37,7 +37,7 @@ import gribbit.response.exception.UnauthorizedException;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
 import gribbit.route.RouteHandlerAuthNotRequired;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
@@ -134,7 +134,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
     // to contact if something goes wrong
 
     private String callbackURI() {
-        return GribbitServer.uri + RouteInfo.forGet(GoogleLogin.class, "callback");
+        return GribbitServer.uri + Route.forGet(GoogleLogin.class, "callback");
     }
 
     private String getAuthorizationCodeURL(boolean forceApprovalPrompt) {

@@ -40,7 +40,7 @@ import gribbit.response.exception.UnauthorizedException;
 import gribbit.route.RouteHandler;
 import gribbit.route.RouteHandlerAuthAndValidatedEmailRequired;
 import gribbit.route.RouteHandlerAuthRequired;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
@@ -319,10 +319,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // Call route handlers until one is able to handle the route,
             // or until we run out of handlers
             User user = null;
-            RouteInfo authorizedRoute = null;
-            ArrayList<RouteInfo> allRoutes = GribbitServer.siteResources.getAllRoutes();
+            Route authorizedRoute = null;
+            ArrayList<Route> allRoutes = GribbitServer.siteResources.getAllRoutes();
             for (int i = 0, n = allRoutes.size(); i < n; i++) {
-                RouteInfo route = allRoutes.get(i);
+                Route route = allRoutes.get(i);
                 // If the request URI matches this route path
                 if (route.matches(reqURI)) {
                     Class<? extends RouteHandler> handler = route.getHandler();

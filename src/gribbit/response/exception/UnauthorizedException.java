@@ -29,7 +29,7 @@ import gribbit.auth.Cookie;
 import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -45,7 +45,7 @@ public class UnauthorizedException extends ExceptionResponse {
      * when they were denied access.
      */
     public UnauthorizedException(Request request, User user) throws ExceptionResponse {
-        RouteInfo customHandlerRoute = GribbitServer.siteResources.getUnauthorizedRoute();
+        Route customHandlerRoute = GribbitServer.siteResources.getUnauthorizedRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route. 
             // Throws ExceptionResponse in the place of the object that is currently being constructed if

@@ -28,7 +28,7 @@ package gribbit.response.exception;
 import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -58,7 +58,7 @@ public class InternalServerErrorException extends ExceptionResponse {
     }
 
     private void generateResponse(Request request, User user) throws ExceptionResponse {
-        RouteInfo customHandlerRoute = GribbitServer.siteResources.getInternalServerErrorRoute();
+        Route customHandlerRoute = GribbitServer.siteResources.getInternalServerErrorRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route.
             // Throws ExceptionResponse in the place of the object that is currently being constructed if

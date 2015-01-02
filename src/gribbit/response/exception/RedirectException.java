@@ -27,7 +27,7 @@ package gribbit.response.exception;
 
 import gribbit.response.ErrorResponse;
 import gribbit.route.RouteHandler;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -51,13 +51,13 @@ public class RedirectException extends ExceptionResponse {
      * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
     public RedirectException(Class<? extends RouteHandler> redirectToHandler) {
-        this(RouteInfo.forGet(redirectToHandler));
+        this(Route.forGet(redirectToHandler));
     }
 
     /**
      * Redirect to a specific route (i.e. performs a redirect with reverse routing).
      */
-    public RedirectException(RouteInfo redirectToRoute) {
+    public RedirectException(Route redirectToRoute) {
         this(redirectToRoute.getRoutePath());
     }
 
@@ -67,15 +67,15 @@ public class RedirectException extends ExceptionResponse {
      */
     public static void throwRedirectWithParams(Class<? extends RouteHandler> redirectToHandler, Object... urlParams)
             throws RedirectException {
-        throw new RedirectException(RouteInfo.forGet(redirectToHandler, (Object[]) urlParams));
+        throw new RedirectException(Route.forGet(redirectToHandler, (Object[]) urlParams));
     }
 
     /**
      * Redirect to a given route, substituting URL params into the URL for the handler. Can call with zero urlParams if
      * the handler takes no URI params.
      */
-    public static void throwRedirectWithParams(RouteInfo redirectToRoute, Object... urlParams) throws RedirectException {
-        throw new RedirectException(RouteInfo.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
+    public static void throwRedirectWithParams(Route redirectToRoute, Object... urlParams) throws RedirectException {
+        throw new RedirectException(Route.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));
     }
 
     /**

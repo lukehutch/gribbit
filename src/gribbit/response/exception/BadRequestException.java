@@ -28,7 +28,7 @@ package gribbit.response.exception;
 import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -45,7 +45,7 @@ public class BadRequestException extends ExceptionResponse {
         if (msg != null) {
             Log.fine("Bad Request: " + msg);
         }
-        RouteInfo customHandlerRoute = GribbitServer.siteResources.getBadRequestRoute();
+        Route customHandlerRoute = GribbitServer.siteResources.getBadRequestRoute();
         if (customHandlerRoute != null && request != null) {
             // Call the get() method of the custom error handler route.
             // Throws ExceptionResponse in the place of the object that is currently being constructed if

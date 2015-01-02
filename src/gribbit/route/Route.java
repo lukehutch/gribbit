@@ -50,7 +50,7 @@ import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 
 /** The metadata about a Route. */
-public class RouteInfo {
+public class Route {
     private String routePath;
     private Class<? extends RouteHandler> handlerClass;
 
@@ -146,7 +146,7 @@ public class RouteInfo {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    public RouteInfo(Class<? extends RouteHandler> handlerClass, String routePath) {
+    public Route(Class<? extends RouteHandler> handlerClass, String routePath) {
         this.handlerClass = handlerClass;
         this.routePath = routePath;
 
@@ -404,7 +404,7 @@ public class RouteInfo {
      */
     private static String forMethod(HttpMethod httpMethod, Class<? extends RouteHandler> handlerClass,
             Object... urlParams) {
-        RouteInfo handler = GribbitServer.siteResources.routeForClass(handlerClass);
+        Route handler = GribbitServer.siteResources.routeForClass(handlerClass);
 
         if (httpMethod == HttpMethod.GET) {
             if (handler.getMethod == null) {
@@ -446,14 +446,14 @@ public class RouteInfo {
      * Return the route path for the POST method handler of a RestHandler class.
      */
     public static String forPost(Class<? extends RouteHandler> handlerClass) {
-        return RouteInfo.forMethod(HttpMethod.POST, handlerClass);
+        return Route.forMethod(HttpMethod.POST, handlerClass);
     }
 
     /**
      * Return the route path for the GET method handler of a RestHandler class, appending URL params.
      */
     public static String forGet(Class<? extends RouteHandler> handlerClass, Object... urlParams) {
-        return RouteInfo.forMethod(HttpMethod.GET, handlerClass, (Object[]) urlParams);
+        return Route.forMethod(HttpMethod.GET, handlerClass, (Object[]) urlParams);
     }
 
     // -----------------------------------------------------------------------------------------------------------------

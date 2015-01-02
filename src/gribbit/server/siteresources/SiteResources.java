@@ -28,7 +28,7 @@ package gribbit.server.siteresources;
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
 import gribbit.route.RouteHandler;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -67,34 +67,34 @@ public class SiteResources {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public ArrayList<RouteInfo> getAllRoutes() {
+    public ArrayList<Route> getAllRoutes() {
         return routeMapping.getAllRoutes();
     }
 
-    public RouteInfo getInternalServerErrorRoute() {
+    public Route getInternalServerErrorRoute() {
         return routeMapping.getInternalServerErrorRoute();
     }
 
-    public RouteInfo getBadRequestRoute() {
+    public Route getBadRequestRoute() {
         return routeMapping.getBadRequestRoute();
     }
 
-    public RouteInfo getNotFoundRoute() {
+    public Route getNotFoundRoute() {
         return routeMapping.getNotFoundRoute();
     }
 
-    public RouteInfo getUnauthorizedRoute() {
+    public Route getUnauthorizedRoute() {
         return routeMapping.getUnauthorizedRoute();
     }
 
-    public RouteInfo getUnauthorizedEmailNotValidatedRoute() {
+    public Route getUnauthorizedEmailNotValidatedRoute() {
         return routeMapping.getUnauthorizedEmailNotValidatedRoute();
     }
 
     /**
      * Get the Route corresponding to a given RestHandler class.
      */
-    public RouteInfo routeForClass(Class<? extends RouteHandler> handlerClass) {
+    public Route routeForClass(Class<? extends RouteHandler> handlerClass) {
         return routeMapping.routeForHandler(handlerClass);
     }
 

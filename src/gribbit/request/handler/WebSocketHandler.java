@@ -27,7 +27,7 @@ package gribbit.request.handler;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
-import gribbit.route.RouteInfo;
+import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.util.WebUtils;
 import io.netty.channel.ChannelHandlerContext;
@@ -56,7 +56,7 @@ public class WebSocketHandler {
     private User wsAuthenticatedUser;
 
     /** The route that the websocket upgrade was requested on. */
-    private RouteInfo wsRequestedRoute;
+    private Route wsRequestedRoute;
 
     /** Handle a websocket frame. */
     public void handleWebsocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame) {
@@ -86,7 +86,7 @@ public class WebSocketHandler {
     }
 
     public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin, String csrfQueryParam,
-            User user, RouteInfo authorizedRoute) {
+            User user, Route authorizedRoute) {
 
         // Protect against CSWSH: (Cross-Site WebSocket Hijacking)
         // http://www.christian-schneider.net/CrossSiteWebSocketHijacking.html
