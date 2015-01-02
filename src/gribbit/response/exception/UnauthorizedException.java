@@ -26,34 +26,42 @@
 package gribbit.response.exception;
 
 import gribbit.auth.Cookie;
+import gribbit.auth.User;
+import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
+import gribbit.route.RouteInfo;
+import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource they are not authorized to access.
+ * This exception is thrown when a user tries to access a resource they are not authorized to access. Sets the redirect
+ * cookie so that if the user does later successfully log in, they'll end up where they were originally trying to go
+ * when they were denied access.
  */
 public class UnauthorizedException extends ExceptionResponse {
     /**
-     * Return Unauthorized, and set the redirect cookie so that if the user does successfully log in, they'll end up
-     * where they were originally trying to go when they were denied access.
+     * This exception is thrown when a user tries to access a resource they are not authorized to access. Sets the redirect
+     * cookie so that if the user does later successfully log in, they'll end up where they were originally trying to go
+     * when they were denied access.
      */
-    public UnauthorizedException(String originalRequestURI) {
-        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized"));
+    public UnauthorizedException(Request request, User user) throws ExceptionResponse {
+        RouteInfo customHandlerRoute = GribbitServer.siteResources.getUnauthorizedRoute();
+        if (customHandlerRoute != null) {
+            // Call the get() method of the custom error handler route. 
+            // Throws ExceptionResponse in the place of the object that is currently being constructed if
+            // an ExceptionResponse is thrown by the get() method of the custom error handler
+            this.exceptionResponse =
+                    customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            // Set status code in case custom handler forgets to set it
+            this.exceptionResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
+        } else {
+            this.exceptionResponse = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
+        }
 
         // Redirect the user back to the page they were trying to get to once they do log in successfully
-        this.exceptionResponse //
-                .logOutUser() //
-                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", originalRequestURI, 300));
-    }
-
-    /** Return Unauthorized. */
-    public UnauthorizedException() {
-        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized"));
-
-        // Clear the redirect cookie
-        this.exceptionResponse //
-                .logOutUser() //
-                .deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+        this.exceptionResponse.logOutUser();
+        this.exceptionResponse
+                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request.getURI(), 300));
     }
 
     /**

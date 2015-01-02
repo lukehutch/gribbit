@@ -34,6 +34,11 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * the resource that has not been modified since the timestamp of the version stored in the browser's cache.
  */
 public class NotModifiedException extends ExceptionResponse {
+    /**
+     * This exception is thrown when a user tries to access a resource that hasn't changed. This ExceptionResponse is
+     * special in that it does not take an exception message in the constructor, instead it takes the last modified time of
+     * the resource that has not been modified since the timestamp of the version stored in the browser's cache.
+     */
     public NotModifiedException(long lastModifiedEpochSeconds) {
         super(new ErrorResponse(HttpResponseStatus.NOT_MODIFIED, "") //
                 .setLastModifiedEpochSeconds(lastModifiedEpochSeconds));

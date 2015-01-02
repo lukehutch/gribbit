@@ -26,25 +26,44 @@
 package gribbit.response.exception;
 
 import gribbit.auth.Cookie;
+import gribbit.auth.User;
+import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
+import gribbit.route.RouteInfo;
+import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs their
- * email address to be validated before they are allowed to log in.
+ * email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the user does
+ * later successfully log in, they'll end up where they were originally trying to go when they were denied access.
  */
 public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
     /**
-     * Return Unauthorized: Email Not Validated, and set the redirect cookie so that if the user does successfully log
-     * in, they'll end up where they were originally trying to go when they were denied access.
+     * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs
+     * their email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the
+     * user does later successfully log in, they'll end up where they were originally trying to go when they were denied
+     * access.
      */
-    public UnauthorizedEmailNotValidatedException(String originalRequestURI) {
-        super(new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized: email not validated"));
+    public UnauthorizedEmailNotValidatedException(Request request, User user) throws ExceptionResponse {
+        RouteInfo customHandlerRoute = GribbitServer.siteResources.getUnauthorizedEmailNotValidatedRoute();
+        if (customHandlerRoute != null) {
+            // Call the get() method of the custom error handler route. 
+            // Throws ExceptionResponse in the place of the object that is currently being constructed if
+            // an ExceptionResponse is thrown by the get() method of the custom error handler
+            this.exceptionResponse =
+                    customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            // Set status code in case custom handler forgets to set it
+            this.exceptionResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
+        } else {
+            this.exceptionResponse =
+                    new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized: email not validated");
+        }
 
         // Redirect the user back to the page they were trying to get to once they do log in successfully
-        this.exceptionResponse //
-                .logOutUser() //
-                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", originalRequestURI, 300));
+        this.exceptionResponse.logOutUser();
+        this.exceptionResponse
+                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request.getURI(), 300));
     }
 
     /**

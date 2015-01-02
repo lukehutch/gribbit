@@ -121,7 +121,8 @@ public class HttpSendResponse {
                 gzipStream.close();
             } catch (IOException e) {
                 // Should not happen
-                throw new RuntimeException("Could not gzip content", e);
+                Log.exception("Could not gzip content", e);
+                gzippedContent = Unpooled.EMPTY_BUFFER;
             }
         }
 

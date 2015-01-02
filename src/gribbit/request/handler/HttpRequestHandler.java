@@ -195,7 +195,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                 if (!httpReq.decoderResult().isSuccess()) {
                     // Malformed HTTP headers
-                    throw new BadRequestException();
+                    throw new BadRequestException(request);
                 }
             }
 
@@ -229,7 +229,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                                         // the server isn't vulnerable to OOM attacks from large POST requests.
                                         attributeValue = attribute.getString(encoding);
                                     } catch (IOException e) {
-                                        throw new BadRequestException();
+                                        throw new BadRequestException(request);
                                     }
                                     request.setPostParam(attribute.getName(), attributeValue);
                                 } finally {
@@ -306,7 +306,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
             if (reqURI.equals("/bad-request")) {
-                throw new BadRequestException();
+                throw new BadRequestException(request);
             }
 
             // ------------------------------------------------------------------------------
@@ -345,13 +345,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         if (user == null) {
 
                             // User is not logged in, and route requires them to be
-                            throw new UnauthorizedException(reqURI);
+                            throw new UnauthorizedException(request, user);
 
                         } else if (RouteHandlerAuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
                                 && !user.emailIsValidated()) {
 
                             // User is logged in, but their email address has not yet been validated
-                            throw new UnauthorizedEmailNotValidatedException(reqURI);
+                            throw new UnauthorizedEmailNotValidatedException(request, user);
 
                         } else {
 
@@ -410,7 +410,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     // Neither a route handler nor a static resource matched the request URI.
                     // Return 404 Not Found.
-                    throw new NotFoundException(reqURI);
+                    throw new NotFoundException(request, user);
 
                 } else {
 
@@ -428,7 +428,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     } else {
                         // If file is newer than what is in the browser cache, or is not in cache, serve the file
-                        HttpSendStaticFile.sendStaticFile(reqURI, isHEAD, hashKey, staticResourceFile,
+                        HttpSendStaticFile.sendStaticFile(request, reqURI, isHEAD, hashKey, staticResourceFile,
                                 lastModifiedEpochSeconds, addKeepAliveHeader, closeAfterWrite, ctx);
 
                         Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
@@ -523,19 +523,17 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     try {
                         // Call the RestHandler for the route
-                        response = authorizedRoute.callHandler(request, user);
+                        response = authorizedRoute.callHandler(request, user, /* isErrorHandler = */false);
 
                     } catch (ExceptionResponse e) {
 
-                        Log.info("Caught method exception response " + e.getClass().getSimpleName() + " for " + reqURI);
-
-                        // If there was an ExceptionResponse type exception, use the provided response object
+                        // If there was an ExceptionResponse type exception, use the contained response object
                         // as the response from the handler
                         response = e.getResponse();
 
                     } catch (Exception e) {
-                        // FIXME: search for all instances of RuntimeException and throw InternalServerErrorException instead
-                        throw new InternalServerErrorException("Exception while handling URI " + request.getURI(), e);
+                        throw new InternalServerErrorException(request, user, "Exception while handling URI "
+                                + origReqURI, e);
                     }
                 }
             }
@@ -572,7 +570,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // Didn't get an HttpRequest message
                 HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                         HttpResponseStatus.BAD_REQUEST));
-
                 return;
 
             } else {
@@ -595,14 +592,13 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                             + e.getResponseType() + "\t"
                             + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
                 }
-                Log.info("Caught exception response " + e.getClass().getSimpleName() + " for " + request.getURI());
 
                 boolean closeChannelAfterWrite = closeAfterWrite //
-                // TODO: For redirects, don't close channel?
-                ;//|| exceptionResponse.getStatus() != HttpResponseStatus.FOUND;
+                        // TODO: For redirects, don't close channel?
+                        || exceptionResponse.getStatus() != HttpResponseStatus.FOUND;
 
                 // Send the exception response
-                HttpSendResponse.sendResponse(request.getURI(), request, exceptionResponse, /* isHEAD = */false,
+                HttpSendResponse.sendResponse(reqURI, request, exceptionResponse, /* isHEAD = */false,
                 /* acceptEncodingGzip = */false, ZonedDateTime.now(),
                 /* hashTheResponse = */false, /* hashKeyRemainingAgeSeconds = */0,
                 /* hashKey = */null, addKeepAliveHeader, /* closeAfterWrite = */closeChannelAfterWrite, ctx);

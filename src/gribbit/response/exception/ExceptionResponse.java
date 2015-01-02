@@ -38,27 +38,81 @@ public abstract class ExceptionResponse extends Exception {
 
     Response exceptionResponse;
 
-    public ExceptionResponse(Response exceptionResponse) {
-        super();
-        this.exceptionResponse = exceptionResponse;
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse() {
     }
 
-    public ExceptionResponse(Response exceptionResponse, String msg) {
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(String msg) {
         super(msg);
-        this.exceptionResponse = exceptionResponse;
-        Log.error("Exception response thrown: " + msg);
     }
 
-    public ExceptionResponse(Response exceptionResponse, Exception e) {
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(Exception e) {
         super(e);
-        this.exceptionResponse = exceptionResponse;
-        Log.exception("Exception response thrown", e);
+        Log.exceptionWithoutCallerRef("Exception while generating response", e);
     }
 
-    public ExceptionResponse(Response exceptionResponse, String msg, Exception e) {
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(String msg, Exception e) {
         super(msg, e);
+        Log.exceptionWithoutCallerRef("Exception while generating response: " + msg, e);
+    }
+
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(Response exceptionResponse) {
+        this();
         this.exceptionResponse = exceptionResponse;
-        Log.exception("Exception response thrown: " + msg, e);
+    }
+
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(Response exceptionResponse, String msg) {
+        this(msg);
+        this.exceptionResponse = exceptionResponse;
+    }
+
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(Response exceptionResponse, Exception e) {
+        this(e);
+        this.exceptionResponse = exceptionResponse;
+    }
+
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public ExceptionResponse(Response exceptionResponse, String msg, Exception e) {
+        this(msg, e);
+        this.exceptionResponse = exceptionResponse;
+    }
+
+    /**
+     * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
+     * request, where the exception should generate an HTTP response.
+     */
+    public void setResponse(Response exceptionResponse) {
+        this.exceptionResponse = exceptionResponse;
     }
 
     /**
@@ -80,7 +134,7 @@ public abstract class ExceptionResponse extends Exception {
      * transitions, i.e. "InternalServerErrorException" -> "Internal Server Error".
      */
     public String getResponseType() {
-        String name = getClass().getName();
+        String name = getClass().getSimpleName();
         int end = name.endsWith("Exception") ? name.length() - 9 : name.length();
         StringBuilder buf = new StringBuilder(64);
         for (int i = 0; i < end; i++) {

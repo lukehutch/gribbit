@@ -37,12 +37,14 @@ import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.ExceptionResponse;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.server.GribbitServer;
+import gribbit.server.siteresources.CacheExtension;
 import gribbit.util.Log;
 import gribbit.util.Reflection;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
@@ -62,13 +64,15 @@ public class RouteInfo {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Invoke a default method in a Route subinterface. */
-    private Response invokeMethod(Request request, User user, Method method, Object[] methodParamVals) {
+    private Response invokeMethod(Request request, User user, Method method, Object[] methodParamVals)
+            throws ExceptionResponse {
         // Create a handler instance
         RouteHandler instance;
         try {
             instance = handlerClass.newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
-            throw new RuntimeException(e);
+            throw new InternalServerErrorException(request, user, "Exception while creating instance of handler class "
+                    + handlerClass.getName(), e);
         }
 
         // Set the request field
@@ -121,9 +125,22 @@ public class RouteInfo {
 
             return response;
 
-        } catch (Throwable e) {
-            throw new RuntimeException("Exception while invoking the method " + handlerClass.getName() + "."
-                    + method.getName(), e);
+        } catch (InvocationTargetException e) {
+            // If method.invoke() throws an ExceptionResponse, it gets wrapped in an InvocationTargetException,
+            // Unwrap it and re-throw it.
+            Throwable cause = e.getCause();
+            if (cause instanceof ExceptionResponse) {
+                throw (ExceptionResponse) cause;
+            } else if (cause instanceof Exception) {
+                throw new InternalServerErrorException(request, user, "Exception while invoking the method "
+                        + handlerClass.getName() + "." + method.getName(), (Exception) cause);
+            } else {
+                throw new InternalServerErrorException(request, user, "Exception while invoking the method "
+                        + handlerClass.getName() + "." + method.getName() + ": caused by " + cause.getMessage());
+            }
+        } catch (Exception e) {
+            throw new InternalServerErrorException(request, user, "Exception while invoking the method "
+                    + handlerClass.getName() + "." + method.getName(), e);
         }
     }
 
@@ -223,8 +240,12 @@ public class RouteInfo {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** If a post() method takes exactly one parameter, then bind the param value from the POST data. */
-    private Object[] bindPostParamFromPOSTData(Request request) throws ExceptionResponse {
+    /**
+     * If a post() method takes exactly one parameter, then bind the param value from the POST data.
+     * 
+     * @param user
+     */
+    private Object[] bindPostParamFromPOSTData(Request request, User user) throws ExceptionResponse {
         if (postParamType == null) {
             // post() takes no params
             return null;
@@ -237,7 +258,7 @@ public class RouteInfo {
             } catch (InstantiationException e) {
                 // Should never happen, we already tried instantiating all DataModel subclasses
                 // that are bound to POST request handlers when site resources were loaded
-                throw new InternalServerErrorException("Could not instantiate POST parameter of type "
+                throw new InternalServerErrorException(request, user, "Could not instantiate POST parameter of type "
                         + postParamType.getName(), e);
             }
 
@@ -255,7 +276,8 @@ public class RouteInfo {
      * If a get() method takes one or more parameters, bind the parameters from URI segments after the end of the
      * route's base URI, e.g. /person/53 for a route of /person gives one Integer-typed param value of 53
      */
-    private Object[] bindGetParamsFromURI(String reqURI) throws BadRequestException {
+    private Object[] bindGetParamsFromURI(Request request, User user) throws ExceptionResponse {
+        String reqURI = CacheExtension.getOrigURI(request.getURI());
         if (getParamTypes.length == 0) {
             // get() takes no params
             return null;
@@ -276,8 +298,8 @@ public class RouteInfo {
                         nextSlashIdx = reqURI.length();
                     }
                     if (nextSlashIdx - slashIdx < 2) {
-                        throw new BadRequestException("Insufficient URL parameters, expected " + getParamTypes.length
-                                + ", got " + i);
+                        throw new BadRequestException(request, user, "Insufficient URL parameters, expected "
+                                + getParamTypes.length + ", got " + i);
                     }
                     String uriSegment = reqURI.substring(slashIdx + 1, nextSlashIdx);
                     if (getParamTypes[i] == Integer.class) {
@@ -285,7 +307,8 @@ public class RouteInfo {
                             // Specifically parse integers for int-typed method parameters 
                             getParamVals[i] = Integer.parseInt(uriSegment);
                         } catch (NumberFormatException e) {
-                            throw new BadRequestException("Malformed URL parameter, expected integer for URI parameter");
+                            throw new BadRequestException(request, user,
+                                    "Malformed URL parameter, expected integer for URI parameter");
                         }
                     } else {
                         // N.B. the unescape is performed only once here, between '/' characters (the
@@ -299,7 +322,7 @@ public class RouteInfo {
                 }
                 if (slashIdx < reqURI.length() - 1) {
                     // Still at least one URL param left
-                    throw new BadRequestException("Too many URL parameters");
+                    throw new BadRequestException(request, user, "Too many URL parameters");
                 }
             }
             return getParamVals;
@@ -312,8 +335,11 @@ public class RouteInfo {
      * Call the get() or post() method for the Route subinterface corresponding to the request URI.
      * 
      * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed etc.
+     * 
+     * @param isErrorHandler
+     *            If true, assume the HTTP method is GET, even if the request that caused the error was of type POST.
      */
-    public Response callHandler(Request request, User user) throws ExceptionResponse {
+    public Response callHandler(Request request, User user, boolean isErrorHandler) throws ExceptionResponse {
         Response response;
         if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass) && user == null) {
             // Should not happen (the user object should only be non-null if the user is authorized),
@@ -330,7 +356,7 @@ public class RouteInfo {
             if (reqMethod == HttpMethod.GET) {
 
                 // Bind URI params
-                Object[] getParamVals = bindGetParamsFromURI(request.getURI());
+                Object[] getParamVals = bindGetParamsFromURI(request, user);
 
                 // Invoke the get() method with URI params
                 response = invokeMethod(request, user, getMethod, getParamVals);
@@ -341,17 +367,18 @@ public class RouteInfo {
                 // unathenticated route
                 if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass)) {
                     if (user == null) {
-                        throw new BadRequestException("User not logged in, could not check CSRF token. "
+                        throw new BadRequestException(request, user, "User not logged in, could not check CSRF token. "
                                 + "POST requests are only accepted from logged-in users.");
                     } else {
                         if (!CSRF.csrfTokMatches(request.getPostParam(CSRF.CSRF_PARAM_NAME), user)) {
-                            throw new BadRequestException("Missing or incorrect CSRF token in POST request");
+                            throw new BadRequestException(request, user,
+                                    "Missing or incorrect CSRF token in POST request");
                         }
                     }
                 }
 
                 // Bind the post() method's single parameter (if it has one) from the POST data in the request
-                Object[] postParamVal = bindPostParamFromPOSTData(request);
+                Object[] postParamVal = bindPostParamFromPOSTData(request, user);
 
                 // Invoke the post() method
                 response = invokeMethod(request, user, postMethod, postParamVal);
@@ -396,7 +423,7 @@ public class RouteInfo {
             StringBuilder buf = new StringBuilder(handler.routePath);
             for (int i = 0; i < urlParams.length; i++) {
                 buf.append('/');
-                buf.append(WebUtils.escapeURISegment(urlParams[i].toString()));
+                WebUtils.escapeURISegment(urlParams[i].toString(), buf);
             }
             return buf.toString();
 

@@ -25,26 +25,82 @@
  */
 package gribbit.response.exception;
 
+import gribbit.auth.User;
+import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
+import gribbit.route.RouteInfo;
+import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
  */
 public class InternalServerErrorException extends ExceptionResponse {
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
     public InternalServerErrorException() {
         super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"));
     }
 
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
     public InternalServerErrorException(String msg) {
         super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), msg);
     }
 
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
     public InternalServerErrorException(Exception e) {
         super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), e);
     }
 
-    public InternalServerErrorException(String msg, Exception e) {
-        super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), msg, e);
+    private void generateResponse(Request request, User user) throws ExceptionResponse {
+        RouteInfo customHandlerRoute = GribbitServer.siteResources.getInternalServerErrorRoute();
+        if (customHandlerRoute != null) {
+            // Call the get() method of the custom error handler route.
+            // Throws ExceptionResponse in the place of the object that is currently being constructed if
+            // an ExceptionResponse is thrown by the get() method of the custom error handler
+            this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            // Set status code in case custom handler forgets to set it
+            this.exceptionResponse.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
+        } else {
+            this.exceptionResponse =
+                    new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
+        }
+    }
+
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
+    public InternalServerErrorException(Request request, User user, String msg, Exception e) throws ExceptionResponse {
+        super(msg, e);
+        generateResponse(request, user);
+    }
+
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
+    public InternalServerErrorException(Request request, User user, String msg) throws ExceptionResponse {
+        super(msg);
+        generateResponse(request, user);
+    }
+
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
+    public InternalServerErrorException(Request request, String msg, Exception e) throws ExceptionResponse {
+        super(msg, e);
+        generateResponse(request, /* user = */null);
+    }
+
+    /**
+     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
+     */
+    public InternalServerErrorException(Request request, String msg) throws ExceptionResponse {
+        super(msg);
+        generateResponse(request, /* user = */null);
     }
 }

@@ -25,22 +25,42 @@
  */
 package gribbit.response.exception;
 
+import gribbit.auth.User;
+import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
-import gribbit.util.Log;
+import gribbit.route.RouteInfo;
+import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
+
+import java.util.regex.Pattern;
 
 /**
  * This exception is thrown when a user tries to access a resource that doesn't exist (404).
  */
 public class NotFoundException extends ExceptionResponse {
-    public NotFoundException() {
-        super(new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found"));
-    }
 
-    public NotFoundException(String uri) {
-        this();
-        if (!uri.endsWith(".ico") && !uri.contains("favico")) {
-            Log.fine("404 Not Found: " + uri);
+    private static final Pattern favicon = Pattern.compile("^(.*/)?favicon\\.(ico|png|gif|jpeg|jpg|apng)$");
+
+    /**
+     * This exception is thrown when a user tries to access a resource that doesn't exist (404).
+     */
+    public NotFoundException(Request request, User user) throws ExceptionResponse {
+        String uri = request.getURI();
+        RouteInfo customHandlerRoute = GribbitServer.siteResources.getNotFoundRoute();
+        if (customHandlerRoute != null) {
+            if (favicon.matcher(uri).matches()) {
+                // Don't give favicon requests a custom 404 page when there is a custom handler registered
+                this.exceptionResponse = new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found");
+            } else {
+                // Call the get() method of the custom error handler route. 
+                // Throws ExceptionResponse in the place of the object that is currently being constructed if
+                // an ExceptionResponse is thrown by the get() method of the custom error handler
+                this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+                // Set status code in case custom handler forgets to set it
+                this.exceptionResponse.setStatus(HttpResponseStatus.NOT_FOUND);
+            }
+        } else {
+            this.exceptionResponse = new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found");
         }
     }
 

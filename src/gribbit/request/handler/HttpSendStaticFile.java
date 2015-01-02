@@ -28,6 +28,7 @@ package gribbit.request.handler;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
+import gribbit.request.Request;
 import gribbit.response.exception.ExceptionResponse;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.server.GribbitServer;
@@ -54,9 +55,9 @@ import java.time.ZonedDateTime;
 public class HttpSendStaticFile {
 
     /** Serve a static file. */
-    public static void sendStaticFile(String reqURI, boolean isHEAD, String hashKey, File staticResourceFile,
-            long lastModifiedEpochSeconds, boolean addKeepAliveHeader, boolean closeAfterWrite,
-            ChannelHandlerContext ctx) throws ExceptionResponse {
+    public static void sendStaticFile(Request request, String reqURI, boolean isHEAD, String hashKey,
+            File staticResourceFile, long lastModifiedEpochSeconds, boolean addKeepAliveHeader,
+            boolean closeAfterWrite, ChannelHandlerContext ctx) throws ExceptionResponse {
 
         RandomAccessFile fileToServe = null;
         try {
@@ -103,7 +104,7 @@ public class HttpSendStaticFile {
                 fileToServe.close();
                 return;
             }
-            
+
             // Write file content to channel.
             // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
             // progress (e.g. to update user's UI over a web socket to show download progress.)
@@ -164,7 +165,7 @@ public class HttpSendStaticFile {
                 } catch (IOException e1) {
                 }
             }
-            throw new InternalServerErrorException("Exception serving static file", e);
+            throw new InternalServerErrorException(request, /* user = */ null, "Exception serving static file", e);
         }
     }
 }

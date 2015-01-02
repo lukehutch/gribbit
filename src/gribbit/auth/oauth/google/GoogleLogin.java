@@ -28,6 +28,7 @@ package gribbit.auth.oauth.google;
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
 import gribbit.handler.route.annotation.RouteOverride;
+import gribbit.request.Request;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.ExceptionResponse;
@@ -51,6 +52,13 @@ import java.time.ZonedDateTime;
  */
 @RouteOverride("/oauth/google")
 public class GoogleLogin extends RouteHandlerAuthNotRequired {
+    static {
+        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
+            throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
+        }
+    }
 
     public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth_gX";
     public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth_gT";
@@ -68,13 +76,10 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
     /**
      * Check if a user's access token has expired or is about to expire, and if so, generate a new access token using
      * the user's refresh token. Can be used by a web socket connection to keep a user's login alive.
-     * 
-     * @throws BadRequestException
-     *             if the user is null, or doesn't have a refresh token, or if the token refresh fails.
      */
-    public static void refreshAccessTokenIfNeeded(User user) throws BadRequestException {
+    public static void refreshAccessTokenIfNeeded(Request request, User user) throws ExceptionResponse {
         if (user == null) {
-            throw new BadRequestException("User is null");
+            throw new BadRequestException(request, user, "User is null");
         }
         String refreshToken = user.getData(GOOGLE_REFRESH_TOKEN_KEY);
         String accessToken = user.getData(GOOGLE_ACCESS_TOKEN_KEY);
@@ -86,19 +91,23 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
             // generate a new access token from the refresh token
 
             if (refreshToken == null) {
-                throw new BadRequestException("No refresh token");
+                throw new BadRequestException(request, user, "No refresh token");
             }
             Log.info("Updating access token for user " + user.id); // TODO: for debugging, remove later
 
-            // Get a new access token using the refresh token.
-            // Throws BadRequestException if the refresh token is bad. 
-            AuthResponse auth = RequestBuilder.postToURLWithJSONResponse(AuthResponse.class, //
-                    "https://accounts.google.com/o/oauth2/token", //
-                    "refresh_token", refreshToken, //
-                    "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
-                    "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
-                    "grant_type", "refresh_token");
-
+            AuthResponse auth = null;
+            try {
+                // Get a new access token using the refresh token.
+                // Throws BadRequestException if the refresh token is bad. 
+                auth = RequestBuilder.postToURLWithJSONResponse(AuthResponse.class, //
+                        "https://accounts.google.com/o/oauth2/token", //
+                        "refresh_token", refreshToken, //
+                        "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
+                        "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
+                        "grant_type", "refresh_token");
+            } catch (Exception e) {
+                throw new BadRequestException(request, user, "Could not get access token using refresh token");
+            }
             // The access token obtained from the refresh token.
             accessToken = auth.access_token;
             long accessTokenExpiresSeconds =
@@ -129,12 +138,6 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
     }
 
     private String getAuthorizationCodeURL(boolean forceApprovalPrompt) {
-        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
-            throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
-        }
-
         return "https://accounts.google.com/o/oauth2/auth" //
                 // The client id from the API console
                 + "?client_id=" + GribbitProperties.OAUTH_GOOGLE_CLIENT_ID
@@ -174,16 +177,21 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                 // Handling a callback request from Google's OAuth2 server
 
                 try {
-                    // Exchange authorization code provided by Google for an access token.
-                    // Throws BadRequestException if the authorization code is bad. 
-                    AuthResponse auth = RequestBuilder.postToURLWithJSONResponse(AuthResponse.class, //
-                            "https://accounts.google.com/o/oauth2/token", //
-                            // Authorization code provided by Google
-                            "code", request.getQueryParam("code"), //
-                            "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
-                            "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
-                            "redirect_uri", callbackURI(),//
-                            "grant_type", "authorization_code");
+                    AuthResponse auth = null;
+                    try {
+                        // Exchange authorization code provided by Google for an access token.
+                        // Throws BadRequestException if the authorization code is bad. 
+                        auth = RequestBuilder.postToURLWithJSONResponse(AuthResponse.class, //
+                                "https://accounts.google.com/o/oauth2/token", //
+                                // Authorization code provided by Google
+                                "code", request.getQueryParam("code"), //
+                                "client_id", GribbitProperties.OAUTH_GOOGLE_CLIENT_ID, //
+                                "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
+                                "redirect_uri", callbackURI(),//
+                                "grant_type", "authorization_code");
+                    } catch (Exception e) {
+                        throw new BadRequestException(request, user, "Could not get authorization code");
+                    }
 
                     // The access token obtained from the authorization code
                     String accessToken = auth.access_token;
@@ -192,16 +200,21 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                         // Should not happen, should always get an access token.
                         // On any result code other than 200 OK (e.g. 400 Bad Request / 401 Not Authorized),
                         // the POST request above will have already thrown an exception.
-                        throw new BadRequestException("Could not fetch access token");
+                        throw new BadRequestException(request, user, "Could not fetch access token");
                     }
                     long timeNowEpochSeconds = ZonedDateTime.now().toEpochSecond();
                     long accessTokenExpiresSeconds = timeNowEpochSeconds + accessTokenExpiresInSeconds;
 
-                    // Get user's email address, name, gender, profile pic URL etc.
-                    // Throws BadRequestException if the access token is bad. 
-                    UserInfo userInfo = RequestBuilder.getFromURLWithJSONResponse(UserInfo.class, //
-                            "https://www.googleapis.com/oauth2/v1/userinfo", //
-                            "access_token", accessToken);
+                    UserInfo userInfo = null;
+                    try {
+                        // Get user's email address, name, gender, profile pic URL etc.
+                        // Throws BadRequestException if the access token is bad. 
+                        userInfo = RequestBuilder.getFromURLWithJSONResponse(UserInfo.class, //
+                                "https://www.googleapis.com/oauth2/v1/userinfo", //
+                                "access_token", accessToken);
+                    } catch (Exception e) {
+                        throw new BadRequestException(request, user, "Could not get userInfo");
+                    }
 
                     String email = userInfo.email;
                     if (email == null || email.isEmpty()) {
@@ -251,7 +264,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
 
                             if (user == null) {
                                 // There was no user with this email address -- create a new user
-                                user = User.createFederatedLoginUser(email, redirException.getResponse());
+                                user = User.createFederatedLoginUser(request, email, redirException.getResponse());
 
                                 user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 if (!user.emailValidated) {
@@ -296,21 +309,22 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                             user.save();
 
                             // Log the user in by setting session cookies in the response
-                            user.logIn(redirException.getResponse());
+                            user.logIn(request, redirException.getResponse());
 
                             // Perform the redirect
                             throw redirException;
                         }
                     }
-                } catch (BadRequestException e) {
-                    error = "Bad request: " + e.getMessage();
 
-                } catch (UnauthorizedException e) {
-                    error = "Unauthorized: " + e;
+                } catch (ExceptionResponse e) {
+                    // Pass back to caller
+                    throw e;
 
                 } catch (Exception e) {
-                    error = "Exception during Google OAuth2 login";
-                    Log.exception(error, e);
+                    error =
+                            "Exception during Google OAuth2 login"
+                                    + (e.getMessage() == null ? "" : ": " + e.getMessage());
+                    Log.error(error);
                 }
             } else {
                 error = "Bad Request: bad URI parameter";
@@ -328,22 +342,22 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                     "Could not log you in, please check your password or contact the site administrator."));
         }
         // Generate Unauthorized response
-        ExceptionResponse ex;
+        ExceptionResponse unauthorizedException;
         if ("callback".equals(action)) {
             // We don't want the long callback URI in the browser address field,
             // so redirect to the unauthorized handler's route
-            ex = new RedirectException(GribbitServer.siteResources.getUnauthorizedRoute());
+            unauthorizedException = new RedirectException(GribbitServer.siteResources.getUnauthorizedRoute());
         } else {
             // Otherwise the URL is fine (not full of OAuth tokens), just return an Unauthorized response type
-            ex = new UnauthorizedException();
+            unauthorizedException = new UnauthorizedException(request, user);
         }
         // Clear session cookies in response
         if (user != null) {
             // This logout method is a little faster, because user doesn't have to be looked up in request
-            ex.getResponse().logOutUser(user);
+            unauthorizedException.getResponse().logOutUser(user);
         } else {
-            ex.getResponse().logOutUser(request);
+            unauthorizedException.getResponse().logOutUser(request);
         }
-        throw ex;
+        throw unauthorizedException;
     }
 }

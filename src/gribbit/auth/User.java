@@ -35,6 +35,7 @@ import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.Database;
 import gribbit.util.Hash;
+import gribbit.util.Log;
 import gribbit.util.WebUtils;
 
 import java.time.Instant;
@@ -132,20 +133,23 @@ public class User extends DBModelStringKey {
      * Take an encrypted token, decrypt it, extract the username and token, look up the user, and make sure that the
      * copy of the auth token in the user matches the copy in the encrypted token, and that the token has not expired.
      * Throws an exception if any of this fails. Returns the user if it all succeeds.
+     * 
+     * @param request
      */
     // FIXME: remove this, and store tokens in user
-    public static User validateTok(String email, String suppliedToken, TokenType tokType) throws ExceptionResponse {
+    public static User validateTok(Request request, String email, String suppliedToken, TokenType tokType)
+            throws ExceptionResponse {
         if (email.isEmpty() || email.equals("null") || email.indexOf('@') < 0) {
-            throw new BadRequestException("Invalid email address");
+            throw new BadRequestException(request, /* user = */null, "Invalid email address");
         }
         if (suppliedToken == null || suppliedToken.isEmpty()) {
-            throw new BadRequestException("Invalid token");
+            throw new BadRequestException(request, /* user = */null, "Invalid token");
         }
 
         // Look up user with this email addr
         User user = User.findByEmail(email);
         if (user == null) {
-            throw new BadRequestException("User account does not exist");
+            throw new BadRequestException(request, /* user = */null, "User account does not exist");
         }
 
         switch (tokType) {
@@ -191,7 +195,7 @@ public class User extends DBModelStringKey {
         default:
             break;
         }
-        throw new BadRequestException("Token has expired or does not match");
+        throw new BadRequestException(request, /* user = */null, "Token has expired or does not match");
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -277,15 +281,18 @@ public class User extends DBModelStringKey {
      * @throws UnauthorizedException
      *             if user is not whitelisted for login
      */
-    public void changePassword(String newPassword, Response response) throws ExceptionResponse {
+    public void changePassword(Request request, String newPassword, Response response) throws ExceptionResponse {
         if (sessionTokHasExpired()) {
-            throw new UnauthorizedException("Session has expired");
+            throw new UnauthorizedException(request, this);
         }
         // Re-hash user password
         passwordHash = Hash.hashPassword(newPassword);
+        if (passwordHash == null) {
+            throw new BadRequestException(request, "Bad password");
+        }
         // Generate a new session token and save user.
         // Invalidates current session, forcing other clients to be logged out.
-        logIn(response);
+        logIn(request, response);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -306,7 +313,8 @@ public class User extends DBModelStringKey {
      * 
      * @return User if successfully authenticated, null otherwise
      */
-    public static User authenticate(String email, String password, Response response) throws UnauthorizedException {
+    public static User authenticate(Request request, String email, String password, Response response)
+            throws ExceptionResponse {
         // FIXME: Allow only one login attempt per email address every 5 seconds. Add email addrs to a ConcurrentTreeSet
         // or something (*if* the email addr is already in the database, to prevent DoS), and every 5s, purge old
         // entries from the tree. If an attempt is made in less than 5s, then return an error rather than blocking for
@@ -317,7 +325,7 @@ public class User extends DBModelStringKey {
             if (!FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER.equals(user.passwordHash)
                     && Hash.checkPassword(password, user.passwordHash)) {
                 // User successfully authenticated.
-                user.logIn(response);
+                user.logIn(request, response);
                 return user;
             }
         }
@@ -332,9 +340,9 @@ public class User extends DBModelStringKey {
      * 
      * @return Returns null if session is invalid or user is no longer allowed to log in.
      */
-    public static User getLoggedInUser(Request req) {
+    public static User getLoggedInUser(Request request) {
         // Get email address from cookie
-        Cookie emailCookie = req.getCookie(Cookie.EMAIL_COOKIE_NAME);
+        Cookie emailCookie = request.getCookie(Cookie.EMAIL_COOKIE_NAME);
         if (emailCookie != null && !emailCookie.hasExpired()) {
             String email = emailCookie.getValue();
 
@@ -343,12 +351,12 @@ public class User extends DBModelStringKey {
                     || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
 
                 // Get session cookie
-                Cookie sessionCookie = req.getCookie(Cookie.SESSION_COOKIE_NAME);
+                Cookie sessionCookie = request.getCookie(Cookie.SESSION_COOKIE_NAME);
                 if (sessionCookie != null && !sessionCookie.hasExpired()) {
                     try {
                         // Look up email address in database, and check session cookie against session token stored in
                         // the database for that email address
-                        User user = validateTok(email, sessionCookie.getValue(), TokenType.SESSION);
+                        User user = validateTok(request, email, sessionCookie.getValue(), TokenType.SESSION);
                         // If no exception thrown, user is logged in and auth token is valid
                         return user;
 
@@ -389,24 +397,22 @@ public class User extends DBModelStringKey {
 
     /**
      * Create a new authentication token for user and save session cookie.
-     * 
-     * @throws UnauthorizedException
-     *             if the user is not whitelisted for login, or their login session has expired.
      */
-    public void logIn(Response response) throws UnauthorizedException {
+    public void logIn(Request request, Response response) throws ExceptionResponse {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
 
             // Create new session token
             sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
-            
+
             // Create new random CSRF token every time user logs in
             csrfTok = CSRF.generateRandomCSRFToken();
-            
+
             if (sessionTokHasExpired()) {
                 // Shouldn't happen, since we just created session tok, but just in case
                 clearSessionTok();
-                throw new UnauthorizedException("Couldn't create auth session");
+                Log.error("Couldn't create auth session for: " + id);
+                throw new UnauthorizedException(request, this);
             }
 
             // Save tokens in database
@@ -419,7 +425,8 @@ public class User extends DBModelStringKey {
 
         } else {
             // User is not authorized
-            throw new UnauthorizedException("User is not whitelisted for login: " + id);
+            Log.error("User is not whitelisted for login: " + id);
+            throw new UnauthorizedException(request, this);
         }
     }
 
@@ -427,12 +434,9 @@ public class User extends DBModelStringKey {
 
     /**
      * Create a user and log them in.
-     * 
-     * @throws UnauthorizedException
-     *             if a user with this email addr already exists.
      */
-    private static User create(String email, String passwordHash, boolean validateEmail, Response response)
-            throws UnauthorizedException {
+    private static User create(Request request, String email, String passwordHash, boolean validateEmail,
+            Response response) throws ExceptionResponse {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
 
@@ -443,7 +447,8 @@ public class User extends DBModelStringKey {
             // Either way, users creating an account with the given email address must be in control
             // of that email account, so this is still secure.
             if (findByEmail(email) != null) {
-                throw new UnauthorizedException("Could not create new user: user \"" + email + "\" already exists");
+                Log.error("Could not create new user: user \"" + email + "\" already exists");
+                throw new UnauthorizedException(request, null);
             }
 
             User user = new User(email);
@@ -454,13 +459,14 @@ public class User extends DBModelStringKey {
             user.emailValidated = validateEmail;
 
             // Log in and save user 
-            user.logIn(response);
+            user.logIn(request, response);
 
             return user;
 
         } else {
             // User is not authorized
-            throw new UnauthorizedException("User is not whitelisted for account creation: " + email);
+            Log.error("User is not whitelisted for account creation: " + email);
+            throw new UnauthorizedException(request, null);
         }
     }
 
@@ -470,8 +476,9 @@ public class User extends DBModelStringKey {
      * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
-    public static User create(String email, String passwordHash, Response response) throws UnauthorizedException {
-        return create(email, passwordHash, /* validateEmail = */false, response);
+    public static User create(Request request, String email, String passwordHash, Response response)
+            throws ExceptionResponse {
+        return create(request, email, passwordHash, /* validateEmail = */false, response);
     }
 
     /**
@@ -480,7 +487,8 @@ public class User extends DBModelStringKey {
      * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
-    public static User createFederatedLoginUser(String email, Response response) throws UnauthorizedException {
-        return create(email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* validateEmail = */true, response);
+    public static User createFederatedLoginUser(Request request, String email, Response response)
+            throws ExceptionResponse {
+        return create(request, email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* validateEmail = */true, response);
     }
 }

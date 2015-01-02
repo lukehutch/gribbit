@@ -32,6 +32,9 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
  */
 public class MethodNotAllowedException extends ExceptionResponse {
+    /**
+     * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
+     */
     public MethodNotAllowedException() {
         super(new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "Method not allowed"));
     }

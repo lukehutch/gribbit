@@ -42,15 +42,14 @@ public class Hash {
      * 
      * @param cleartextPassword
      *            the cleartext password
-     * @return the salted, hashed password.
-     * @throws BadRequestException
-     *             If the password is null or too short.
+     * @return the salted, hashed password, or null if the password is null or too short.
      */
     public static String hashPassword(String cleartextPassword) throws BadRequestException {
         if (cleartextPassword == null || cleartextPassword.length() < MIN_PASSWORD_LENGTH) {
-            throw new BadRequestException("Password is too short");
+            return null;
+        } else {
+            return BCrypt.hashpw(cleartextPassword, BCrypt.gensalt());
         }
-        return BCrypt.hashpw(cleartextPassword, BCrypt.gensalt());
     }
 
     /**

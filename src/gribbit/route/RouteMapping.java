@@ -28,9 +28,9 @@ package gribbit.route;
 import gribbit.handler.route.annotation.Disabled;
 import gribbit.handler.route.annotation.On404NotFound;
 import gribbit.handler.route.annotation.OnBadRequest;
-import gribbit.handler.route.annotation.OnEmailNotValidated;
 import gribbit.handler.route.annotation.OnInternalServerError;
 import gribbit.handler.route.annotation.OnUnauthorized;
+import gribbit.handler.route.annotation.OnUnauthorizedEmailNotValidated;
 import gribbit.handler.route.annotation.RouteOverride;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
@@ -57,6 +57,7 @@ public class RouteMapping {
     private RouteInfo badRequestRoute;
     private RouteInfo notFoundRoute;
     private RouteInfo unauthorizedRoute;
+    private RouteInfo unauthorizedEmailNotValidatedRoute;
     private RouteInfo emailNotValidatedRoute;
 
     private static final Pattern VALID_ROUTE_OVERRIDE = Pattern.compile("^(/|(/[a-zA-Z0-9\\-_]+)+)$");
@@ -81,6 +82,10 @@ public class RouteMapping {
 
     public RouteInfo getUnauthorizedRoute() {
         return unauthorizedRoute;
+    }
+
+    public RouteInfo getUnauthorizedEmailNotValidatedRoute() {
+        return unauthorizedEmailNotValidatedRoute;
     }
 
     public RouteInfo getEmailNotValidatedRoute() {
@@ -164,7 +169,8 @@ public class RouteMapping {
             // Log.info("Found disabled handler: " + handler.getName());
 
         } else if (handler == RouteHandler.class || handler == RouteHandlerAuthNotRequired.class
-                || handler == RouteHandlerAuthRequired.class || handler == RouteHandlerAuthAndValidatedEmailRequired.class) {
+                || handler == RouteHandlerAuthRequired.class
+                || handler == RouteHandlerAuthAndValidatedEmailRequired.class) {
             // Don't register handler for generic super-interfaces 
 
         } else {
@@ -208,11 +214,10 @@ public class RouteMapping {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = unauthorizedRoute;
                     unauthorizedRoute = routeInfo;
-
-                } else if (annType == OnEmailNotValidated.class) {
+                } else if (annType == OnUnauthorizedEmailNotValidated.class) {
                     hasErrHandlerAnnotation = true;
-                    existingErrHandler = emailNotValidatedRoute;
-                    emailNotValidatedRoute = routeInfo;
+                    existingErrHandler = unauthorizedEmailNotValidatedRoute;
+                    unauthorizedEmailNotValidatedRoute = routeInfo;
                 }
                 if (existingErrHandler != null) {
                     // Can't have two non-default error handlers with an error handler annotation, because
@@ -280,8 +285,8 @@ public class RouteMapping {
                 RouteInfo prev = formModelToRoute.put(postParamType, routeInfo);
                 if (prev != null) {
                     throw new RuntimeException(DataModel.class.getName() + " subclass " + postParamType.getName()
-                            + " is handled by two different post() methods, in classes " + routeInfo.getHandler().getName()
-                            + ", " + prev.getHandler().getName());
+                            + " is handled by two different post() methods, in classes "
+                            + routeInfo.getHandler().getName() + ", " + prev.getHandler().getName());
                 }
             }
             Log.fine("Registering route handler: " + handler.getName() + " -> " + routeInfo.getRoutePath());

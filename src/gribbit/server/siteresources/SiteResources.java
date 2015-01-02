@@ -87,8 +87,8 @@ public class SiteResources {
         return routeMapping.getUnauthorizedRoute();
     }
 
-    public RouteInfo getEmailNotValidatedRoute() {
-        return routeMapping.getEmailNotValidatedRoute();
+    public RouteInfo getUnauthorizedEmailNotValidatedRoute() {
+        return routeMapping.getUnauthorizedEmailNotValidatedRoute();
     }
 
     /**

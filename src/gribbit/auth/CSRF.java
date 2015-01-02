@@ -32,6 +32,13 @@ import gribbit.util.thirdparty.UTF8;
  * CSRF token generation support.
  */
 public class CSRF {
+    
+    // TODO: Think about ways to protect against same-origin CSRF attacks:
+    //
+    // http://www.christian-schneider.net/CsrfAndSameOriginXss.html
+    //
+    // (We don't need to worry about this as long as XSS proctection is guaranteed, and as long as there
+    // isn't some unsecured service running on the same domain at a different URI.)
 
     /**
      * Special CSRF token POST parameter -- used for the name of the form field that is automatically inserted before a

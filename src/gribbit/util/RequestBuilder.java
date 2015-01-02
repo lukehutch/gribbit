@@ -55,7 +55,7 @@ public class RequestBuilder {
      * Get the response from an HttpURLConnection, parse it as JSON, and map it to the requested response type.
      */
     private static <T> T getJSONResponse(Class<T> responseType, HttpURLConnection connection) throws IOException,
-            BadRequestException {
+            IllegalArgumentException {
         if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
             try {
                 StringWriter writer = new StringWriter();
@@ -69,7 +69,7 @@ public class RequestBuilder {
             }
 
         } else {
-            throw new BadRequestException("Got response code " + connection.getResponseCode());
+            throw new IllegalArgumentException("Got response code " + connection.getResponseCode());
         }
     }
 

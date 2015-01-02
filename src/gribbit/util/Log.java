@@ -151,4 +151,8 @@ public class Log {
         logger.log(Level.SEVERE, msg + "\t " + callerRef(), cause);
     }
 
+    public static void exceptionWithoutCallerRef(String msg, Throwable cause) {
+        logger.log(Level.SEVERE, msg, cause);
+    }
+
 }

@@ -28,6 +28,7 @@ package gribbit.response;
 import gribbit.auth.CSRF;
 import gribbit.model.DataModel;
 import gribbit.server.config.GribbitProperties;
+import gribbit.util.Log;
 import gribbit.util.thirdparty.UTF8;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -95,17 +96,18 @@ public class HTMLResponse extends Response {
         }
         if (csrfTokReplace.length() != csrfBytes.length) {
             // Should not happen
-            throw new RuntimeException("CSRF token is the wrong length");
-        }
-        for (int i = 0, ni = contentLength, len = csrfBytes.length; i < ni; i++) {
-            for (int j = 0, nj = Math.min(ni - i, len); j < nj; j++) {
-                if (contentArray[i + j] != csrfBytes[j]) {
-                    // Mismatch
-                    break;
-                } else if (j == nj - 1) {
-                    // Found a match -- replace placeholder token with user's own CSRF token
-                    for (int k = 0; k < nj; k++) {
-                        contentArray[i + k] = (byte) (csrfTokReplace.charAt(k) & 0x7f);
+            Log.error("CSRF token is the wrong length");
+        } else {
+            for (int i = 0, ni = contentLength, len = csrfBytes.length; i < ni; i++) {
+                for (int j = 0, nj = Math.min(ni - i, len); j < nj; j++) {
+                    if (contentArray[i + j] != csrfBytes[j]) {
+                        // Mismatch
+                        break;
+                    } else if (j == nj - 1) {
+                        // Found a match -- replace placeholder token with user's own CSRF token
+                        for (int k = 0; k < nj; k++) {
+                            contentArray[i + k] = (byte) (csrfTokReplace.charAt(k) & 0x7f);
+                        }
                     }
                 }
             }

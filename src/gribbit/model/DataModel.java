@@ -30,6 +30,7 @@ import gribbit.model.field.annotation.IsURL;
 import gribbit.request.Request;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.ExceptionResponse;
+import gribbit.response.exception.InternalServerErrorException;
 import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -83,17 +84,17 @@ public abstract class DataModel {
      * MinLength also implies Required. (NormalizeSpacing is a data transformation annotation, not a constraint, so it
      * will only be applied if a value is provided.)
      * 
-     * @param req
+     * @param request
      *            The HTTP request
      * @param formModel
      *            The form model to bind
      * @throws AppException
      *             if any of the constraint annotations are not specified
      */
-    public void bindFromPost(Request req) throws ExceptionResponse {
+    public void bindFromPost(Request request) throws ExceptionResponse {
 
         // Match field names against POST param names, and set values of fields whenever there is a match
-        HashSet<String> unusedPostParams = new HashSet<String>(req.getPostParamNames());
+        HashSet<String> unusedPostParams = new HashSet<String>(request.getPostParamNames());
         for (Field field : getClass().getFields()) {
             String fieldName = field.getName();
             unusedPostParams.remove(fieldName);
@@ -112,10 +113,10 @@ public abstract class DataModel {
                 try {
                     // For each field in class, look up field name in POST parameters and then
                     // URL query parameters
-                    String postParamValForField = req.getPostParam(fieldName);
+                    String postParamValForField = request.getPostParam(fieldName);
                     if (postParamValForField == null) {
 
-                        FileUpload postFileUploadForField = req.getPostFileUploadParam(fieldName);
+                        FileUpload postFileUploadForField = request.getPostFileUploadParam(fieldName);
                         if (postFileUploadForField != null) {
 
                             // There was a file uploaded
@@ -133,7 +134,7 @@ public abstract class DataModel {
                             // There is a field in formModelInstance DataModel that is not in the
                             // POST request
                             if (DataModelLoader.fieldIsRequired(field)) {
-                                throw new BadRequestException("Field " + fieldName
+                                throw new BadRequestException(request, "Field " + fieldName
                                         + " required, but not sent in POST request");
                             }
                         }
@@ -192,7 +193,7 @@ public abstract class DataModel {
                             // Character fields are bound from text, but limited to a length of 1
 
                             if (postParamValForField.length() > 1) {
-                                throw new BadRequestException("Field " + fieldName
+                                throw new BadRequestException(request, "Field " + fieldName
                                         + " requires a single character, got " + postParamValForField.length()
                                         + " characters");
                             } else if (postParamValForField.length() == 1) {
@@ -218,20 +219,21 @@ public abstract class DataModel {
                                 Enum<?> enumVal = Enum.valueOf((Class<Enum>) fieldType, postParamValForField);
                                 field.set(this, enumVal);
                             } catch (IllegalArgumentException e) {
-                                throw new BadRequestException("Illegal value " + postParamValForField + " for field "
-                                        + fieldName);
+                                throw new BadRequestException(request, "Illegal value " + postParamValForField
+                                        + " for field " + fieldName);
                             }
 
                         } else {
-                            throw new RuntimeException("Unsupported field type " + fieldType.getSimpleName());
+                            throw new InternalServerErrorException(request, "Unsupported field type "
+                                    + fieldType.getSimpleName());
                         }
                     }
 
                 } catch (NumberFormatException | DateTimeParseException e) {
-                    throw new BadRequestException("Could not parse value " + fieldName + " from the request");
+                    throw new BadRequestException(request, "Could not parse value " + fieldName + " from the request");
 
                 } catch (IllegalArgumentException | IllegalAccessException e) {
-                    throw new RuntimeException("Could not set field " + fieldName
+                    throw new InternalServerErrorException(request, "Could not set field " + fieldName
                             + " to the value passed in the request", e);
                 }
             }
@@ -241,7 +243,7 @@ public abstract class DataModel {
         try {
             DataModelLoader.checkFieldValuesAgainstConstraints(this);
         } catch (Exception e) {
-            throw new BadRequestException("Form values invalid: " + e.getMessage());
+            throw new BadRequestException(request, "Form values invalid: " + e.getMessage());
         }
 
         for (String unusedParam : unusedPostParams) {
