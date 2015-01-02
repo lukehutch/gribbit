@@ -250,40 +250,47 @@ public class WebUtils {
 
     // -----------------------------------------------------------------------------------------------------
 
+    // Valid URL characters: see
+    // http://goo.gl/JNmVMa
+    // http://goo.gl/OZ9OOZ
+    // http://goo.gl/QFk9R7
+
     /**
-     * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes. TODO: test this.
+     * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes.
      */
     public static String escapeURISegment(String str) {
+        if (str == null) {
+            return str;
+        }
+        StringBuilder buf = new StringBuilder(str.length() * 4);
+        escapeURISegment(str, buf);
+        return buf.toString();
+    }
+
+    /**
+     * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes.
+     */
+    public static void escapeURISegment(String str, StringBuilder buf) {
+        if (str == null) {
+            return;
+        }
         byte[] utf8Bytes = UTF8.stringToUTF8(str);
-        StringBuilder buf = new StringBuilder(utf8Bytes.length * 3);
         for (int i = 0; i < utf8Bytes.length; i++) {
             char c = (char) utf8Bytes[i];
-            // See http://goo.gl/JNmVMa
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.'
-                    || c == '_' || c == '~') {
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') //
+                    || c == '-' || c == '.' || c == '_') {
                 buf.append(c);
             } else {
                 percentEncode(buf, c);
             }
         }
-        return buf.toString();
     }
 
     /**
      * Convert a URI query param key of the form "q" in "?q=v", %-encoding of UTF8 bytes for unusual characters.
      */
     public static void escapeQueryParamKey(String str, StringBuilder buf) {
-        byte[] utf8Bytes = UTF8.stringToUTF8(str);
-        for (int i = 0; i < utf8Bytes.length; i++) {
-            char c = (char) utf8Bytes[i];
-            // See http://goo.gl/OZ9OOZ
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.'
-                    || c == '_' || c == '~') {
-                buf.append(c);
-            } else {
-                percentEncode(buf, c);
-            }
-        }
+        escapeURISegment(str, buf);
     }
 
     /**
@@ -291,22 +298,16 @@ public class WebUtils {
      * %-encoding of UTF8 bytes for unusual characters.
      */
     public static void escapeQueryParamVal(String str, StringBuilder buf) {
-        byte[] utf8Bytes = UTF8.stringToUTF8(str);
-        for (int i = 0; i < utf8Bytes.length; i++) {
-            char c = (char) utf8Bytes[i];
-            // See http://goo.gl/s2qntq
-            if (c == ' ') {
-                buf.append('+');
-            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
-                    || c == '.' || c == '_' || c == '~' || c == '/' || c == ':' || c == '@') {
-                buf.append(c);
-            } else {
-                percentEncode(buf, c);
-            }
+        if (str == null) {
+            return;
         }
+        escapeURISegment(str.indexOf(' ') >= 0 ? str.replace(' ', '+') : str, buf);
     }
 
     public static void escapeQueryParamKeyVal(String key, String val, StringBuilder buf) {
+        if (key == null || key.isEmpty()) {
+            return;
+        }
         escapeQueryParamKey(key, buf);
         buf.append('=');
         escapeQueryParamVal(val, buf);
@@ -353,7 +354,7 @@ public class WebUtils {
             }
             // FIXME: This will %-encode any unusual characters in the domain name, which will later
             // be rejected by java.net.URI. Need to use Punycode to represent general Unicode domains. 
-            buf.append(escapeURISegment(part));
+            escapeURISegment(part, buf);
         }
         // Add query params, if present
         if (paramIdx >= 0) {
