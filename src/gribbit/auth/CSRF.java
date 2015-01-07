@@ -32,7 +32,7 @@ import gribbit.util.thirdparty.UTF8;
  * CSRF token generation support.
  */
 public class CSRF {
-    
+
     // TODO: Think about ways to protect against same-origin CSRF attacks:
     //
     // http://www.christian-schneider.net/CsrfAndSameOriginXss.html
@@ -72,24 +72,24 @@ public class CSRF {
     }
 
     /**
-     * Test if the given CSRF token matches the user's CSRF token. Returns false if the token or the user are null, or
-     * if the tokens don't match.
+     * Test if the given CSRF token matches the user's CSRF token.
+     * 
+     * Returns true if the test CSRF token is not null or empty, and the user is not null, and the user's CSRF token is
+     * not null or empty, and if the test CSRF token matches the user's CSRF token, and (for extra safety) if neither
+     * token is a placeholder token.
      */
     public static boolean csrfTokMatches(String testCsrfTok, User user) {
         if (testCsrfTok == null || user == null) {
             return false;
         } else {
             String userCsrfTok = user.csrfTok;
-            // if no valid CSRF token in User object
-            if (userCsrfTok == null || userCsrfTok.isEmpty() || userCsrfTok.isEmpty() //
-                    // or if using a placeholder (placeholders can never match)
-                    || userCsrfTok.equals(CSRF_TOKEN_UNKNOWN) || userCsrfTok.equals(CSRF_TOKEN_PLACEHOLDER) //
-                    // or if the test token doesn't match the user's token 
-                    || !userCsrfTok.equals(testCsrfTok)) {
-                return false;
+            if (userCsrfTok != null //
+                    && !userCsrfTok.isEmpty() && !testCsrfTok.isEmpty() //
+                    && userCsrfTok.equals(testCsrfTok) //
+                    && !userCsrfTok.equals(CSRF_TOKEN_UNKNOWN) && !userCsrfTok.equals(CSRF_TOKEN_PLACEHOLDER)) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
-
 }

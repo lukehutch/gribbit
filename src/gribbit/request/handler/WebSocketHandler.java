@@ -47,6 +47,16 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
 
 import java.net.URI;
 
+/**
+ * Handle WebSocket upgrade requests and WebSocket request frames.
+ *
+ * Note that WebSocket upgrade requests can only be made on routes that require authentication, and the user has to
+ * first be logged in.
+ * 
+ * To initiate the WebSocket connection, append the following parameters to a route's URL: "?_ws=1&_csrf=..." (with the
+ * CSRF token for the user in place of "...", which can be obtained from any form served by the template engine to an
+ * authenticated user).
+ */
 public class WebSocketHandler {
 
     /** Websocket handshaker. */
@@ -78,15 +88,21 @@ public class WebSocketHandler {
         // TODO: Read: http://lucumr.pocoo.org/2012/9/24/websockets-101/
         // TODO: See also links here: http://security.stackexchange.com/questions/48378/anti-dos-websockets-best-practices
         String requestText = ((TextWebSocketFrame) frame).text();
-        String responseText =
-                wsRequestedRoute.getRoutePath() + " -> " + requestText.toUpperCase() + " -- "
-                        + (wsAuthenticatedUser == null ? "not logged in" : wsAuthenticatedUser.id);
+        String responseText = wsRequestedRoute.getRoutePath() + " -> " + requestText.toUpperCase() + " -- "
+                + (wsAuthenticatedUser == null ? "not logged in" : wsAuthenticatedUser.id);
 
         ctx.writeAndFlush(new TextWebSocketFrame(responseText));
     }
 
     public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin, String csrfQueryParam,
             User user, Route authorizedRoute) {
+
+        if (user == null) {
+            // Require users to be logged in before initiating WebSocket requests to mitigate DoS attacks
+            HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                    HttpResponseStatus.FORBIDDEN));
+            return;
+        }
 
         // Protect against CSWSH: (Cross-Site WebSocket Hijacking)
         // http://www.christian-schneider.net/CrossSiteWebSocketHijacking.html
@@ -107,22 +123,17 @@ public class WebSocketHandler {
         }
         // Log.info("Origin: " + origin.toString());
 
-        // Allow websocket connections to routes that do not require authentication (i.e. if user == null
-        // here, authenticatedRoute will be non-null, and it will be a RouteHandlerAuthNotRequired).
-        // FIXME: Does this open us up to websocket DoS attacks from non-authenticated users?
-        if (user != null) {
-            // To further mitigate CSWSH attacks (beyond the same-origin check performed above):
-            // check for the CSRF token in the URL parameter "_csrf": the passed token must match
-            // the user's CSRF token. This means the websocket URL has to be dynamically generated
-            // and inserted into the webpage that opened the websocket.
-            // TODO: generate this URL and insert into the page somehow (i.e. require a form on the page
-            // TODO: so that the CSRF token is available)
-            if (!CSRF.csrfTokMatches(csrfQueryParam, user)) {
-                // No valid CSRF token in User object
-                HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                        HttpResponseStatus.FORBIDDEN));
-                return;
-            }
+        // To further mitigate CSWSH attacks (beyond the same-origin check performed above):
+        // check for the CSRF token in the URL parameter "_csrf": the passed token must match
+        // the user's CSRF token. This means the websocket URL has to be dynamically generated
+        // and inserted into the webpage that opened the websocket.
+        // TODO: generate this URL and insert into the page somehow (i.e. require a form on the page
+        // TODO: so that the CSRF token is available)
+        if (!CSRF.csrfTokMatches(csrfQueryParam, user)) {
+            // No valid CSRF token in User object
+            HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                    HttpResponseStatus.FORBIDDEN));
+            return;
         }
 
         // Record which user was authenticated when the websocket upgrade request was made.
@@ -136,16 +147,16 @@ public class WebSocketHandler {
         wsRequestedRoute = authorizedRoute;
 
         // Try upgrading the connection to a websocket
-        WebSocketServerHandshakerFactory wsFactory =
-                new WebSocketServerHandshakerFactory(GribbitServer.wsUri.toString(), null, true);
+        WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
+                GribbitServer.wsUri.toString(), null, true);
         handshaker = wsFactory.newHandshaker(httpReq);
         if (handshaker == null) {
             WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
         } else {
             // Attempt websocket handshake, and if it succeeds, upgrade connection to websocket
             // TODO: filed bug report, handshaker.handshake should take HttpRequest, not FullHttpRequest
-            DefaultFullHttpRequest fullReq =
-                    new DefaultFullHttpRequest(httpReq.protocolVersion(), httpReq.method(), httpReq.uri());
+            DefaultFullHttpRequest fullReq = new DefaultFullHttpRequest(httpReq.protocolVersion(), httpReq.method(),
+                    httpReq.uri());
             fullReq.headers().add(httpReq.headers());
             handshaker.handshake(ctx.channel(), (FullHttpRequest) fullReq);
         }
