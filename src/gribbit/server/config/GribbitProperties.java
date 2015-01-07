@@ -59,7 +59,7 @@ public class GribbitProperties {
 
     public static String DB_NAME = properties.getProperty("dbname", "gribbit");
 
-    public static String STATIC_RESOURCE_ROOT = properties.getProperty("staticresourceroot", null);
+    public static String STATIC_RESOURCE_ROOT = properties.getProperty("staticroot", null);
 
     public static boolean ALLOW_WEBSOCKETS = PropertyUtils.getPropertyBoolean(properties, "websockets.allow", true);
 

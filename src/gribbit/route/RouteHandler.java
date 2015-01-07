@@ -31,8 +31,8 @@ import gribbit.response.flashmsg.FlashMessage;
 /**
  * A route handler. Override the public default get() method with optional params to accept URL params, and/or the
  * public default post() method with one optional param of type DataModel to populate the DataModel values from POST
- * param values. Note: you should normally subclass AuthNotRequiredRoute, AuthRequiredRoute or
- * AuthAndValidatedEmailRequiredRoute, and not Route itself.
+ * param values. Note: you should normally subclass RouteHandlerAuthNotRequired, RouteHandlerAuthRequired or
+ * RouteHandlerAuthAndValidatedEmailRequired, and not RouteHandler itself.
  */
 public class RouteHandler {
 
