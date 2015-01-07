@@ -58,7 +58,73 @@ import java.net.URI;
  * authenticated user).
  */
 public class WebSocketHandler {
-
+    
+    // Put the following into tail-content.html to add WebSocket support to a page:
+    
+    //    <script type="text/javascript">
+    //
+    //    function wsOpened(event) {
+    //      // ...
+    //    }
+    //
+    //    function wsMessageReceived(event) {
+    //      // ...
+    //    }
+    //
+    //    function wsClosed(event) {
+    //      // ...
+    //    }
+    //
+    //    var socket = null;
+    //    if (!window.WebSocket) {
+    //      window.WebSocket = window.MozWebSocket;
+    //    }
+    //    if (window.WebSocket && typeof wsOpen !== 'undefined' && typeof wsMsg !== 'undefined'
+    //        && typeof wsClose !== 'undefined') {
+    //      var wsURL = null;
+    //      if (document.forms !== null) {
+    //        for (var i = 0; i < document.forms.length; i++) {
+    //          var form = document.forms[i];
+    //          console.log(form);
+    //          if (typeof form.csrf !== 'undefined') {
+    //            wsURL = document.URL.replace(/^http/, 'ws').replace(/\?.*/, '') + "?_ws=1&_csrf=" + form.csrf.value;
+    //            break;
+    //          }
+    //        }
+    //      }
+    //      if (wsURL == null) {
+    //        console.log('Could not generate web socket URL (could not locate CSRF token in a form on the page)');
+    //      } else {
+    //        var trySocket = new WebSocket(wsURL);
+    //        trySocket.onopen = function(event) {
+    //          socket = trySocket;
+    //          wsOpened(event);
+    //        };
+    //        trySocket.onmessage = function(event) {
+    //          wsMessageReceived(event);
+    //        };
+    //        trySocket.onclose = function(event) {
+    //          socket = null;
+    //          wsClosed(event);
+    //        };
+    //      }
+    //    } else {
+    //      console.log("Your browser does not support web sockets");
+    //    }
+    //
+    //    function send(message) {
+    //      if (socket === null) {
+    //        return;
+    //      }
+    //      if (socket.readyState == WebSocket.OPEN) {
+    //        socket.send(message);
+    //      } else {
+    //        console.log("The web socket is not open");
+    //      }
+    //    }
+    //
+    //  </script>
+    
     /** Websocket handshaker. */
     private WebSocketServerHandshaker handshaker;
 
