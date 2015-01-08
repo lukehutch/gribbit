@@ -186,9 +186,11 @@ public class Route {
                 // Check method parameters are key value pairs, and that the keys are strings, and the
                 // values are String or Integer
                 for (int j = 0; j < paramTypes.length; j++) {
-                    if (paramTypes[j] != String.class && paramTypes[j] != Integer.class) {
+                    if (paramTypes[j] != String.class && paramTypes[j] != Integer.class
+                            && paramTypes[j] != Integer.TYPE) {
                         throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                                + " has a param of type " + paramTypes[j].getName() + ", needs to be String or Integer");
+                                + " has a param of type " + paramTypes[j].getName()
+                                + ", needs to be String, int or Integer");
                     }
                 }
 
@@ -302,7 +304,7 @@ public class Route {
                                 + getParamTypes.length + ", got " + i);
                     }
                     String uriSegment = reqURI.substring(slashIdx + 1, nextSlashIdx);
-                    if (getParamTypes[i] == Integer.class) {
+                    if (getParamTypes[i] == Integer.class || getParamTypes[i] == Integer.TYPE) {
                         try {
                             // Specifically parse integers for int-typed method parameters 
                             getParamVals[i] = Integer.parseInt(uriSegment);
