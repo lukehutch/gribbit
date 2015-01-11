@@ -70,7 +70,9 @@ public class TemplateLoader {
 
     private HashMap<String, List<Node>> templateNameToTemplateNodes = new HashMap<>();
 
-    private HashMap<Class<? extends DataModel>, List<Node>> templateClassToDocumentNodes = new HashMap<>();
+    private HashMap<Class<? extends DataModel>, List<Node>> templateClassToTemplateNodes = new HashMap<>();
+
+    private HashMap<String, String> templateNameToTemplateStr = new HashMap<>();
 
     private HashSet<String> customInlineElements = new HashSet<>();
 
@@ -107,9 +109,14 @@ public class TemplateLoader {
         customInlineElements.add(elementName);
     }
 
-    /** Return the template corresponding to the given template class, or null if it doesn't exist. */
-    List<Node> getTemplateDocumentNodes(Class<? extends DataModel> templateClass) {
-        return templateClassToDocumentNodes.get(templateClass);
+    /** Return the template corresponding to the given template class as a list of nodes, or null if it doesn't exist. */
+    List<Node> getTemplateNodes(Class<? extends DataModel> templateClass) {
+        return templateClassToTemplateNodes.get(templateClass);
+    }
+
+    /** Return the templates corresponding to each class as HTML strings, for clientside rendering. */
+    public HashMap<String, String> getTemplateNameToTemplateStr() {
+        return templateNameToTemplateStr;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -751,8 +758,8 @@ public class TemplateLoader {
         // a Polymer param (i.e. starts with "{{")
         if (isLocalURI(hrefURI)) {
             // Build new path for the linked resource
-            StringBuilder hrefURIResolved =
-                    new StringBuilder(hrefURI.startsWith("//") ? "//" : hrefURI.startsWith("/") ? "/" : baseURI);
+            StringBuilder hrefURIResolved = new StringBuilder(hrefURI.startsWith("//") ? "//"
+                    : hrefURI.startsWith("/") ? "/" : baseURI);
             for (CharSequence part : StringUtils.splitAsList(hrefURI, "/")) {
                 if (part.length() == 0 || part.equals(".")) {
                     // Ignore
@@ -796,12 +803,11 @@ public class TemplateLoader {
 
                 // See if this is a whole-page HTML document, as opposed to an HTML fragment
                 int firstTagIdx = html.indexOf("<");
-                boolean isWholeDocument =
-                        firstTagIdx >= 0
-                                && ((html.length() >= 5 && html.substring(firstTagIdx, firstTagIdx + 5).toLowerCase()
-                                        .equals("<html")) //
-                                || (html.length() >= 9 && html.substring(firstTagIdx, firstTagIdx + 9).toLowerCase()
-                                        .equals("<!doctype")));
+                boolean isWholeDocument = firstTagIdx >= 0
+                        && ((html.length() >= 5 && html.substring(firstTagIdx, firstTagIdx + 5).toLowerCase()
+                                .equals("<html")) //
+                        || (html.length() >= 9 && html.substring(firstTagIdx, firstTagIdx + 9).toLowerCase()
+                                .equals("<!doctype")));
 
                 // Page templates need to be run through Jsoup.parse(), not Jsoup.parseBodyFragment()
                 Document doc = isWholeDocument ? Jsoup.parse(html) : Jsoup.parseBodyFragment(html);
@@ -859,9 +865,8 @@ public class TemplateLoader {
     void initializeTemplates() {
         // Register static final inline templates
         for (Entry<String, String> ent : dataModelLoader.classNameToInlineTemplate.entrySet()) {
-            // Get leaf name (also replacing com.pkg.ClassName$InnerClass -> com.pkg.ClassName.InnerClass)
+            // Get class name
             String className = ent.getKey();
-            className = className.replace('$', '.');
 
             // Allow dynamically-loaded static constants to override the version obtained by reflection
             String templateStr = dataModelLoader.classNameToInlineTemplateOverride.get(className);
@@ -870,7 +875,8 @@ public class TemplateLoader {
             }
 
             // Register inline template
-            String fakePath = "/" + className.replace('.', '/') + ".class";
+            // (also replacing com.pkg.ClassName$InnerClass -> com.pkg.ClassName.InnerClass)
+            String fakePath = "/" + className.replace('$', '.').replace('.', '/') + ".class";
             registerWebResource(fakePath, fakePath, templateStr);
         }
 
@@ -887,7 +893,14 @@ public class TemplateLoader {
             crossCheckDataModelAndView(siteResources, templateName, templateClass, templateNodes);
 
             // Create a mapping from DataModel class to the HTML doc that holds the template contents
-            templateClassToDocumentNodes.put(templateClass, templateNodes);
+            templateClassToTemplateNodes.put(templateClass, templateNodes);
+
+            // Render the template nodes into a string, for use with clientside template rendering
+            StringBuilder buf = new StringBuilder(16384);
+            for (Node n : templateNodes) {
+                buf.append(n.toString());
+            }
+            templateNameToTemplateStr.put(templateName, buf.toString());
         }
 
         // For whole-page templates, add head-content.html to the end of the head element and tail-content.html

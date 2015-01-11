@@ -202,6 +202,11 @@ public class GribbitServer {
     public static void start() {
         Log.info("Starting Gribbit server");
         try {
+            // Set up SSL. See:
+            // http://maxrohde.com/2013/09/07/setting-up-ssl-with-netty/
+            // http://blog.hintcafe.com/post/33709433256/https-server-in-java-using-netty-and-keystore
+            // https://www.sslshopper.com/ssl-converter.html
+            
             // TODO: Listen on both SSL and non-SSL ports; redirect non-SSL to SSL; make cookies SSL-only
             SslContext sslCtx;
             if (GribbitProperties.SSL) {
@@ -211,6 +216,9 @@ public class GribbitServer {
                     try {
                         // Use OpenSSL if the netty-tcnative Maven artifact is available (it is 30% faster than JDK)
                         sslCtx = SslContext.newServerContext(SslProvider.OPENSSL, ssc.certificate(), ssc.privateKey());
+
+                        //                        certChainFile an X.509 certificate chain file in PEM format
+                        //                        keyFile a PKCS#8 private key file in PEM format
                     } catch (Exception | Error e) {
                         throw new RuntimeException("Could not link with OpenSSL libraries");
                     }

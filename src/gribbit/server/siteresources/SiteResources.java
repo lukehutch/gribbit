@@ -40,15 +40,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
 import org.jsoup.nodes.Node;
-
-import com.lukehutch.fastclasspathscanner.FastClasspathScanner;
-import com.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
-import com.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
-import com.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
+import org.lukehutch.fastclasspathscanner.FastClasspathScanner;
+import org.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
+import org.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
+import org.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
 
 public class SiteResources {
 
@@ -119,7 +119,7 @@ public class SiteResources {
      * given name.
      */
     public List<Node> getTemplateDocForClass(Class<? extends DataModel> templateClass) {
-        return templateLoader.getTemplateDocumentNodes(templateClass);
+        return templateLoader.getTemplateNodes(templateClass);
     }
 
     public long getResourcesLoadedEpochSeconds() {
@@ -140,6 +140,11 @@ public class SiteResources {
      */
     public void registerCustomInlineElement(String elementName) {
         templateLoader.registerCustomInlineElement(elementName);
+    }
+
+    /** Return the templates as HTML strings, for clientside rendering. */
+    public HashMap<String, String> getTemplateNameToTemplateStr() {
+        return templateLoader.getTemplateNameToTemplateStr();
     }
 
     // -----------------------------------------------------------------------------------------------------
