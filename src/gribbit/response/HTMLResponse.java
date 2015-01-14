@@ -29,8 +29,8 @@ import gribbit.auth.CSRF;
 import gribbit.model.DataModel;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
-import gribbit.util.thirdparty.UTF8;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -81,7 +81,8 @@ public class HTMLResponse extends Response {
         String contentStr = isGetModelRequest //
                 ? DataModel.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON) //
                 : renderContentTemplates();
-        ByteBuf contentBytes = Unpooled.wrappedBuffer(UTF8.stringToUTF8(contentStr));
+        ByteBuf contentBytes = Unpooled.buffer(contentStr.length() * 3 / 2);
+        ByteBufUtil.writeUtf8(contentBytes, contentStr);
         int contentLength = contentBytes.readableBytes();
         byte[] contentArray = contentBytes.array();
 
