@@ -37,7 +37,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.Cookie;
 import gribbit.response.flashmsg.FlashMessage;
-import io.netty.handler.codec.http.CookieDecoder;
+import io.netty.handler.codec.http.ServerCookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
@@ -112,7 +112,7 @@ public class Request {
 
         // Parse and decode/decrypt cookies
         for (CharSequence cookieHeader : headers.getAll(COOKIE)) {
-            for (io.netty.handler.codec.http.Cookie nettyCookie : CookieDecoder.decode(cookieHeader.toString())) {
+            for (io.netty.handler.codec.http.Cookie nettyCookie : ServerCookieDecoder.decode(cookieHeader.toString())) {
                 // Log.fine("Cookie in request: " + nettyCookie);
                 if (this.cookieNameToCookies == null) {
                     this.cookieNameToCookies = new HashMap<>();
@@ -147,8 +147,8 @@ public class Request {
 
         CharSequence cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
         if (cacheDateHeader != null && cacheDateHeader.length() > 0) {
-            this.ifModifiedSinceEpochSecond =
-                    ZonedDateTime.parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
+            this.ifModifiedSinceEpochSecond = ZonedDateTime
+                    .parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
         }
 
         // Decode the path.
