@@ -27,7 +27,7 @@ package gribbit.auth.oauth.google;
 
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
-import gribbit.handler.route.annotation.RouteOverride;
+import gribbit.handler.route.annotation.RoutePath;
 import gribbit.request.Request;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
@@ -50,7 +50,7 @@ import java.time.ZonedDateTime;
  * route for this handler is "/oauth/google", but the additional URI param "login" should be provided after the route,
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
-@RouteOverride("/oauth/google")
+@RoutePath("/oauth/google")
 public class GoogleLogin extends RouteHandlerAuthNotRequired {
     static {
         if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()

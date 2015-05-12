@@ -27,7 +27,6 @@ package gribbit.response;
 
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
-import gribbit.model.DataModel;
 import gribbit.request.Request;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -40,19 +39,17 @@ import java.util.HashSet;
  * The superclass of all response types, containing fields that go into the header of the HTTP response regardless of
  * the response type.
  */
-public abstract class Response extends DataModel {
+public abstract class Response {
 
     protected HttpResponseStatus status = HttpResponseStatus.OK;
-    protected String mimeType;
     protected ArrayList<Cookie> cookiesToSet = null;
     protected HashSet<String> cookiesToDelete = null;
     protected long lastModifiedEpochSeconds, maxAgeSeconds;
     protected HashMap<String, String> customHeaders;
     protected String csrfTok;
 
-    public Response(HttpResponseStatus status, String mimeType) {
+    public Response(HttpResponseStatus status) {
         this.status = status;
-        this.mimeType = mimeType;
     }
 
     public long getLastModifiedEpochSeconds() {
@@ -86,17 +83,8 @@ public abstract class Response extends DataModel {
         return status;
     }
 
-    public String getContentType() {
-        return mimeType;
-    }
-
     public Response setStatus(HttpResponseStatus status) {
         this.status = status;
-        return this;
-    }
-
-    public Response setMimeType(String mimeType) {
-        this.mimeType = mimeType;
         return this;
     }
 
@@ -188,5 +176,9 @@ public abstract class Response extends DataModel {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public abstract ByteBuf getContent();
+    /** Get the content of the response as a ByteBuf of UTF8 bytes. */
+    public abstract ByteBuf getContent(Request request);
+
+    /** Get the MIME type of the content. */
+    public abstract String getContentType(Request request);
 }

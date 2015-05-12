@@ -25,12 +25,12 @@
  */
 package gribbit.response.flashmsg;
 
-import gribbit.model.DataModel;
+import gribbit.model.TemplateModel;
 import gribbit.util.StringUtils;
 
 import java.util.ArrayList;
 
-public class FlashMessage extends DataModel {
+public class FlashMessage extends TemplateModel {
     public FlashType flashType;
     public String strongText;
     public String message;
@@ -64,6 +64,7 @@ public class FlashMessage extends DataModel {
 
     public static final String _template = //
             // FlashType objects are rendered directly into CSS classes here by overriding the toString() method
+            // of the FlashType enum
             "<div class='alert ${flashType}'>" //
                     + "<a class='close' data-dismiss='alert'>&times;</a>" //  
                     + "<strong>${strongText}</strong> ${message}" //

@@ -31,7 +31,7 @@ import gribbit.handler.route.annotation.OnBadRequest;
 import gribbit.handler.route.annotation.OnInternalServerError;
 import gribbit.handler.route.annotation.OnUnauthorized;
 import gribbit.handler.route.annotation.OnUnauthorizedEmailNotValidated;
-import gribbit.handler.route.annotation.RouteOverride;
+import gribbit.handler.route.annotation.RoutePath;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
 import gribbit.util.Log;
@@ -175,11 +175,11 @@ public class RouteMapping {
 
         } else {
             // Check if route has been overridden for this handler
-            RouteOverride routeOverrideAnnotation = handler.getAnnotation(RouteOverride.class);
+            RoutePath routeOverrideAnnotation = handler.getAnnotation(RoutePath.class);
             String routeOverride = routeOverrideAnnotation == null ? null : routeOverrideAnnotation.value();
             if (routeOverride != null) {
                 if (!VALID_ROUTE_OVERRIDE.matcher(routeOverride).matches()) {
-                    throw new RuntimeException(RouteOverride.class.getName() + " annotation on class "
+                    throw new RuntimeException(RoutePath.class.getName() + " annotation on class "
                             + handler.getName() + " has value \"" + routeOverride + "\" which is not a valid route");
                 }
             }

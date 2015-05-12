@@ -219,7 +219,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                                     Attribute attribute = (Attribute) data;
                                     // Respect attribute's charset when decoding
                                     Charset encoding = attribute.getCharset() == null //
-                                            ? Charset.forName("UTF-8") //
+                                    ? Charset.forName("UTF-8") //
                                             : attribute.getCharset();
                                     String attributeValue;
                                     try {
@@ -279,14 +279,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             // All POST chunks have been received (or there are no chunks); ready to start handling the request
 
-            String origReqURI = request.getURI();
-
             // If this is a hash URI, look up original URI whose served resource was hashed to give this hash URI.
             // We only need to serve the resource at a hash URI once per resource per client, since resources served
             // from hash URIs are indefinitely cached in the browser.
-            String hashKey = CacheExtension.getHashKey(origReqURI);
-            boolean isHashURI = hashKey != null;
-            String reqURI = isHashURI ? CacheExtension.getOrigURI(origReqURI) : origReqURI;
+            boolean isHashURL = request.isHashURL();
+            String hashKey = request.getURLHashKey();
+            String reqURLUnhashed = request.getURLPathUnhashed();
 
             InetSocketAddress requestor = (InetSocketAddress) ctx.channel().remoteAddress();
             if (requestor != null) {
@@ -305,7 +303,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
-            if (reqURI.equals("/bad-request")) {
+            if (reqURLUnhashed.equals("/bad-request")) {
                 throw new BadRequestException(request);
             }
 
@@ -324,7 +322,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             for (int i = 0, n = allRoutes.size(); i < n; i++) {
                 Route route = allRoutes.get(i);
                 // If the request URI matches this route path
-                if (route.matches(reqURI)) {
+                if (route.matches(reqURLUnhashed)) {
                     Class<? extends RouteHandler> handler = route.getHandler();
 
                     if (!(request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.POST)) {
@@ -390,9 +388,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             if (GribbitProperties.ALLOW_WEBSOCKETS //
                     && authorizedRoute != null && response == null //
                     && request.isWebSocketUpgradeRequest() && msg instanceof HttpRequest) {
-                this.webSocketHandler =
-                        new WebSocketHandler(ctx, (HttpRequest) msg, request.getOrigin(),
-                                request.getQueryParam("_csrf"), user, authorizedRoute);
+                this.webSocketHandler = new WebSocketHandler(ctx, (HttpRequest) msg, request.getOrigin(),
+                        request.getQueryParam("_csrf"), user, authorizedRoute);
                 // Finished handling the websocket upgrade request (or returned an error)
                 return;
             }
@@ -405,7 +402,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // GET request, then see if the URI points to a static file resource, and if so, serve the file.
             if (response == null && authorizedRoute == null) {
 
-                File staticResourceFile = GribbitServer.siteResources.getStaticResource(reqURI);
+                File staticResourceFile = GribbitServer.siteResources.getStaticResource(reqURLUnhashed);
                 if (staticResourceFile == null) {
 
                     // Neither a route handler nor a static resource matched the request URI.
@@ -428,10 +425,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     } else {
                         // If file is newer than what is in the browser cache, or is not in cache, serve the file
-                        HttpSendStaticFile.sendStaticFile(request, reqURI, isHEAD, hashKey, staticResourceFile,
+                        HttpSendStaticFile.sendStaticFile(request, reqURLUnhashed, isHEAD, hashKey, staticResourceFile,
                                 lastModifiedEpochSeconds, addKeepAliveHeader, closeAfterWrite, ctx);
 
-                        Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURI + "\tfile://"
+                        Log.fine(request.getRequestor() + "\t" + origReqMethod + "\t" + reqURLUnhashed + "\tfile://"
                                 + staticResourceFile.getPath() + "\t" + HttpResponseStatus.OK + "\t"
                                 + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
 
@@ -470,8 +467,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // start being served at a new hash URI immediately, otherwise the web client connected to
                 // this web server will continue to serve old resources until the max age of the cached
                 // content is exceeded.
-                if (isHashURI) {
-                    HashInfo hashInfo = CacheExtension.getHashInfo(reqURI);
+                if (isHashURL) {
+                    HashInfo hashInfo = CacheExtension.getHashInfo(reqURLUnhashed);
                     if (hashInfo != null) {
                         long lastModifiedEpochSeconds = hashInfo.getLastModifiedEpochSeconds();
                         timeNow = ZonedDateTime.now();
@@ -533,7 +530,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     } catch (Exception e) {
                         throw new InternalServerErrorException(request, user, "Exception while handling URI "
-                                + origReqURI, e);
+                                + reqURLUnhashed, e);
                     }
                 }
             }
@@ -552,14 +549,16 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             // Serve the response to the client 
-            HttpSendResponse.sendResponse(reqURI, request, response, isHEAD, request.acceptEncodingGzip(), timeNow,
-                    hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite, ctx);
+            HttpSendResponse.sendResponse(request, response, isHEAD, request.acceptEncodingGzip(),
+                    timeNow, hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite,
+                    ctx);
 
             // Log the request and response
             HttpResponseStatus status = response.getStatus();
             Log.fine(request.getRequestor() + "\t" + origReqMethod
-                    + (request.getMethod() == origReqMethod ? "" : "\t=>" + request.getMethod()) + "\t" + reqURI + "\t"
-                    + status + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+                    + (request.getMethod() == origReqMethod ? "" : "\t=>" + request.getMethod()) + "\t"
+                    + reqURLUnhashed + "\t" + status + "\t"
+                    + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
 
         } catch (ExceptionResponse e) {
 
@@ -573,7 +572,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 return;
 
             } else {
-                String reqURI = request.getURI();
+                String reqURI = request.getURLPathUnhashed();
 
                 // Get the Response object generated by the ExceptionResponse that was thrown
                 Response exceptionResponse = e.getResponse();
@@ -598,7 +597,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         || exceptionResponse.getStatus() != HttpResponseStatus.FOUND;
 
                 // Send the exception response
-                HttpSendResponse.sendResponse(reqURI, request, exceptionResponse, /* isHEAD = */false,
+                HttpSendResponse.sendResponse(request, exceptionResponse, /* isHEAD = */false,
                 /* acceptEncodingGzip = */false, ZonedDateTime.now(),
                 /* hashTheResponse = */false, /* hashKeyRemainingAgeSeconds = */0,
                 /* hashKey = */null, addKeepAliveHeader, /* closeAfterWrite = */closeChannelAfterWrite, ctx);

@@ -38,5 +38,5 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface OnlySend {
+public @interface PrivateSet {
 }

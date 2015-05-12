@@ -37,7 +37,6 @@ import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.auth.Cookie;
 import gribbit.request.Request;
 import gribbit.response.HTMLPageResponse;
-import gribbit.response.HTMLResponse;
 import gribbit.response.Response;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.server.GribbitServer;
@@ -66,12 +65,10 @@ import java.util.zip.GZIPOutputStream;
 public class HttpSendResponse {
 
     /** Serve an HTTP response (anything other than a static file). */
-    public static void sendResponse(String reqURI, Request request, Response response, boolean isHEAD,
-            boolean acceptEncodingGzip, ZonedDateTime timeNow, boolean hashTheResponse,
-            long hashKeyMaxRemainingAgeSeconds, String hashKey, boolean addKeepAliveHeader, boolean closeAfterWrite,
-            ChannelHandlerContext ctx) {
+    public static void sendResponse(Request request, Response response, boolean isHEAD, boolean acceptEncodingGzip,
+            ZonedDateTime timeNow, boolean hashTheResponse, long hashKeyMaxRemainingAgeSeconds, String hashKey,
+            boolean addKeepAliveHeader, boolean closeAfterWrite, ChannelHandlerContext ctx) {
 
-        // Add any pending flash messages to the response, if the response is an HTML page
         if (response instanceof HTMLPageResponse) {
             // Add flash messages to response template, if any
             ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
@@ -82,7 +79,8 @@ public class HttpSendResponse {
                 response.deleteCookie(Cookie.FLASH_COOKIE_NAME);
             }
         } else {
-            // Store any un-displayed flash messages back in the cookie
+            // Store any un-displayed flash messages back in the cookie. This extends the time the flash message
+            // cookie lasts for, so that the messages should show up on the next full-page response.
             ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
             if (flashMessages != null) {
                 response.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, "/",
@@ -91,20 +89,9 @@ public class HttpSendResponse {
         }
 
         // Get the content of the response as a byte buffer.
-        ByteBuf content;
-        String contentType;
-        if (response instanceof HTMLResponse) {
-            // If "?_getmodel=1" is appended to the request URL of a request that returns an HTML response,
-            // then the data model backing the response will be returned as JSON instead of rendered HTML.
-            boolean isGetModelRequest = GribbitProperties.ALLOW_GET_MODEL && request.isGetModelRequest();
-            content = ((HTMLResponse) response).getContent(isGetModelRequest);
-            contentType = isGetModelRequest ? "application/json;charset=utf-8" : response.getContentType();
-        } else {
-            // Not a "getmodel" request, just get the content from the response
-            content = response.getContent();
-            contentType = response.getContentType();
-        }
+        ByteBuf content = response.getContent(request);
         byte[] contentBytes = content.array();
+        String contentType = response.getContentType(request);
 
         // Gzip content if the configuration property is set to allow gzip, and the client supports gzip encoding,
         // and the content size is larger than 1kb, and the content type is compressible 
@@ -157,7 +144,7 @@ public class HttpSendResponse {
         // fetch that hash URI only once until it expires in the cache, so that on subsequent requests,
         // the linked resource won't even be requested from the server.
         if (hashTheResponse && status == HttpResponseStatus.OK) {
-            CacheExtension.updateHashURI(reqURI, content, response.getLastModifiedEpochSeconds());
+            CacheExtension.updateHashURI(request.getURLPathUnhashed(), content, response.getLastModifiedEpochSeconds());
         }
 
         // Release the content ByteBuf after last usage if gzippedContent is being used instead
@@ -182,8 +169,8 @@ public class HttpSendResponse {
                     for (Cookie cookie : allCookiesWithName) {
                         // Delete all cookies with the requested name (there may be multiple cookies
                         // with this name but with different paths)
-                        String deleteCookieStr =
-                                ServerCookieEncoder.encode(Cookie.deleteCookie(cookie).toNettyCookie());
+                        String deleteCookieStr = ServerCookieEncoder
+                                .encode(Cookie.deleteCookie(cookie).toNettyCookie());
                         httpRes.headers().add(SET_COOKIE, deleteCookieStr);
                     }
                 }

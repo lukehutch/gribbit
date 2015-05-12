@@ -171,7 +171,7 @@ public class CacheExtension {
                             // Compute MD5 hash of the ByteBuf contents, then base64-encode the results
                             try {
                                 String hash = Base64Safe.base64Encode(DigestUtils.md5(new ByteBufInputStream(content)));
-                                content.release();  // TODO: does ByteBufInputStream call release()?
+                                content.release(); // TODO: does ByteBufInputStream call release()?
                                 return hash;
                             } catch (IOException e) {
                                 return null;
@@ -249,38 +249,39 @@ public class CacheExtension {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Return the original URI whose content was hashed to produce hash URI. Simply strips the hash key off the
-     * beginning of the URI.
+     * Returns the URL path from a hash URL, i.e. returns "/path" given "/_/HASHCODE/url". If the path is not of this
+     * form, the input is returned unchanged.
      * 
-     * Called by HttpRequestHandler on all request URIs. (When handling HTTP requests that contain hash keys, the hash
-     * key can be completely ignored, since the hash URI is only used to prevent the browser from fetching the resource
+     * Called by HttpRequestHandler on all request URLs. (When handling HTTP requests that contain hash keys, the hash
+     * key can be completely ignored, since the hash URL is only used to prevent the browser from fetching the resource
      * the second and subsequent times it wants to access it; the resource still has to be served the first time.)
      */
-    public static String getOrigURI(String hashURI) {
-        if (hashURI.startsWith("/_/")) {
-            int slashIdx = hashURI.indexOf('/', 3);
+    public static String getOrigURL(String hashURL) {
+        if (hashURL.startsWith("/_/")) {
+            int slashIdx = hashURL.indexOf('/', 3);
             if (slashIdx < 0) {
-                // Malformed hash URI
-                return hashURI;
+                // Malformed
+                return hashURL;
             }
-            // Return "/uri" given "/_/HASHKEY/uri"
-            return hashURI.substring(slashIdx);
+            return hashURL.substring(slashIdx);
         } else {
             // Not a hash URI, just return the original
-            return hashURI;
+            return hashURL;
         }
     }
 
-    /** Return the hash key from a hash URI, or null if none present. */
-    public static String getHashKey(String hashURI) {
-        if (hashURI.startsWith("/_/")) {
-            int slashIdx = hashURI.indexOf('/', 3);
+    /**
+     * Returns the hashcode from a hash URL path, i.e. returns "HASHCODE" given "/_/HASHCODE/url", or null if the path
+     * is not of this form.
+     */
+    public static String getHashKey(String hashURL) {
+        if (hashURL.startsWith("/_/")) {
+            int slashIdx = hashURL.indexOf('/', 3);
             if (slashIdx < 0) {
-                // Malformed hash URI
+                // Malformed
                 return null;
             }
-            // Return "HASHKEY" given "/_/HASHKEY/uri"
-            return hashURI.substring(3, slashIdx);
+            return hashURL.substring(3, slashIdx);
         } else {
             return null;
         }

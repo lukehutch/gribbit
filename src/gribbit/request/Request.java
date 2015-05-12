@@ -37,6 +37,8 @@ import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.Cookie;
 import gribbit.response.flashmsg.FlashMessage;
+import gribbit.server.config.GribbitProperties;
+import gribbit.server.siteresources.CacheExtension;
 import io.netty.handler.codec.http.ServerCookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -57,10 +59,14 @@ import java.util.Set;
 
 public class Request {
     private long reqReceivedTimeEpochMillis;
+
     private HttpMethod method;
     private String requestor;
     private String host;
-    private String path;
+    private String urlPath;
+    private String urlHashKey;
+    private String urlPathUnhashed;
+
     private CharSequence accept;
     private CharSequence acceptCharset;
     private CharSequence acceptLanguage;
@@ -153,8 +159,14 @@ public class Request {
 
         // Decode the path.
         QueryStringDecoder decoder = new QueryStringDecoder(httpReq.uri());
-        this.path = decoder.path();
+        this.urlPath = decoder.path();
         this.queryParamToVals = decoder.parameters();
+
+        // If this is a hash URL, look up original URL whose served resource was hashed to give this hash URL.
+        // We only need to serve the resource at a hash URL once per resource per client, since resources served
+        // from hash URLs are indefinitely cached in the browser.
+        this.urlHashKey = CacheExtension.getHashKey(this.urlPath);
+        this.urlPathUnhashed = this.urlHashKey != null ? CacheExtension.getOrigURL(this.urlPath) : this.urlPath;
 
         // Look for _getmodel=1 and _ws=1 query parameters, then remove them if present so the user doesn't see them
         this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
@@ -375,8 +387,28 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    public String getURI() {
-        return path.toString();
+    /**
+     * Returns the request URL. May include a hash code of the form /_/HASHCODE/path . These hash codes are used for
+     * cache extension, to allow indefinite caching of hashed resources in the browser. The original resource can be
+     * fetched without caching using the path returned by getURLPathUnhashed().
+     */
+    public String getURLPathPossiblyHashed() {
+        return urlPath.toString();
+    }
+
+    /** Returns /path if this request was for a hash URL of the form /_/HASHCODE/path */
+    public String getURLPathUnhashed() {
+        return urlPathUnhashed;
+    }
+
+    /** Returns HASHCODE if this request was for a hash URL of the form /_/HASHCODE/path */
+    public String getURLHashKey() {
+        return urlHashKey;
+    }
+
+    /** Returns true if this request was for a hash URL of the form /_/HASHCODE/path */
+    public boolean isHashURL() {
+        return urlHashKey != null;
     }
 
     public String getRequestor() {
@@ -396,7 +428,7 @@ public class Request {
     }
 
     public void setURI(String uri) {
-        this.path = uri;
+        this.urlPath = uri;
     }
 
     public CharSequence getHost() {
@@ -440,7 +472,7 @@ public class Request {
      * an HTML page, and not the rendered page itself.
      */
     public boolean isGetModelRequest() {
-        return isGetModelRequest;
+        return GribbitProperties.ALLOW_GET_MODEL && isGetModelRequest;
     }
 
     /**

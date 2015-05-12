@@ -25,6 +25,7 @@
  */
 package gribbit.response;
 
+import gribbit.request.Request;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
@@ -35,15 +36,20 @@ public class TextResponse extends Response {
     private String content;
 
     public TextResponse(HttpResponseStatus status, String content) {
-        super(status, "text/plain;charset=utf-8");
+        super(status);
         this.content = content;
     }
 
     @Override
-    public ByteBuf getContent() {
+    public ByteBuf getContent(Request request) {
         ByteBuf contentBytes = Unpooled.buffer(content.length() * 3 / 2);
         ByteBufUtil.writeUtf8(contentBytes, content);
         return contentBytes;
     }
-    
+
+    @Override
+    public String getContentType(Request request) {
+        return "text/plain;charset=utf-8";
+    }
+
 }

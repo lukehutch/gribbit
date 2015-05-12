@@ -45,7 +45,7 @@ public class NotFoundException extends ExceptionResponse {
      * This exception is thrown when a user tries to access a resource that doesn't exist (404).
      */
     public NotFoundException(Request request, User user) throws ExceptionResponse {
-        String uri = request.getURI();
+        String uri = request.getURLPath();
         Route customHandlerRoute = GribbitServer.siteResources.getNotFoundRoute();
         if (customHandlerRoute != null) {
             if (favicon.matcher(uri).matches()) {

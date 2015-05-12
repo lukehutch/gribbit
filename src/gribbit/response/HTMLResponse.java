@@ -27,6 +27,8 @@ package gribbit.response;
 
 import gribbit.auth.CSRF;
 import gribbit.model.DataModel;
+import gribbit.model.TemplateModel;
+import gribbit.request.Request;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
@@ -34,53 +36,41 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-import java.util.ArrayList;
+import java.util.List;
 
 public class HTMLResponse extends Response {
 
-    /**
-     * Some object that can be rendered as an HTML template, including a list or array of DataModel objects that are
-     * each bound to their own template.
-     */
-    public Object content;
+    /** The content of the response. */
+    public TemplateModel content;
 
-    public HTMLResponse(HttpResponseStatus status, DataModel content) {
-        super(status, "text/html;charset=utf-8");
+    public HTMLResponse(HttpResponseStatus status, TemplateModel content) {
+        super(status);
         this.content = content;
     }
 
-    public HTMLResponse(HttpResponseStatus status, ArrayList<? extends DataModel> content) {
-        super(status, "text/html;charset=utf-8");
-        this.content = content;
+    public HTMLResponse(HttpResponseStatus status, List<? extends TemplateModel> contentList) {
+        super(status);
+        this.content = TemplateModel.wrap(contentList);
     }
 
-    public HTMLResponse(HttpResponseStatus status, DataModel[] content) {
-        super(status, "text/html;charset=utf-8");
-        this.content = content;
-    }
-
-    /**
-     * Render the content field of this object as a model bound to an HTML template, producing an HTML fragment string
-     * as a return value.
-     * 
-     * Note: This method is overridden in the subclass HTMLPageResponse to render a complete HTML document (with head
-     * and body elements), rather than an HTML fragment.
-     */
-    protected String renderContentTemplates() {
-        return DataModel.renderTemplate(content, GribbitProperties.PRETTY_PRINT_HTML);
+    public HTMLResponse(HttpResponseStatus status, TemplateModel... contentList) {
+        super(status);
+        this.content = TemplateModel.wrap(contentList);
     }
 
     /**
      * Returns the UTF-8 byte encoding of the HTML content of the response, or the UTF-8 byte encoding of the JSON
      * representation of the model behind the HTML content if isGetModelRequest is true.
-     * 
-     * N.B. if isGetModelRequest is true, the caller needs to ignore the content type of text/html and substitute
-     * instead application/json.
      */
-    public ByteBuf getContent(boolean isGetModelRequest) {
-        String contentStr = isGetModelRequest //
-                ? DataModel.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON) //
-                : renderContentTemplates();
+    @Override
+    public ByteBuf getContent(Request request) {
+        String contentStr = request.isGetModelRequest()
+        // Render as JSON
+        ? DataModel.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON)
+                // Empty content
+                : content == null ? Unpooled.EMPTY_BUFFER
+                // Render as HTML
+                        : content.renderTemplate(request.getURLPathUnhashed(), GribbitProperties.PRETTY_PRINT_HTML);
         ByteBuf contentBytes = Unpooled.buffer(contentStr.length() * 3 / 2);
         ByteBufUtil.writeUtf8(contentBytes, contentStr);
         int contentLength = contentBytes.readableBytes();
@@ -99,13 +89,14 @@ public class HTMLResponse extends Response {
             // Should not happen
             Log.error("CSRF token is the wrong length");
         } else {
+            // We converted the content to UTF8 bytes, so we have to implement our own firstIndexOf() to find any match
             for (int i = 0, ni = contentLength, len = csrfBytes.length; i < ni; i++) {
                 for (int j = 0, nj = Math.min(ni - i, len); j < nj; j++) {
                     if (contentArray[i + j] != csrfBytes[j]) {
                         // Mismatch
                         break;
                     } else if (j == nj - 1) {
-                        // Found a match -- replace placeholder token with user's own CSRF token
+                        // Found a match starting at position i -- replace placeholder token with user's own CSRF token
                         for (int k = 0; k < nj; k++) {
                             contentArray[i + k] = (byte) (csrfTokReplace.charAt(k) & 0x7f);
                         }
@@ -116,9 +107,8 @@ public class HTMLResponse extends Response {
         return contentBytes;
     }
 
-    /** Returns the UTF-8 byte encoding of the HTML content of the response. */
     @Override
-    public ByteBuf getContent() {
-        return getContent(false);
+    public String getContentType(Request request) {
+        return request.isGetModelRequest() ? "application/json;charset=utf-8" : "text/html;charset=utf-8";
     }
 }

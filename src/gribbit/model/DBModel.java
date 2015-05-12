@@ -31,14 +31,7 @@ import gribbit.server.siteresources.Database;
 import org.mongojack.Id;
 import org.mongojack.WriteResult;
 
-public class DBModel<K> extends DataModel {
-    /**
-     * Generic parameterized class reference. DBModel.class has type Class<DBModel>, and that can't be cast to
-     * Class<DBModel<?>>, so use this reference instead if you need Class<DBModel<?>>.
-     */
-    @SuppressWarnings("unchecked")
-    public static final Class<DBModel<?>> TYPE = (Class<DBModel<?>>) new DBModel<Object>().getClass();
-
+public abstract class DBModel<K> extends DataModel {
     @Id
     public K id;
 

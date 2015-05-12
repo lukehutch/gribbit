@@ -279,7 +279,7 @@ public class Route {
      * route's base URI, e.g. /person/53 for a route of /person gives one Integer-typed param value of 53
      */
     private Object[] bindGetParamsFromURI(Request request, User user) throws ExceptionResponse {
-        String reqURI = CacheExtension.getOrigURI(request.getURI());
+        String reqURI = CacheExtension.getOrigURL(request.getURLPath());
         if (getParamTypes.length == 0) {
             // get() takes no params
             return null;

@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 
 public class StringUtils {
 
@@ -253,7 +254,7 @@ public class StringUtils {
      */
     public static <T> String join(Iterable<T> iterable, String delim, StringToStringMapper mapper) {
         if (iterable == null) {
-            return null;
+            return "";
         }
         StringBuilder buf = new StringBuilder();
         int idx = 0;
@@ -295,6 +296,22 @@ public class StringUtils {
             buf.append(array[i].toString());
         }
         return buf.toString();
+    }
+
+    /**
+     * Stringify elements of an Iterable, inserting ", " as a delimiter between adjacent elements after first sorting
+     * the elements into lexicographic order.
+     */
+    public static <T extends Comparable<T>> String joinCommaSeparatedSorted(Iterable<T> iterable) {
+        if (iterable == null) {
+            return "";
+        }
+        ArrayList<T> sorted = new ArrayList<>();
+        for (T val : iterable) {
+            sorted.add(val);
+        }
+        Collections.sort(sorted);
+        return join(sorted, ", ");
     }
 
     // -----------------------------------------------------------------------------------------------------

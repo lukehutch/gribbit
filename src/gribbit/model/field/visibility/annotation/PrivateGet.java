@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.handler.route.annotation;
+package gribbit.model.field.visibility.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -31,13 +31,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Route override. Without this, the class' path and name are converted into the route, e.g.
- * app.handler.action.HandleEmailValidationLink -> /app/handler/action/handle-email-validation-link
+ * Prevents a field in a data model from being rendered as a template parameter. Prevents the user from ever seeing the
+ * value in the data model when a template is rendered, but allows them to set the value in a POST request.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface RouteOverride {
-
-    String value();
-
+@Target(ElementType.FIELD)
+public @interface PrivateGet {
 }

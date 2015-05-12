@@ -26,13 +26,9 @@
 package gribbit.server.siteresources;
 
 import gribbit.model.DBModel;
-import gribbit.model.DBModelLongKey;
-import gribbit.model.DBModelObjectIdKey;
-import gribbit.model.DBModelStringKey;
 import gribbit.model.DataModel;
 import gribbit.model.field.annotation.DBIndex;
 import gribbit.model.field.annotation.Email;
-import gribbit.model.field.annotation.IsURL;
 import gribbit.model.field.annotation.MaxIntegerValue;
 import gribbit.model.field.annotation.MaxLength;
 import gribbit.model.field.annotation.MinIntegerValue;
@@ -41,10 +37,9 @@ import gribbit.model.field.annotation.NoTrim;
 import gribbit.model.field.annotation.NormalizeSpacing;
 import gribbit.model.field.annotation.Regex;
 import gribbit.model.field.annotation.Required;
-import gribbit.model.field.visibility.annotation.OnlyReceive;
-import gribbit.model.field.visibility.annotation.OnlySend;
 import gribbit.model.field.visibility.annotation.Private;
-import gribbit.util.Log;
+import gribbit.model.field.visibility.annotation.PrivateGet;
+import gribbit.model.field.visibility.annotation.PrivateSet;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 
@@ -54,7 +49,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -62,11 +56,7 @@ import java.util.regex.PatternSyntaxException;
 
 public class DataModelLoader {
 
-    HashMap<String, Class<? extends DataModel>> classNameToDataModel = new HashMap<>();
-
-    private static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
-
-    HashSet<String> inlineTemplateStaticFieldNames = new HashSet<>();
+    // TODO: This template stuff should be in TemplateLoader, not DataModelLoader
 
     HashMap<String, String> classNameToInlineTemplate = new HashMap<>();
 
@@ -74,8 +64,7 @@ public class DataModelLoader {
 
     // -----------------------------------------------------------------------------------------------------
 
-    private static ConcurrentHashMap<Class<? extends DataModel>, ArrayList<FieldValueConstraintChecker>> constraintCheckersForClass =
-            new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Class<? extends DataModel>, ArrayList<FieldValueConstraintChecker>> constraintCheckersForClass = new ConcurrentHashMap<>();
 
     private static abstract class FieldValueConstraintChecker {
         /**
@@ -88,83 +77,11 @@ public class DataModelLoader {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Get the names of all the static fields containing inline templates that were discovered during classpath
-     * scanning, so that when there are changes on the classpath, we can dynamically reload the constant values in these
-     * static fields.
-     */
-    public HashSet<String> getInlineTemplateStaticFieldNames() {
-        return inlineTemplateStaticFieldNames;
-    }
-
-    /**
      * Found a static initializer value in a classfile on a second or subsequent loading of site resources. Use this
      * value instead of the one read using reflection, so that hot changes of static constant values is supported.
      */
     public void registerTemplateStaticFieldValue(String className, String templateString) {
         classNameToInlineTemplateOverride.put(className, templateString);
-    }
-
-    // -----------------------------------------------------------------------------------------------------
-
-    /** Got a DataModel subclass on the classpath. */
-    void registerDataModel(Class<? extends DataModel> dataModelClass) {
-        if (dataModelClass != DBModel.class && dataModelClass != DBModelObjectIdKey.class
-                && dataModelClass != DBModelStringKey.class && dataModelClass != DBModelLongKey.class) {
-
-            // Make sure that the field types make sense given any constraint annotations on the fields
-            DataModelLoader.checkFieldTypesAgainstAnnotations(dataModelClass);
-
-            // Store a mapping between class name and DataModel subclass
-            Class<? extends DataModel> oldVal =
-                    classNameToDataModel.put(dataModelClass.getSimpleName(), dataModelClass);
-            if (oldVal != null) {
-                // TODO: don't use just leafnames for data models and templates; use whole package name so
-                // that names don't have to be unique across the whole project
-                throw new RuntimeException("Class name \"" + dataModelClass.getSimpleName()
-                        + "\" is not unique (two different classes extending " + DataModel.class.getName()
-                        + " have the same class name)");
-            }
-
-            // If the DataModel contains a "_template" field, load the inline template as if it were in an
-            // HTML file of the same name as the class
-            Field inlineTemplateField;
-            try {
-                inlineTemplateField = dataModelClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
-                if (inlineTemplateField != null) {
-                    int modifiers = inlineTemplateField.getModifiers();
-                    if (Modifier.isStatic(modifiers) && Modifier.isPublic(modifiers)
-                            && inlineTemplateField.getType().equals(String.class)) {
-
-                        // Got an inline template in the static field named "_template" of a DataModel class
-                        inlineTemplateStaticFieldNames.add(dataModelClass.getName() + "."
-                                + inlineTemplateField.getName());
-                        String templateStr = (String) inlineTemplateField.get(null);
-                        classNameToInlineTemplate.put(dataModelClass.getName(), templateStr);
-
-                        Log.fine("Registering inline template: " + dataModelClass.getName() + "."
-                                + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
-
-                    } else {
-                        throw new RuntimeException("Field \"" + inlineTemplateField.getName() + "\" in class "
-                                + dataModelClass.getName() + " must be both static and final");
-                    }
-                }
-            } catch (NoSuchFieldException e) {
-                // Ignore
-            } catch (SecurityException | IllegalAccessException | IllegalArgumentException | NullPointerException e) {
-                Log.warning("Could not read field " + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " in class "
-                        + dataModelClass + ": " + e);
-            }
-
-            // Look for fields labeled with IsURL annotation
-            for (Field field : dataModelClass.getFields()) {
-                for (Annotation annotation : field.getAnnotations()) {
-                    if (annotation.annotationType() == IsURL.class) {
-
-                    }
-                }
-            }
-        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -174,32 +91,36 @@ public class DataModelLoader {
      * into a template, served as JSON or bound from a POST request, to ensure the value is never sent to the user if it
      * shouldn't be, and/or cannot be set in a DBModel subclass by the user when they submit data in a POST request.
      */
-    public static boolean fieldIsPrivate(Field field, boolean checkSendability, boolean checkReceivability) {
+    // FIXME: this is used by TemplateModelMapping too, move to a utility class
+    // FIXME: Will checkFieldAccessible() always return true if this method returns true, now that we're checking if the class is public? (What about inner classes, static classes, etc.?) 
+    public static boolean fieldIsPrivate(Field field, boolean checkGet, boolean checkSet) {
         if (field == null) {
             return true;
         }
 
         int modifiers = field.getModifiers();
         return
-        // Non-public, abstract, static or final => treat as private
-        (!Modifier.isPublic(modifiers) || Modifier.isAbstract(modifiers) || Modifier.isStatic(modifiers) || Modifier
-                .isFinal(modifiers))
-        //
-        // DBModel id fields are private, they can't be sent to user or bound from forms
+        // Class is not public
+        (!Modifier.isPublic(field.getDeclaringClass().getModifiers()))
+        // Field is not public, or is abstract, static or final => treat as private
+                || (!Modifier.isPublic(modifiers) || Modifier.isAbstract(modifiers) || Modifier.isStatic(modifiers) || Modifier
+                        .isFinal(modifiers))
+                //
+                // DBModel id fields are private, they can't be sent to user or bound from forms
                 || (DBModel.class.isAssignableFrom(field.getDeclaringClass()) && field.getName().equals("id"))
 
                 // Field is annotated with Private
-                || (field.isAnnotationPresent(Private.class))
+                || field.isAnnotationPresent(Private.class)
 
-                // Field cannot be received (only sent), but an attempt has been made to use it in an object that is
+                // Field cannot be set from received value, but an attempt has been made to set it in an object that is
                 // bound from a POST request
-                || (field.isAnnotationPresent(OnlySend.class) && checkReceivability)
+                || (field.isAnnotationPresent(PrivateSet.class) && checkSet)
 
-                // Field cannot be sent (only received), but an attempt has been made to use it in an object that is
-                // sent to the user as rendered HTML or JSON
-                || (field.isAnnotationPresent(OnlyReceive.class) && checkSendability);
+                // Cannot get field value, but an attempt has been made to get value to render it as HTML or JSON
+                || (field.isAnnotationPresent(PrivateGet.class) && checkGet);
     }
 
+    // TODO: Move this to a utility class?
     public static boolean fieldIsRequired(Field f) {
         return f.isAnnotationPresent(Required.class) || f.isAnnotationPresent(DBIndex.class)
                 || f.isAnnotationPresent(MinLength.class) || f.isAnnotationPresent(MaxLength.class)
@@ -286,7 +207,7 @@ public class DataModelLoader {
             // --------------------------------------------------------
 
             // Ignore private fields
-            if (!fieldIsPrivate(field, /* checkSendability = */false, /* checkReceivability = */false)) {
+            if (!fieldIsPrivate(field, /* checkGet = */false, /* checkSet = */false)) {
                 // Go through constraint annotations on this field
                 for (Annotation annotation : fieldAnnotations) {
                     Class<? extends Annotation> annotationType = annotation.annotationType();

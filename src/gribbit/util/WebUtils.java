@@ -44,11 +44,6 @@ import java.util.regex.Pattern;
 
 public class WebUtils {
 
-    /** Pattern for recognizing external URIs. */
-    public static final Pattern EXTERNAL_URI = Pattern.compile("^((data:)|(http[s]?:))?\\/\\/.*");
-
-    // -----------------------------------------------------------------------------------------------------
-
     /**
      * Pattern for valid id or name attribute values. NB '.' and ':' are also technically allowed in the standard, but
      * they cause problems with jQuery, so they are disallowed here. Also note that both character cases are allowed,
@@ -195,6 +190,62 @@ public class WebUtils {
 
     // -----------------------------------------------------------------------------------------------------
 
+    /** Pattern for recognizing external URIs. */
+    private static final Pattern EXTERNAL_URI = Pattern.compile("^((data:)|(http[s]?:))?\\/\\/.*");
+
+    /**
+     * Returns true if the URL is not null, empty or "#", but starts with "data:" or "http[s]:", and does not contain an
+     * unexpanded template parameter "${...}" (which could lead to vulnerabilities given a carefully-crafted URL
+     * parameter).
+     */
+    public static boolean isLocalURL(String hrefURI) {
+        return
+        //Not empty/null/'#'
+        hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#") //
+                // Not external/absolute URI
+                && !EXTERNAL_URI.matcher(hrefURI).matches() //
+                // Not template param
+                && !hrefURI.contains("${");
+    }
+
+    /**
+     * Resolve a relative path in an URI attribute to an absolute path.
+     * 
+     * @param hrefURL
+     *            the URI to resolve, e.g. "../css/main.css"
+     * @param baseURL
+     *            the base URI to resolve relative to, without a trailing slash, e.g. "/site/res". If baseURL is "",
+     *            then ".." and "." are still resolved, but URLs are not made absolute, i.e. "css/main.css" remains
+     *            unchanged, but "../css/main.css" turns into "/css/main.css".
+     * @return the absolute path of the URI, e.g. "/site/css/main.css"
+     */
+    public static String resolveHREF(String hrefURL, String baseURL) {
+        // Return original URL if it is empty, starts with "#", or is a template param
+        if (isLocalURL(hrefURL)) {
+            // Build new path for the linked resource
+            StringBuilder hrefURLResolved = new StringBuilder(hrefURL.startsWith("//") ? "//"
+                    : hrefURL.startsWith("/") ? "/" : baseURL);
+            for (CharSequence part : StringUtils.splitAsList(hrefURL, "/")) {
+                if (part.length() == 0 || part.equals(".")) {
+                    // Ignore
+                } else if (part.equals("..")) {
+                    // Move up one level (ignoring if we get back to root)
+                    int lastIdx = hrefURLResolved.lastIndexOf("/");
+                    hrefURLResolved.setLength(lastIdx < 0 ? 0 : lastIdx);
+                } else {
+                    if (hrefURLResolved.length() > 0 && hrefURLResolved.charAt(hrefURLResolved.length() - 1) != '/') {
+                        hrefURLResolved.append('/');
+                    }
+                    hrefURLResolved.append(part);
+                }
+            }
+            return hrefURLResolved.toString();
+        }
+        return hrefURL;
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+
     /** Unescape a URL segment, and turn it from UTF-8 bytes into a Java string. TODO: test this. */
     public static String unescapeURISegment(String segment) {
         if (segment.indexOf('%') < 0)
@@ -206,9 +257,8 @@ public class WebUtils {
         segIdx < nSeg; segIdx++) {
             char c = segment.charAt(segIdx);
             if (escapePos == 0 || escapePos == 1) {
-                int digit =
-                        c >= '0' && c <= '9' ? (c - '0') : c >= 'a' && c <= 'f' ? (c - 'a' + 10) : c >= 'A' && c <= 'F'
-                                ? (c - 'A' + 10) : -1;
+                int digit = c >= '0' && c <= '9' ? (c - '0') : c >= 'a' && c <= 'f' ? (c - 'a' + 10) : c >= 'A'
+                        && c <= 'F' ? (c - 'A' + 10) : -1;
                 if (digit < 0) {
                     // Got an invalid digit, cancel unescaping and ignore everything from '%' to
                     // the invalid digit inclusive 
@@ -395,8 +445,8 @@ public class WebUtils {
         }
     }
 
-    public static final boolean isValidURI(String uriStr) {
-        return parseURI(uriStr) != null;
+    public static final boolean isValidURL(String urlStr) {
+        return parseURI(urlStr) != null;
     }
 
     // -----------------------------------------------------------------------------------------------------

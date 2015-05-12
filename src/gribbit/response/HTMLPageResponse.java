@@ -25,86 +25,43 @@
  */
 package gribbit.response;
 
-import gribbit.model.DataModel;
+import gribbit.model.TemplateModel;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.server.config.GribbitProperties;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.util.ArrayList;
 
-/** Rendered by the HTMLPageResponse.html page template. */
+/** A response that yields a complete HTML document. */
 public class HTMLPageResponse extends HTMLResponse {
 
-    /** Rendered into the title element of the page template. */
-    public String title;
-
-    /** Each FlashMessage is rendered as a Bootstrap template. */
-    public ArrayList<FlashMessage> flashMessages;
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    public HTMLPageResponse(HttpResponseStatus status, String title, DataModel content) {
-        super(status, content);
-        this.title = title;
+    public HTMLPageResponse(HttpResponseStatus status, String title, TemplateModel body) {
+        super(status, new HTMLPageTemplateModel(title, body));
     }
 
-    public HTMLPageResponse(String title, DataModel content) {
-        this(HttpResponseStatus.OK, title, content);
+    public HTMLPageResponse(String title, TemplateModel body) {
+        this(HttpResponseStatus.OK, title, body);
     }
 
-    public HTMLPageResponse(HttpResponseStatus status, String title, DataModel[] content) {
-        super(status, content);
-        this.title = title;
+    public HTMLPageResponse(HttpResponseStatus status, String title, TemplateModel... bodyItems) {
+        super(status, new HTMLPageTemplateModel(title, bodyItems));
     }
 
-    public HTMLPageResponse(String title, DataModel[] content) {
-        this(HttpResponseStatus.OK, title, content);
+    public HTMLPageResponse(String title, TemplateModel... bodyItems) {
+        this(HttpResponseStatus.OK, title, bodyItems);
     }
 
-    public HTMLPageResponse(HttpResponseStatus status, String title, ArrayList<DataModel> content) {
-        super(status, content);
-        this.title = title;
+    public HTMLPageResponse(HttpResponseStatus status, String title, ArrayList<? extends TemplateModel> bodyItems) {
+        super(status, new HTMLPageTemplateModel(title, bodyItems));
     }
 
-    public HTMLPageResponse(String title, ArrayList<DataModel> content) {
-        this(HttpResponseStatus.OK, title, content);
+    public HTMLPageResponse(String title, ArrayList<? extends TemplateModel> bodyItems) {
+        this(HttpResponseStatus.OK, title, bodyItems);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
 
+    /** Add flash messages to the page template model so that the messages are displayed. */
     public void setFlashMessages(ArrayList<FlashMessage> flashMessages) {
-        this.flashMessages = flashMessages;
+        ((HTMLPageTemplateModel) content).setFlashMessages(flashMessages);
     }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /**
-     * Render this Response object as a complete HTML page, complete with head and body elements. This class is bound to
-     * the HTMLPageResponse.html template, which binds the field "title" to the "${title}" template parameter within the
-     * title element, etc.
-     * 
-     * The field "content" is simply one of several public fields substituted into the template parameters, as a
-     * parameter within the body.
-     * 
-     * The field "flashMessages" is bound to the "${flashMessages}" parameter, which should be inside the body element
-     * of the page template. Flash messages have their own HTML template that is inserted at this point for each flash
-     * message.
-     * 
-     * (Whole-page templates were modified by the template loader on load to insert all head-content.html content found
-     * in the classpath at the end of the head element, and all tail-content.html content at the end of the body
-     * element.)
-     */
-    @Override
-    protected String renderContentTemplates() {
-        return this.renderTemplate(GribbitProperties.PRETTY_PRINT_HTML);
-    }
-
-    /**
-     * Default page template. All files named "head-content.html" on the classpath will be inserted at the end of the
-     * head element, and all files named "tail-content.html" on the classpath will be inserted at the end of the body
-     * element. The flashMessages parameter is filled in after the response is returned.
-     */
-    public static final String _template = "<!DOCTYPE html>" //
-            + "<html><head><meta charset=\"utf-8\"><title>${title}</title></head>" //
-            + "<body>${flashMessages}${content}</body></html>";
 }

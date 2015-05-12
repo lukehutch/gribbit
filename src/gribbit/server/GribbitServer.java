@@ -232,6 +232,7 @@ public class GribbitServer {
                 sslCtx = null;
             }
 
+            // TODO: make these use AutoCloseable: https://github.com/netty/netty/commit/0b5df22aec4ed037de1b03880d62752458dd5d28
             EventLoopGroup bossGroup = new NioEventLoopGroup(1);
             EventLoopGroup workerGroup = new NioEventLoopGroup();
             EventLoopGroup routeHandlerGroup = new NioEventLoopGroup();

@@ -61,7 +61,7 @@ public class UnauthorizedException extends ExceptionResponse {
         // Redirect the user back to the page they were trying to get to once they do log in successfully
         this.exceptionResponse.logOutUser();
         this.exceptionResponse
-                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request.getURI(), 300));
+                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request.getURLPath(), 300));
     }
 
     /**

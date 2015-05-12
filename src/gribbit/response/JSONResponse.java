@@ -26,6 +26,7 @@
 package gribbit.response;
 
 import gribbit.model.DataModel;
+import gribbit.request.Request;
 import gribbit.server.config.GribbitProperties;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -37,16 +38,21 @@ public class JSONResponse extends Response {
     private Object content;
 
     public JSONResponse(HttpResponseStatus status, Object content) {
-        super(status, "application/json;charset=utf-8");
+        super(status);
         this.content = content;
     }
 
     @Override
-    public ByteBuf getContent() {
+    public ByteBuf getContent(Request request) {
         String jsonStr = DataModel.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON);
         ByteBuf contentBytes = Unpooled.buffer(jsonStr.length() * 3 / 2);
         ByteBufUtil.writeUtf8(contentBytes, jsonStr);
         return contentBytes;
+    }
+
+    @Override
+    public String getContentType(Request request) {
+        return "application/json;charset=utf-8";
     }
 
 }

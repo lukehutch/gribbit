@@ -62,13 +62,11 @@ public class Database {
 
     /** The id field for each DBModel. */
     @SuppressWarnings("rawtypes")
-    private static ConcurrentHashMap<Class<? extends DBModel>, Class<?>> dbModelClassToIdType =
-            new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Class<? extends DBModel>, Class<?>> dbModelClassToIdType = new ConcurrentHashMap<>();
 
     /** The set of names of indexed fields for each DBModel. */
     @SuppressWarnings("rawtypes")
-    private static ConcurrentHashMap<Class<? extends DBModel>, HashSet<String>> dbModelClassToIndexedFieldNames =
-            new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<Class<? extends DBModel>, HashSet<String>> dbModelClassToIndexedFieldNames = new ConcurrentHashMap<>();
 
     // ------------------------------------------------------------------------------------------------------------------------------------
 
@@ -200,10 +198,9 @@ public class Database {
                 try {
                     // Get database collection based on collection name, and wrap it with a Jackson mapper to/from
                     // the DBModel class, indexed using the id field type
-                    coll =
-                            (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(
-                                    mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName),
-                                    dbModelClass, idType);
+                    coll = (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(
+                            mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass,
+                            idType);
                 } catch (Exception e) {
                     throw new RuntimeException(
                             "Failure during JacksonDBCollection.wrap(), this can be caused by having methods "
@@ -241,8 +238,9 @@ public class Database {
 
                     // There can be only one primary key field, and it is already annotated in DBModel,
                     // so fields in subclasses can't be annotated with @Id.
-                    if ((field.getAnnotation(org.mongojack.Id.class) != null || field
-                            .getAnnotation(javax.persistence.Id.class) != null) && !fieldName.equals("id")) {
+                    if ((field.getAnnotation(org.mongojack.Id.class) != null //
+                            || field.getAnnotation(javax.persistence.Id.class) != null)
+                            && !fieldName.equals("id")) {
                         throw new RuntimeException("Class " + dbModelClass.getName()
                                 + " has an @Id annotation on a field other than the id field");
                     } else if (fieldName.equals("_id")) {

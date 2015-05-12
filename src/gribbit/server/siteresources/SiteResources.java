@@ -27,16 +27,21 @@ package gribbit.server.siteresources;
 
 import gribbit.model.DBModel;
 import gribbit.model.DataModel;
-import gribbit.route.RouteHandler;
+import gribbit.model.TemplateModel;
 import gribbit.route.Route;
+import gribbit.route.RouteHandler;
 import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
+import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
+import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -45,10 +50,6 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.jsoup.nodes.Node;
-import org.lukehutch.fastclasspathscanner.FastClasspathScanner;
-import org.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
-import org.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
-import org.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
 
 public class SiteResources {
 
@@ -59,7 +60,7 @@ public class SiteResources {
 
     private RouteMapping routeMapping;
 
-    private TemplateLoader templateLoader;
+    private TemplateModelLoader templateModelMapping;
 
     private DataModelLoader dataModelLoader;
 
@@ -118,8 +119,8 @@ public class SiteResources {
      * Get the HTML template document for a given template class, or return null if there isn't a template with the
      * given name.
      */
-    public List<Node> getTemplateDocForClass(Class<? extends DataModel> templateClass) {
-        return templateLoader.getTemplateNodes(templateClass);
+    public List<Node> getTemplateForClass(Class<? extends DataModel> templateClass) {
+        return templateModelMapping.getTemplateNodes(templateClass);
     }
 
     public long getResourcesLoadedEpochSeconds() {
@@ -131,7 +132,7 @@ public class SiteResources {
      * prettyprinting)
      */
     public HashSet<String> getCustomInlineElements() {
-        return templateLoader.getCustomInlineElements();
+        return templateModelMapping.getCustomInlineElements();
     }
 
     /**
@@ -139,12 +140,12 @@ public class SiteResources {
      * it will be prettyprinted as a block element, with newlines and indentation).
      */
     public void registerCustomInlineElement(String elementName) {
-        templateLoader.registerCustomInlineElement(elementName);
+        templateModelMapping.registerCustomInlineElement(elementName);
     }
 
     /** Return the templates as HTML strings, for clientside rendering. */
     public HashMap<String, String> getTemplateNameToTemplateStr() {
-        return templateLoader.getTemplateNameToTemplateStr();
+        return templateModelMapping.getTemplateNameToTemplateStr();
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -224,16 +225,26 @@ public class SiteResources {
                 throw new RuntimeException("Static resource root specified in gribbit.properties is not a directory: "
                         + GribbitProperties.STATIC_RESOURCE_ROOT);
             }
+            Log.info("Static resource root: " + staticResourceRootDir);
         }
 
         routeMapping = new RouteMapping();
         dataModelLoader = new DataModelLoader();
-        templateLoader = new TemplateLoader(this, dataModelLoader);
+        templateModelMapping = new TemplateModelLoader(this, dataModelLoader);
+
+        // If this is the second or subsequent loading of site resources, directly load constant literal
+        // values of static fields that contain inline templates, so that we can dynamically pick up these
+        // changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
+        // Full hot code swap / dynamic class reloading is problematic, see 
+        // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
+        HashSet<String> prevTemplateStaticFieldNames = GribbitServer.siteResources == null ? new HashSet<>()
+                : GribbitServer.siteResources.templateModelMapping.getInlineTemplateStaticFieldNames();
+        final HashMap<String, String> classAndFieldNameToLatestValue = new HashMap<>();
 
         // Set up classpath scanner
         classpathScanner = new FastClasspathScanner(//
                 staticResourceRootDir == null //
-                        ? new String[] { "gribbit", appPackageName } //
+                ? new String[] { "gribbit", appPackageName } //
                         : new String[] { "gribbit", appPackageName, staticResourceRootDir.getPath() })
         //
                 .matchSubclassesOf(RouteHandler.class, new SubclassMatchProcessor<RouteHandler>() {
@@ -243,53 +254,58 @@ public class SiteResources {
                     }
                 })
                 //
+                .matchStaticFinalFieldNames(prevTemplateStaticFieldNames, new StaticFinalFieldMatchProcessor() {
+                    @Override
+                    public void processMatch(String className, String fieldName, Object currFieldConstantValue) {
+                        // Read (possibly-updated) static field value directly from classfile
+                        classAndFieldNameToLatestValue
+                                .put(className + "." + fieldName, (String) currFieldConstantValue);
+                    }
+                })
+                //
                 .matchSubclassesOf(DataModel.class, new SubclassMatchProcessor<DataModel>() {
                     @Override
                     public void processMatch(Class<? extends DataModel> matchingClass) {
-                        dataModelLoader.registerDataModel(matchingClass);
-                    }
-                })
-                //
-                .matchSubclassesOf(DBModel.TYPE, new SubclassMatchProcessor<DBModel<?>>() {
-                    @Override
-                    public void processMatch(Class<? extends DBModel<?>> matchingClass) {
-                        Database.registerDBModel(matchingClass);
-                    }
-                })
-                //
-                .matchFilenamePattern(".*\\.html", new FileMatchProcessor() {
-                    @Override
-                    public void processMatch(String absolutePath, String relativePath, InputStream inputStream) {
-                        try {
-                            templateLoader.registerWebResource(absolutePath, relativePath,
-                                    StringUtils.readWholeFile(inputStream));
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
+                        // Check annotations match field types
+                        DataModelLoader.checkFieldTypesAgainstAnnotations(matchingClass);
+
+                        if (matchingClass.isAssignableFrom(DBModel.class)) {
+                            // Register DBModel classes with database
+                            @SuppressWarnings("unchecked")
+                            Class<DBModel<?>> dbModelClass = (Class<DBModel<?>>) matchingClass;
+                            Database.registerDBModel(dbModelClass);
+
+                        } else if (matchingClass.isAssignableFrom(TemplateModel.class)) {
+                            // If class has a static final template field, use the latest value read from the classfile,
+                            // so that hot changes to template strings are supported (to support hot template updates
+                            // when debugging in Eclipse).
+                            //
+                            // N.B. Class-based MatchProcessors are called by FastClasspathScanner after all classfiles
+                            // have been read, so by the time this code is called, classAndFieldNameToLatestValue has
+                            // been populated with the latest values of all static template fields of all classes.
+                            String latestStaticFieldTemplateStr = classAndFieldNameToLatestValue.get(matchingClass
+                                    .getName() + "." + TemplateModelLoader.DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+
+                            // Load and parse template corresponding to each TemplateModel class
+                            @SuppressWarnings("unchecked")
+                            Class<? extends TemplateModel> templateClass = (Class<? extends TemplateModel>) matchingClass;
+                            templateModelMapping.loadTemplate(templateClass, latestStaticFieldTemplateStr);
                         }
                     }
+                })
+                //
+                .matchFilenamePattern("(.*/|)(head|tail)_content\\.html", new FileMatchProcessor() {
+                    @Override
+                    public void processMatch(String absolutePath, String relativePath, InputStream inputStream) {
+                        // Load files named "head_content.html" and "tail_content.html" from anywhere in the classpath
+                        templateModelMapping.loadHeadTailContent(absolutePath, inputStream);
+                    }
                 });
-
-        // If this is the second or subsequent loading of site resources, directly load constant literal
-        // values of static fields that contain inline templates, so that we can dynamically pick up these
-        // changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
-        // Full hot code swap / dynamic class reloading is problematic, see 
-        // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
-        HashSet<String> staticFieldNames =
-                GribbitServer.siteResources == null ? null : GribbitServer.siteResources.dataModelLoader
-                        .getInlineTemplateStaticFieldNames();
-        if (staticFieldNames != null) {
-            classpathScanner.matchStaticFinalFieldNames(staticFieldNames, new StaticFinalFieldMatchProcessor() {
-                @Override
-                public void processMatch(String className, String fieldName, Object fieldConstantValue) {
-                    dataModelLoader.registerTemplateStaticFieldValue(className, (String) fieldConstantValue);
-                }
-            });
-        }
 
         // Scan classpath for handlers, models and templates
         classpathScanner.scan();
 
-        templateLoader.initializeTemplates();
+        templateModelMapping.initializeTemplates(classAndFieldNameToLatestValue);
 
         resourcesLoadedEpochSeconds = ZonedDateTime.now().toEpochSecond();
     }
