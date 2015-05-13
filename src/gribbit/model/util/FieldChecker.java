@@ -74,7 +74,7 @@ public class FieldChecker {
      * @throws RuntimeException
      *             if constraints don't match field types.
      */
-    public void registerClass(Class<?> klass) throws RuntimeException {
+    public void registerClassForConstraintChecking(Class<?> klass) throws RuntimeException {
         ArrayList<FieldValueConstraintChecker> valueCheckers = new ArrayList<>();
         for (Field field : klass.getFields()) {
             Annotation[] fieldAnnotations = field.getAnnotations();

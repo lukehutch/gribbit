@@ -90,7 +90,7 @@ class TemplateModelLoader {
 
     // private HashMap<Class<?>, ArrayList<Field>> templateClassToFields = new HashMap<>();
 
-    static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
+    static final String TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -203,8 +203,8 @@ class TemplateModelLoader {
             // Find DataModel-typed public fields within TemplateModels that are bound to a form
             // ---------------------------------------------------------------------------------------------------------
 
-            // Get a list of public fields, and for any fields that are a subclass of DataModel but not of TemplateModel
-            // (i.e. for fields that are bound to forms), create a mapping from the field name to the names of the
+            // Get a list of public fields, and for any fields that are a subclass of DataModel (i.e. for
+            // fields that are bound to forms), create a mapping from the field name to the names of the
             // fields of the referenced type.
             MultiMapKeyToSet<String, String> formIdToReferencedTypeFieldNames = new MultiMapKeyToSet<>();
             HashMap<String, Class<? extends DataModel>> formFieldNameToReferencedType = new HashMap<>();
@@ -221,16 +221,16 @@ class TemplateModelLoader {
                     allFieldNames.add(fieldName);
                     publicFields.add(field);
 
-                    // Also identify DataModel-typed fields (that don't extend TemplateModel), they are bound to a form
-                    if (fieldType.isAssignableFrom(DataModel.class) && !fieldType.isAssignableFrom(TemplateModel.class)) {
+                    // Also identify DataModel-typed fields, they are bound to a form
+                    if (fieldType.isAssignableFrom(DataModel.class)) {
                         @SuppressWarnings("unchecked")
                         Class<? extends DataModel> fieldTypeAsDataModel = (Class<? extends DataModel>) fieldType;
 
                         if (!FieldChecker.isFlatModel(fieldTypeAsDataModel)) {
                             throw new RuntimeException("Field " + templateClassName + "." + fieldName + " has type "
                                     + fieldType.getSimpleName() + ", which is a subclass of "
-                                    + DataModel.class.getName() + " (and not " + TemplateModel.class.getName()
-                                    + "), marking it as being bound to a form. However, the class has one or more "
+                                    + DataModel.class.getName()
+                                    + ", marking it as being bound to a form. However, the class has one or more "
                                     + "fields with a type that is not supported for binding from POST requests");
                         }
 
@@ -535,17 +535,17 @@ class TemplateModelLoader {
             // Check forms against the DataModel type they are bound to
             // ---------------------------------------------------------------------------------------------------------
 
-            // Make sure there's a 1:1 mapping between the ids of forms in the template HTML and DataModel-typed fields
-            // that are not a subclass of TemplateModel (these are the types that are bound to forms).
+            // Make sure there's a 1:1 mapping between the union of ids of forms in the template HTML and parameter
+            // names in use, and all fields in the TemplateModel.
             HashSet<String> allParamNamesAndFormIds = new HashSet<>(formIdToInputNames.keySet());
             allParamNamesAndFormIds.addAll(allParamNames);
             check1To1Mapping(templateClass.getName(), "template params and form ids", allParamNamesAndFormIds,
                     "fields", allFieldNames);
 
             // Make sure there's a 1:1 mapping between the ids of forms in the template HTML and DataModel-typed fields
-            // that are not a subclass of TemplateModel (these are the types that are bound to forms).
+            // (these are the types that are bound to forms).
             check1To1Mapping(templateClass.getName(), "form ids", formIdToInputNames.keySet(),
-                    "DataModel-typed (non-TemplateModel) fields", formIdToReferencedTypeFieldNames.keySet());
+                    "DataModel-typed fields", formIdToReferencedTypeFieldNames.keySet());
 
             // Compare form inputs to the fields of the DataModel that the form is bound to
             for (String formId : formIdToInputNames.keySet()) {
@@ -602,7 +602,7 @@ class TemplateModelLoader {
                     }
                 }
 
-                // Iterate through fields of the DataModel
+                // Iterate through fields of the DataModel that is bound to the form
                 for (String fieldName : inputNames) {
                     Field field;
                     try {
@@ -929,18 +929,18 @@ class TemplateModelLoader {
             templateStr = templateStrOverride;
 
         } else {
-            // If the DataModel contains a "_template" field, use that value for the HTML template
+            // If the TemplateModel contains a "_template" field, use that value for the HTML template
             Field inlineTemplateField;
             try {
-                inlineTemplateField = templateClass.getField(DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+                inlineTemplateField = templateClass.getField(TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
                 if (inlineTemplateField != null) {
                     int modifiers = inlineTemplateField.getModifiers();
                     if (Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers)) {
                         if (inlineTemplateField.getType().equals(String.class)) {
-                            // Got an inline template in the static field named "_template" of a DataModel class
+                            // Got an inline template in the static field named "_template" of a TemplateModel class
                             templateStr = (String) inlineTemplateField.get(null);
                             inlineTemplateStaticFieldNames.add(templateClass.getName() + "."
-                                    + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+                                    + TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
                         } else {
                             throw new RuntimeException("Field \"" + inlineTemplateField.getName() + "\" in class "
                                     + templateClass.getName() + " must be of type String");
@@ -959,7 +959,7 @@ class TemplateModelLoader {
                 if (templateStream == null) {
                     throw new RuntimeException("Template class " + templateClass.getName()
                             + " does not have a public static final String field "
-                            + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " and the template file " + templatePath
+                            + TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME + " and the template file " + templatePath
                             + " could not be found on the classpath");
                 }
                 try {
@@ -970,7 +970,7 @@ class TemplateModelLoader {
 
             } catch (SecurityException | IllegalAccessException | IllegalArgumentException | NullPointerException e) {
                 throw new RuntimeException("Class " + templateClass.getName() + " has field "
-                        + DATAMODEL_INLINE_TEMPLATE_FIELD_NAME + " but it cannot be read or accessed", e);
+                        + TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME + " but it cannot be read or accessed", e);
             }
         }
         if (templateStr == null) {

@@ -281,7 +281,7 @@ public class SiteResources {
                     @Override
                     public void processMatch(Class<? extends DataModel> matchingClass) {
                         // Check annotations match field types
-                        fieldChecker.registerClass(matchingClass);
+                        fieldChecker.registerClassForConstraintChecking(matchingClass);
                     }
                 })
                 //
@@ -306,7 +306,7 @@ public class SiteResources {
                         // have been read, so by the time this code is called, classAndFieldNameToLatestValue has
                         // been populated with the latest values of all static template fields of all classes.
                         String latestStaticFieldTemplateStr = classAndFieldNameToLatestValue.get(matchingClass
-                                .getName() + "." + TemplateModelLoader.DATAMODEL_INLINE_TEMPLATE_FIELD_NAME);
+                                .getName() + "." + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
 
                         // Load and parse template corresponding to each TemplateModel class
                         Class<? extends TemplateModel> templateClass = (Class<? extends TemplateModel>) matchingClass;
