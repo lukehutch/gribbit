@@ -33,6 +33,7 @@ import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.util.JSON;
+import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import gribbit.util.WebUtils.EscapeAmpersand;
@@ -735,7 +736,8 @@ public abstract class TemplateModel {
             }
 
         } else {
-            throw new RuntimeException("Unknown node type: " + node.getClass().getName());
+            Log.warning("Unknown node type " + node.getClass().getName() + " when rendering template for "
+                    + getClass().getName());
         }
         return nodeWasIndented;
     }
