@@ -62,7 +62,7 @@ public class RequestBuilder {
                 IOUtils.copy(connection.getInputStream(), writer, "UTF-8");
                 String jsonStr = writer.toString();
 
-                return JacksonJSON.jsonToObject(jsonStr, responseType);
+                return JSONJackson.jsonToObject(jsonStr, responseType);
 
             } catch (Exception e) {
                 throw new IllegalArgumentException("Could not parse JSON response", e);
