@@ -589,7 +589,7 @@ public abstract class TemplateModel {
 
         // Append any attrs that were added for input forms that didn't replace a value already
         // in the input element
-        if (replaceAttrVal != null) {
+        if (replaceAttrVal != null && !replaceAttrVal.isEmpty()) {
             for (Entry<String, String> ent : replaceAttrVal.entrySet()) {
                 String attrName = ent.getKey();
                 String attrVal = ent.getValue();
