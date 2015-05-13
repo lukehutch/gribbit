@@ -1,16 +1,43 @@
+/**
+ * This file is part of the Gribbit Web Framework.
+ * 
+ *     https://github.com/lukehutch/gribbit
+ * 
+ * @author Luke Hutchison
+ * 
+ * --
+ * 
+ * @license Apache 2.0 
+ * 
+ * Copyright 2015 Luke Hutchison
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package gribbit.model;
 
 import gribbit.model.field.annotation.IsURL;
+import gribbit.model.util.FieldChecker;
 import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.CacheExtension.HashInfo;
-import gribbit.server.siteresources.DataModelLoader;
+import gribbit.util.JSON;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import gribbit.util.WebUtils.EscapeAmpersand;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.ArrayList;
@@ -29,29 +56,70 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.nodes.XmlDeclaration;
 
-public abstract class TemplateModel extends DataModel {
+/**
+ * Templates with context-aware escaping for near-complete protection against stored and reflected XSS attacks.
+ * 
+ * See:
+ * 
+ * https://www.owasp.org/index.php/XSS#Stored_and_Reflected_XSS_Attacks
+ * 
+ * https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
+ * 
+ * https://www.owasp.org/index.php/XSS_Filter_Evasion_Cheat_Sheet
+ * 
+ * https://www.owasp.org/index.php/DOM_based_XSS_Prevention_Cheat_Sheet
+ * 
+ */
+
+public abstract class TemplateModel {
 
     /** Pattern for template parameters, of the form "${name}" */
     public static final Pattern TEMPLATE_PARAM_PATTERN = Pattern.compile("\\$\\{([a-zA-Z][a-zA-Z0-9_]*)\\}");
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /*
-     * Templates with context-aware escaping for near-complete protection against stored and reflected XSS attacks.
-     * 
-     * See:
-     * 
-     * https://www.owasp.org/index.php/XSS#Stored_and_Reflected_XSS_Attacks
-     * 
-     * https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet
-     * 
-     * https://www.owasp.org/index.php/XSS_Filter_Evasion_Cheat_Sheet
-     * 
-     * https://www.owasp.org/index.php/DOM_based_XSS_Prevention_Cheat_Sheet
-     * 
-     * Extends DataModel so that it can be used for both filling in a form template based on previous values, and being
-     * bound to the submission results of the form.
+    /**
+     * Wrapper for a list of content objects. This is needed so that individual TemplateModel objects and lists of
+     * TemplateModel objects can both be supported in a typesafe way.
      */
+    public static class ContentList extends TemplateModel {
+        public List<? extends TemplateModel> contentList;
+
+        public ContentList(List<? extends TemplateModel> contentList) {
+            this.contentList = contentList;
+        }
+
+        public static final String _template = "${contentList}";
+    }
+
+    /**
+     * Wrapper for a vararg list or an array of content objects. This is needed so that individual TemplateModel objects
+     * and arrays of TemplateModel objects can both be supported in a typesafe way.
+     */
+    public static class ContentArray extends TemplateModel {
+        public TemplateModel[] contentList;
+
+        public ContentArray(TemplateModel... contentList) {
+            this.contentList = contentList;
+        }
+
+        public static final String _template = "${contentList}";
+    }
+
+    /**
+     * Wrap a vararg list or array of TemplateModel objects into a single template that renders each of the arguments in
+     * sequence.
+     */
+    public static TemplateModel wrap(TemplateModel... contentArgs) {
+        return new ContentArray(contentArgs);
+    }
+
+    /** Wrap a list of TemplateModel objects into a single template that renders each of the arguments in sequence. */
+    public static TemplateModel wrap(List<? extends TemplateModel> contentList) {
+        return new ContentList(contentList);
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     /** Escape text for an HTML attribute value or for an HTML text node. */
     private static void encodeParamText(boolean isAttrVal, boolean isURLAttr, String unsafeStr, StringBuilder buf) {
@@ -76,102 +144,6 @@ public abstract class TemplateModel extends DataModel {
                     // Turn "\n" within the text that is substituted into param into <br> for convenience
                     /* turnNewlineIntoBreak = */true, buf);
         }
-    }
-
-    /** Escape and render a field value (recursively rendering any lists or arrays). */
-    private boolean recursivelyRender(boolean isAttrVal, boolean isURLAttr, Object fieldValue, String reqURLPath,
-            int indentLevel, boolean prettyPrint, StringBuilder buf) {
-        boolean wasIndented = false;
-        if (fieldValue != null) {
-            Class<?> fieldType = fieldValue.getClass();
-            if (fieldType == String.class) {
-                // Expand a string parameter
-
-                String unsafeStr = (String) fieldValue;
-                if (unsafeStr != null && !unsafeStr.isEmpty()) {
-                    // Parameter is being expanded in non-URL attribute, or in a text node -- use regular HTML escaping
-                    encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
-                }
-
-            } else if (DataModel.class.isAssignableFrom(fieldType)) {
-                // Expand an HTML template into the parameter position (param must not be in an attribute value)
-
-                if (isAttrVal) {
-                    // Shouldn't happen, this was checked for on template load, but included here for safety
-                    throw new RuntimeException("Can't include HTML inside an attribute value");
-                }
-                // Recursively add template content to this buffer from nested template
-                wasIndented = ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel, prettyPrint, buf);
-
-            } else if (List.class.isAssignableFrom(fieldType) || fieldType.isArray()) {
-                // Expand a list or array of values
-
-                if (isAttrVal) {
-                    // Shouldn't happen, this was checked for on template load, but included here for safety
-                    throw new RuntimeException("Can't include HTML inside an attribute value");
-                }
-                List<?> list = List.class.isAssignableFrom(fieldType) ? (List<?>) fieldValue : null;
-                Object[] array = fieldType.isArray() ? (Object[]) fieldValue : null;
-                if (list != null || array != null) {
-                    int n = list != null ? list.size() : array.length;
-                    // Render each item in the list
-                    for (int i = 0; i < n; i++) {
-                        Object elt = list != null ? list.get(i) : array[i];
-                        if (elt != null) {
-                            // We checked the element types of list and array fields when the TemplateModel class was
-                            // loaded, so we can assume the type of each element is TemplateModel.
-                            wasIndented |= ((TemplateModel) elt).renderTemplate(reqURLPath, indentLevel, prettyPrint,
-                                    buf);
-                        }
-                    }
-                }
-
-            } else if (Class.class.isAssignableFrom(fieldType)) {
-                // Special case: if a field type is a Class<? extends RestHandler>, then insert the URL of the
-                // RestHandler's route as a string, so that routes can be inserted into href attributes
-                Class<?> concreteClass = (Class<?>) fieldValue;
-                if (concreteClass != null) {
-                    if (RouteHandler.class.isAssignableFrom(concreteClass)) {
-                        // URI routes can be inserted into URI attributes by defining a field in a DataModel
-                        // like: "public Class<? extends RestHandler> myUrl = MyURLHandler.class;"
-                        // then including a parameter in HTML like: "<a href='${myUrl}'>Click here</a>"
-                        //
-                        // Put URI for RestHandler into buf -- this is not escaped, since the RestHandler URIs
-                        // should all be valid without escaping (they are either safely derived from the class
-                        // name, or from the RouteOverride annotation, which is checked for validity)
-                        @SuppressWarnings("unchecked")
-                        Class<? extends RouteHandler> routeClass = (Class<? extends RouteHandler>) concreteClass;
-                        String uriForClass = GribbitServer.siteResources.routeForClass(routeClass).getRoutePath();
-                        buf.append(uriForClass);
-
-                    } else {
-                        // Due to type erasure, can't check until runtime if the right class type is passed in.
-                        throw new RuntimeException("Got template parameter of type Class<" + concreteClass.getName()
-                                + ">, but should be of type Class<? extends " + RouteHandler.class.getName() + ">");
-                    }
-                }
-
-            } else {
-                // For all other non-builtin types, call the toString() method and then HTML-escape the result.
-                // But first check if the method has defined its own toString() method. If not, we'll get an ugly
-                // default Object.class toString() result that shows the type and hexadecimal object reference.
-                try {
-                    if (fieldType.getMethod("toString").getDeclaringClass() != Object.class) {
-                        String unsafeStr = fieldValue.toString();
-                        encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
-                    } else {
-                        throw new RuntimeException("The class " + fieldType.getName()
-                                + " does not override Object.toString(), and is not a subclass of "
-                                + DataModel.class.getName()
-                                + ", so it cannot be rendered into an HTML template as text or HTML respectively");
-                    }
-                } catch (NoSuchMethodException | SecurityException e) {
-                    // Shouldn't happen, all classes have a public toString() method
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-        return wasIndented;
     }
 
     /**
@@ -204,8 +176,10 @@ public abstract class TemplateModel extends DataModel {
                 /* turnNewlineIntoBreak = */false, buf);
     }
 
+    // -----------------------------------------------------------------------------------------------------------------
+
     /**
-     * Substitute params from this DataModel object into the text, performing proper HTML escaping as needed.
+     * Substitute params from this TemplateModel object into the text, performing proper HTML escaping as needed.
      */
     private boolean substituteTemplateParamsAndEscapeText(String tagName, String attrName, String textWithParams,
             String reqURLPath, int indentLevel, boolean prettyPrint, StringBuilder buf) {
@@ -231,37 +205,36 @@ public abstract class TemplateModel extends DataModel {
             // is a Template field inside a Template object). Null field values are ignored, i.e. they
             // result in a parameter substitution of "".  
             String paramName = matcher.group(1);
-            Object fieldVal = null;
+            Object fieldValue = null;
             try {
                 Field field = this.getClass().getField(paramName);
-
                 // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields
                 // cannot be sent to the user, just ignore them
-                if (!DataModelLoader.fieldIsPrivate(field, /* checkGet = */true, /* checkSet = */
+                if (!FieldChecker.fieldIsPrivate(field, /* checkGet = */true, /* checkSet = */
                         false)) {
 
                     // Turn primitive types into strings, they have their own getter methods
                     Class<?> fieldType = field.getType();
                     if (fieldType == Integer.TYPE) {
-                        fieldVal = Integer.toString(field.getInt(this));
+                        fieldValue = Integer.toString(field.getInt(this));
                     } else if (fieldType == Boolean.TYPE) {
-                        fieldVal = Boolean.toString(field.getBoolean(this));
+                        fieldValue = Boolean.toString(field.getBoolean(this));
                     } else if (fieldType == Character.TYPE) {
-                        fieldVal = field.getChar(this);
+                        fieldValue = field.getChar(this);
                     } else if (fieldType == Long.TYPE) {
-                        fieldVal = Long.toString(field.getLong(this));
+                        fieldValue = Long.toString(field.getLong(this));
                     } else if (fieldType == Float.TYPE) {
-                        fieldVal = Float.toString(field.getFloat(this));
+                        fieldValue = Float.toString(field.getFloat(this));
                     } else if (fieldType == Double.TYPE) {
-                        fieldVal = Double.toString(field.getDouble(this));
+                        fieldValue = Double.toString(field.getDouble(this));
                     } else if (fieldType == Byte.TYPE) {
                         byte b = field.getByte(this);
-                        fieldVal = "0x" + Integer.toString(b, 16);
+                        fieldValue = "0x" + Integer.toString(b, 16);
                     } else if (fieldType == Short.TYPE) {
-                        fieldVal = Short.toString(field.getShort(this));
+                        fieldValue = Short.toString(field.getShort(this));
                     } else {
-                        // Render non-primitive type in recursivelyRender() according to its class
-                        fieldVal = field.get(this);
+                        // Render non-primitive type
+                        fieldValue = field.get(this);
                     }
 
                     // If this attribute contains a param that is bound to a field that has the IsURL annotation,
@@ -277,10 +250,72 @@ public abstract class TemplateModel extends DataModel {
             }
 
             // Recursively render content into params contained within text nodes
-            if (fieldVal != null) {
-                // Escape and render a field value (recursively rendering any lists or arrays) 
-                wasIndented |= recursivelyRender(isAttrVal, isURLAttr, fieldVal, reqURLPath, indentLevel, prettyPrint,
-                        buf);
+            if (fieldValue != null) {
+                Class<?> fieldType = fieldValue.getClass();
+
+                if (fieldType == String.class) {
+                    // Expand a string parameter (would be caught by the last "else" clause, but is included
+                    // here for speed, since this is the most common case).
+                    String unsafeStr = (String) fieldValue;
+                    if (!unsafeStr.isEmpty()) {
+                        encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
+                    }
+
+                } else if (fieldType.isAssignableFrom(TemplateModel.class)) {
+                    if (isAttrVal) {
+                        // Shouldn't happen, this was checked for on template load, but included here for XSS safety
+                        throw new RuntimeException("Can't include HTML inside an attribute value");
+                    }
+
+                    // Recursively render nested template
+                    wasIndented |= ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel, prettyPrint,
+                            buf);
+
+                } else if (fieldType.isArray() || fieldType.isAssignableFrom(List.class)) {
+                    if (isAttrVal) {
+                        // Shouldn't happen, this was checked for on template load, but included here for XSS safety
+                        throw new RuntimeException("Can't include HTML inside an attribute value");
+                    }
+                    // We checked the element types of list and array fields when the TemplateModel class was
+                    // loaded, so we can assume the type of each element is TemplateModel.
+                    boolean isArray = fieldType.isArray();
+                    @SuppressWarnings("unchecked")
+                    List<? extends TemplateModel> list = isArray ? null : (List<? extends TemplateModel>) fieldValue;
+                    int n = isArray ? Array.getLength(fieldValue) : list.size();
+                    // Render each item in the list or array
+                    for (int i = 0; i < n; i++) {
+                        TemplateModel elt = isArray ? (TemplateModel) Array.get(fieldValue, i) : list.get(i);
+                        if (elt != null) {
+                            // Recursively render nested template
+                            wasIndented |= elt.renderTemplate(reqURLPath, indentLevel, prettyPrint, buf);
+                        }
+                    }
+
+                } else if (fieldType.isAssignableFrom(DataModel.class)) {
+                    // Should never happen, this was disallowed on template loading
+                    throw new RuntimeException("Form-bound " + DataModel.class.getSimpleName() + " subclass "
+                            + fieldType.getName() + " cannot be substituted into a template parameter");
+
+                } else if (fieldType.isAssignableFrom(Class.class)) {
+                    // Special case: if a field type is a Class<? extends RouteHandler>, then insert the URL of the
+                    // RouteHandler's route as a string, so that routes can be inserted into href attributes.
+                    //
+                    // i.e. URI routes can be inserted into URI attributes by defining a field in a TemplateModel
+                    // like: "public Class<? extends RestHandler> myUrl = MyURLHandler.class;"
+                    // then including a parameter in HTML like: "<a href='${myUrl}'>Click here</a>"
+                    //
+                    // (The concrete type parameter of all Class<?> fields were checked on template loading.)
+                    @SuppressWarnings("unchecked")
+                    Class<? extends RouteHandler> routeHandlerClass = (Class<? extends RouteHandler>) fieldValue;
+                    String uriForClass = GribbitServer.siteResources.routeForClass(routeHandlerClass).getRoutePath();
+                    buf.append(uriForClass);
+
+                } else {
+                    // For all other non-builtin types, call the toString() method. (We checked already during template
+                    // loading that all these field types have their own toString() method defined.)
+                    String unsafeStr = fieldValue.toString();
+                    encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
+                }
             }
         }
         // Append last unmatched text
@@ -402,18 +437,6 @@ public abstract class TemplateModel extends DataModel {
         return wasIndented;
     }
 
-    /** Append an attribute name and escaped value to the inside of a tag. */
-    private void renderAttrKeyValue(String tagName, String attrName, String attrVal, String reqURLPath,
-            int indentLevel, boolean prettyPrint, StringBuilder buf) {
-        buf.append(' ');
-        buf.append(attrName);
-        if (!attrVal.isEmpty()) {
-            buf.append("=\"");
-            substituteTemplateParamsAndEscapeText(tagName, attrName, attrVal, reqURLPath, indentLevel, prettyPrint, buf);
-            buf.append('"');
-        }
-    }
-
     /**
      * Append a string representation of the attributes of an element to the buffer.
      * 
@@ -443,7 +466,7 @@ public abstract class TemplateModel extends DataModel {
                     formModelField = formModel.getClass().getField(name);
                     // DataModel fields annotated with @Private or @OnlyReceive and DBModel id fields
                     // cannot be sent to the user
-                    if (!DataModelLoader.fieldIsPrivate(formModelField, /* checkGet = */true, //
+                    if (!FieldChecker.fieldIsPrivate(formModelField, /* checkGet = */true, //
                             /* checkSet = */false)) {
                         Object formModelFieldValue = formModelField.get(formModel);
                         if (formModelFieldValue != null) {
@@ -552,7 +575,14 @@ public abstract class TemplateModel extends DataModel {
                         replaceAttrVal.remove(attrName);
                     }
                 }
-                renderAttrKeyValue(tagName, attrName, attrVal, reqURLPath, indentLevel, prettyPrint, buf);
+                buf.append(' ');
+                buf.append(attrName);
+                if (!attrVal.isEmpty()) {
+                    buf.append("=\"");
+                    substituteTemplateParamsAndEscapeText(tagName, attrName, attrVal, reqURLPath, indentLevel,
+                            prettyPrint, buf);
+                    buf.append('"');
+                }
             }
         }
 
@@ -560,7 +590,16 @@ public abstract class TemplateModel extends DataModel {
         // in the input element
         if (replaceAttrVal != null) {
             for (Entry<String, String> ent : replaceAttrVal.entrySet()) {
-                renderAttrKeyValue(tagName, ent.getKey(), ent.getValue(), reqURLPath, indentLevel, prettyPrint, buf);
+                String attrName = ent.getKey();
+                String attrVal = ent.getValue();
+                buf.append(' ');
+                buf.append(attrName);
+                if (!attrVal.isEmpty()) {
+                    buf.append("=\"");
+                    substituteTemplateParamsAndEscapeText(tagName, attrName, attrVal, reqURLPath, indentLevel,
+                            prettyPrint, buf);
+                    buf.append('"');
+                }
             }
         }
     }
@@ -578,15 +617,14 @@ public abstract class TemplateModel extends DataModel {
             String tagName = e.tagName();
 
             if (tagName.equals("form")) {
-                // For form elements, match form id against field names of this DataModel to see if
-                // there's a match
+                // For form elements, match form id against field names of this TemplateModel
                 String formId = e.attr("id");
                 if (!formId.isEmpty()) {
                     try {
                         Field formField = this.getClass().getField(formId);
                         DataModel thisFormModel = (DataModel) formField.get(this);
 
-                        // Overwrite current formValue for child nodes (in case of nested forms)
+                        // Set enclosingForm and formModel for child nodes
                         enclosingForm = e;
                         formModel = thisFormModel;
 
@@ -704,50 +742,7 @@ public abstract class TemplateModel extends DataModel {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /**
-     * Wrapper for a list of content objects. This is needed so that individual TemplateModel objects and lists of
-     * TemplateModel objects can both be supported in a typesafe way.
-     */
-    public static class ContentList extends TemplateModel {
-        public List<? extends TemplateModel> contentList;
-
-        public ContentList(List<? extends TemplateModel> contentList) {
-            this.contentList = contentList;
-        }
-
-        public static final String _template = "${contentList}";
-    }
-
-    /**
-     * Wrapper for a vararg list or an array of content objects. This is needed so that individual TemplateModel objects
-     * and arrays of TemplateModel objects can both be supported in a typesafe way.
-     */
-    public static class ContentArray extends TemplateModel {
-        public TemplateModel[] contentList;
-
-        public ContentArray(TemplateModel... contentList) {
-            this.contentList = contentList;
-        }
-
-        public static final String _template = "${contentList}";
-    }
-
-    /**
-     * Wrap a vararg list or array of TemplateModel objects into a single template that renders each of the arguments in
-     * sequence.
-     */
-    public static TemplateModel wrap(TemplateModel... contentArgs) {
-        return new ContentArray(contentArgs);
-    }
-
-    /** Wrap a list of TemplateModel objects into a single template that renders each of the arguments in sequence. */
-    public static TemplateModel wrap(List<? extends TemplateModel> contentList) {
-        return new ContentList(contentList);
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /** Render a template recursively (i.e. substitute templates inside of templates, if present). */
+    /** Render nested templates recursively. */
     private boolean renderTemplate(String reqURLPath, int indentLevel, boolean prettyPrint, StringBuilder buf) {
         List<Node> templateNodes = GribbitServer.siteResources.getTemplateForClass(this.getClass());
         if (templateNodes == null) {
@@ -764,20 +759,36 @@ public abstract class TemplateModel extends DataModel {
     }
 
     /**
+     * Render this template model into HTML by substituting its field values into the correspondingly-named template
+     * parameters in the associated HTML template.
+     */
+    public String renderTemplate(String reqURLPath, boolean prettyPrint) {
+        StringBuilder buf = new StringBuilder(8192);
+        renderTemplate(reqURLPath, 0, prettyPrint, buf);
+        return buf.toString();
+    }
+
+    /**
+     * Render this template model into HTML by substituting its field values into the correspondingly-named template
+     * parameters in the associated HTML template.
+     */
+    public String renderTemplate(String reqURLPath) {
+        return renderTemplate(reqURLPath, GribbitProperties.PRETTY_PRINT_HTML);
+    }
+
+    /**
      * Render a TemplateModel object into HTML.
      */
     @Override
     public final String toString() {
-        StringBuilder buf = new StringBuilder(8192);
-        renderTemplate("", 0, GribbitProperties.PRETTY_PRINT_HTML, buf);
-        return buf.toString();
+        return renderTemplate("");
     }
 
     /**
      * Render a TemplateModel object into JSON.
      */
     public final String toStringJSON() {
-        return this.toJSON(GribbitProperties.PRETTY_PRINT_JSON);
+        return JSON.toJSON(this);
     }
 
 }

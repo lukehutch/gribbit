@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.model.safehtml;
+package gribbit.model.util;
 
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
@@ -110,7 +110,7 @@ public class SanitizedHTML {
         return whitelist;
     }
 
-    private void sanitize(List<Node> nodes, HashMap<String, HashSet<String>> whitelist, StringBuilder buf) {
+    private static void sanitize(List<Node> nodes, HashMap<String, HashSet<String>> whitelist, StringBuilder buf) {
         for (Node node : nodes) {
             if (node instanceof TextNode) {
                 String text = ((TextNode) node).text();

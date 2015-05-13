@@ -37,6 +37,7 @@ import gribbit.model.field.annotation.MinLength;
 import gribbit.model.field.annotation.NoTrim;
 import gribbit.model.field.annotation.NormalizeSpacing;
 import gribbit.model.field.annotation.Regex;
+import gribbit.model.util.FieldChecker;
 import gribbit.response.HTMLPageResponse;
 import gribbit.route.RouteHandler;
 import gribbit.util.Log;
@@ -69,7 +70,7 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 
 class TemplateModelLoader {
-    
+
     private SiteResources siteResources;
 
     private StringBuilder headContent = new StringBuilder(16384), tailContent = new StringBuilder(16384);
@@ -83,9 +84,11 @@ class TemplateModelLoader {
     /** Templates that consist of complete HTML docs, with head and body elements */
     private HashSet<Document> wholePageTemplateDocs = new HashSet<>();
 
-    private HashMap<Class<? extends DataModel>, Document> templateClassToDoc = new HashMap<>();
+    private HashMap<Class<? extends TemplateModel>, Document> templateClassToDoc = new HashMap<>();
 
-    private HashMap<Class<? extends DataModel>, List<Node>> templateClassToTemplateNodes = new HashMap<>();
+    private HashMap<Class<? extends TemplateModel>, List<Node>> templateClassToTemplateNodes = new HashMap<>();
+
+    // private HashMap<Class<?>, ArrayList<Field>> templateClassToFields = new HashMap<>();
 
     static final String DATAMODEL_INLINE_TEMPLATE_FIELD_NAME = "_template";
 
@@ -125,9 +128,14 @@ class TemplateModelLoader {
     }
 
     /** Return the template corresponding to the given template class as a list of nodes, or null if it doesn't exist. */
-    List<Node> getTemplateNodes(Class<? extends DataModel> templateClass) {
+    List<Node> getTemplateNodes(Class<? extends TemplateModel> templateClass) {
         return templateClassToTemplateNodes.get(templateClass);
     }
+
+    //    /** Return the template corresponding to the given template class as a list of nodes, or null if it doesn't exist. */
+    //    ArrayList<Field> getTemplateFields(Class<? extends TemplateModel> templateClass) {
+    //        return templateClassToFields.get(templateClass);
+    //    }
 
     /** Return the templates corresponding to each class as HTML strings, for clientside rendering. */
     public HashMap<String, String> getTemplateNameToTemplateStr() {
@@ -135,225 +143,6 @@ class TemplateModelLoader {
     }
 
     // -----------------------------------------------------------------------------------------------------------------
-
-    /**
-     * Add constraints to an HTML form given the constraint annotations on the fields of the given DataModel object.
-     */
-    private static void addConstraintsToForm(String templateClassName, Class<? extends DataModel> formModel,
-            Element formElt, HashSet<String> inputNames) {
-        String formId = formElt.attr("id");
-
-        // Remove any CSRF input elements that are already in the form (shouldn't be there)
-        for (Element csrfElt : formElt.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME)) {
-            csrfElt.remove();
-        }
-        inputNames.remove(CSRF.CSRF_PARAM_NAME);
-
-        // Add CSRF input to form with placeholder value that will be overwritten with the real CSRF token
-        // when the page is served
-        Element csrfElt = formElt.appendElement("input");
-        csrfElt.attr("name", CSRF.CSRF_PARAM_NAME);
-        csrfElt.attr("type", "hidden");
-        csrfElt.attr("value", CSRF.CSRF_TOKEN_PLACEHOLDER);
-
-        // Get all input elements in this form, grouped by matching name (radio buttons have
-        // multiple input fields with the same value in the "name" attribute)
-        HashMap<String, ArrayList<Element>> nameToInputElts = new HashMap<>();
-        for (Element elt : formElt.getElementsByAttribute("name")) {
-            String name = elt.attr("name");
-            if (inputNames.contains(name)) {
-                ArrayList<Element> inputs = nameToInputElts.get(name);
-                if (inputs == null) {
-                    nameToInputElts.put(name, inputs = new ArrayList<>());
-                }
-                if (elt.tagName().equals("select")) {
-                    // For select elements, add all the child option elements instead
-                    // TODO: test this
-                    for (Element option : elt.getElementsByTag("option")) {
-                        inputs.add(option);
-                    }
-                } else {
-                    inputs.add(elt);
-                }
-            }
-        }
-
-        // Iterate through fields of the DataModel
-        for (String fieldName : inputNames) {
-            Field field;
-            try {
-                field = formModel.getField(fieldName);
-            } catch (NoSuchFieldException | SecurityException e1) {
-                // Should not happen
-                throw new RuntimeException(e1);
-            }
-            Class<?> fieldType = field.getType();
-
-            // Go through all input elements that have the same name as this DataModel field,
-            // and update the element to have constraint attributes matching the DataModel
-            // constraint annotations
-            ArrayList<Element> inputsWithSameNameAsField = nameToInputElts.get(fieldName);
-            if (inputsWithSameNameAsField == null) {
-                // Should not happen
-                throw new RuntimeException("No inputs named " + fieldName + " in form model " + formModel.getName()
-                        + " in template for " + templateClassName);
-            }
-            for (Element namedInput : inputsWithSameNameAsField) {
-                String tagName = namedInput.tagName();
-                String type = namedInput.attr("type");
-
-                // Add "required" attr if the field has a type or annotation that makes the value required 
-                if (DataModelLoader.fieldIsRequired(field)) {
-                    if (tagName.equals("option")) {
-                        // This is an <option> inside a <select>
-                        type = "select";
-                        // Set "required" attr on the <select>, not the <option>
-                        namedInput.parent().attr("required", "");
-                    } else {
-                        // Everything else should be an <input> inside a <form>
-                        namedInput.attr("required", "");
-                    }
-                }
-
-                // Get data constraint annotations for DataModel field
-                boolean needsTrimming = true;
-                boolean needsSpaceNormalization = false;
-                boolean isEmail = false;
-                Integer minLength = null, maxLength = null, min = null, max = null;
-                for (Annotation annotation : field.getAnnotations()) {
-                    Class<? extends Annotation> annotationType = annotation.annotationType();
-                    if (annotationType == MinLength.class) {
-                        minLength = ((MinLength) annotation).value();
-                    } else if (annotationType == MaxLength.class) {
-                        maxLength = ((MaxLength) annotation).value();
-                    } else if (annotationType == MinIntegerValue.class) {
-                        min = ((MinIntegerValue) annotation).value();
-                    } else if (annotationType == MaxIntegerValue.class) {
-                        max = ((MaxIntegerValue) annotation).value();
-                    } else if (annotationType == Email.class) {
-                        isEmail = true;
-                    } else if (annotationType == Regex.class) {
-                        //TODO: make sure that Java regexes are compatible with JS regexes.
-                        // See also http://html5pattern.com/
-                        namedInput.attr("pattern", ((Regex) annotation).regex());
-                    } else if (annotationType == NormalizeSpacing.class) {
-                        needsSpaceNormalization = true;
-                    } else if (annotationType == NoTrim.class) {
-                        needsTrimming = false;
-                    }
-                }
-
-                // Add type constraints to form inputs based on the type of fields in the DataModel
-                if (fieldType == LocalDate.class) {
-                    namedInput.attr("type", "date");
-                    // TODO: also add regex pattern to constrain date to the isoDate format?
-                    // TODO: (This doesn't seem to work currently.)
-                    // TODO: add date picker popup.
-
-                } else if (fieldType == Integer.class || fieldType == Integer.TYPE || fieldType == Long.class
-                        || fieldType == Long.TYPE || fieldType == Short.class || fieldType == Short.TYPE
-                        || fieldType == Float.class || fieldType == Float.TYPE || fieldType == Double.class
-                        || fieldType == Double.TYPE) {
-                    // TODO: does "type='number'" work for float/double?
-                    namedInput.attr("type", "number");
-
-                    if (min != null) {
-                        namedInput.attr("min", "" + min);
-                    }
-                    if (max != null) {
-                        namedInput.attr("max", "" + max);
-                    }
-
-                } else if (fieldType == Boolean.class || fieldType == Boolean.TYPE) {
-                    // Boolean fields are bound to checkboxes
-
-                    if (!type.isEmpty() && !type.equals("checkbox"))
-                        throw new RuntimeException("Field \"" + fieldName + "\" in form \"" + formId
-                                + "\" in template for " + templateClassName
-                                + " needs to be of type \"checkbox\", since " + "it is bound to a Boolean field");
-
-                    namedInput.attr("type", "checkbox");
-
-                } else if (fieldType.isEnum()) {
-                    // Enum-typed fields are bound to radio buttons
-
-                    if (!type.isEmpty() && !(type.equals("radio") || type.equals("select"))) {
-                        throw new RuntimeException("Field \"" + fieldName + "\" in form \"" + formId
-                                + "\" in template for " + templateClassName + " needs to be of type \"radio\", "
-                                + "since it is bound to an enum-typed field");
-                    }
-
-                    // Make sure all radio or option values map to a valid enum value
-                    String radioVal = namedInput.attr("value");
-                    if (radioVal == null) {
-                        throw new RuntimeException("Missing attribute \"value\" for field \"" + fieldName
-                                + "\" in form \"" + formId + "\" in template for " + templateClassName);
-                    }
-                    boolean enumOK = false;
-                    try {
-                        @SuppressWarnings({ "unchecked", "rawtypes", "unused" })
-                        Enum<?> enumVal = Enum.valueOf((Class<Enum>) fieldType, radioVal);
-                        enumOK = true;
-                    } catch (IllegalArgumentException e) {
-                    }
-                    if (!enumOK) {
-                        throw new RuntimeException("Illegal value \"" + radioVal + "\" for radio or option field \""
-                                + fieldName + "\" in form \"" + formId + "\" of template for " + templateClassName);
-                    }
-
-                } else if (fieldType == String.class) {
-                    // Password fields get marked as type="password", everything else that is 
-                    // bound to a String gets marked as type="text"
-
-                    if (fieldName.equals("password")) {
-                        namedInput.attr("type", "password");
-                    } else {
-                        if (isEmail) {
-                            namedInput.attr("type", "email");
-                        } else {
-                            namedInput.attr("type", "text");
-                        }
-
-                        //FIXME: need to validate minlength and maxlength using JS, and reflect 
-                        // validity in Bootstrap. For all forms:
-                        // -- load the following jQuery plugin if there are forms on the page:
-                        //    http://docs.jquery.com/Plugins/Validation
-                        // -- add in head: $("#commentForm").validate();
-                        if (minLength != null) {
-                            namedInput.attr("minlength", "" + minLength);
-                        }
-                        if (maxLength != null) {
-                            namedInput.attr("maxlength", "" + maxLength);
-                        }
-
-                        if (needsTrimming) {
-                            //TODO: Add JS that trims spacing in form fields upon focus loss
-                            // unless @NoTrim annotation is present
-                        }
-                        if (needsSpaceNormalization) {
-                            //TODO: Add JS that auto-normalizes spacing in form fields if
-                            // @NormalizeSpacing annotation is present
-                        }
-                    }
-
-                } else if (fieldType == Character.class || fieldType == Character.TYPE) {
-                    namedInput.attr("type", "text").attr("maxlength", "1");
-
-                } else if (fieldType == FileUpload.class) {
-                    // Force form type to multipart/form-data if one of the DataModel fields
-                    // is of type FileUpload
-                    namedInput.attr("type", "file");
-                    formElt.attr("enctype", "multipart/form-data");
-
-                } else {
-                    throw new RuntimeException("Illegal type " + fieldType.getName() + " for field \"" + fieldName
-                            + "\" in form \"" + formId + "\" of template for " + templateClassName);
-                }
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------------------
 
     /** Check the two sets of strings are equal, and if not, throw a RuntimeException. */
     private static void check1To1Mapping(String className, String set1Label, Set<String> set1, String set2Label,
@@ -378,14 +167,14 @@ class TemplateModelLoader {
      */
     void initializeTemplates() {
 
-        for (Entry<Class<? extends DataModel>, Document> ent : templateClassToDoc.entrySet()) {
-            Class<? extends DataModel> templateClass = ent.getKey();
+        for (Entry<Class<? extends TemplateModel>, Document> ent : templateClassToDoc.entrySet()) {
+            Class<? extends TemplateModel> templateClass = ent.getKey();
             String templateClassName = templateClass.getName();
             Document templateDoc = ent.getValue();
 
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
             // Add head and tail content to any whole-page HTML templates
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
 
             List<Node> templateNodes;
             if (wholePageTemplateDocs.contains(templateDoc)) {
@@ -410,33 +199,34 @@ class TemplateModelLoader {
             }
             templateClassNameToTemplateStr.put(templateClass.getName(), buf.toString());
 
-            // --------------------------------------------------------------------
-            // Find DataModel-typed public fields within TemplateModels
-            // that are bound to a form
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
+            // Find DataModel-typed public fields within TemplateModels that are bound to a form
+            // ---------------------------------------------------------------------------------------------------------
 
             // Get a list of public fields, and for any fields that are a subclass of DataModel but not of TemplateModel
             // (i.e. for fields that are bound to forms), create a mapping from the field name to the names of the
             // fields of the referenced type.
             MultiMapKeyToSet<String, String> formIdToReferencedTypeFieldNames = new MultiMapKeyToSet<>();
             HashMap<String, Class<? extends DataModel>> formFieldNameToReferencedType = new HashMap<>();
-            ArrayList<Field> allFields = new ArrayList<>();
+            ArrayList<Field> publicFields = new ArrayList<>();
+            // templateClassToFields.put(templateClass, publicFields);
             HashSet<String> allFieldNames = new HashSet<>();
             HashSet<String> urlFields = new HashSet<>();
             for (Field field : templateClass.getFields()) {
+
                 // Only check public fields 
-                if (!DataModelLoader.fieldIsPrivate(field, /* checkGet = */true, /* checkSet = */false)) {
+                if (!FieldChecker.fieldIsPrivate(field, /* checkGet = */true, /* checkSet = */false)) {
                     String fieldName = field.getName();
                     Class<?> fieldType = field.getType();
                     allFieldNames.add(fieldName);
-                    allFields.add(field);
+                    publicFields.add(field);
 
                     // Also identify DataModel-typed fields (that don't extend TemplateModel), they are bound to a form
                     if (fieldType.isAssignableFrom(DataModel.class) && !fieldType.isAssignableFrom(TemplateModel.class)) {
                         @SuppressWarnings("unchecked")
                         Class<? extends DataModel> fieldTypeAsDataModel = (Class<? extends DataModel>) fieldType;
 
-                        if (!DataModel.isFlatModel(fieldTypeAsDataModel)) {
+                        if (!FieldChecker.isFlatModel(fieldTypeAsDataModel)) {
                             throw new RuntimeException("Field " + templateClassName + "." + fieldName + " has type "
                                     + fieldType.getSimpleName() + ", which is a subclass of "
                                     + DataModel.class.getName() + " (and not " + TemplateModel.class.getName()
@@ -447,10 +237,13 @@ class TemplateModelLoader {
                         formFieldNameToReferencedType.put(fieldName, fieldTypeAsDataModel);
 
                         // Find public fields of the referenced type -- these are bound to the inputs of the form
+                        ArrayList<Field> referencedTypePublicFields = new ArrayList<>();
+                        // templateClassToFields.put(fieldTypeAsDataModel, referencedTypePublicFields);
                         for (Field referencedTypeField : fieldType.getFields()) {
-                            if (!DataModelLoader.fieldIsPrivate(referencedTypeField, //
+                            if (!FieldChecker.fieldIsPrivate(referencedTypeField, //
                                     /* checkGet = */true, /* checkSet = */true)) {
                                 formIdToReferencedTypeFieldNames.put(fieldName, referencedTypeField.getName());
+                                referencedTypePublicFields.add(referencedTypeField);
                             }
                         }
 
@@ -497,10 +290,9 @@ class TemplateModelLoader {
                 }
             }
 
-            // --------------------------------------------------------------------
-            // Validate and clean up HTML, and find the locations of parameters
-            // of the form ${parameterName}
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
+            // Validate and clean up HTML, and find the locations of parameters of the form ${parameterName}
+            // ---------------------------------------------------------------------------------------------------------
 
             HashSet<String> allParamNames = new HashSet<>();
             HashSet<String> paramsInText = new HashSet<>();
@@ -526,9 +318,17 @@ class TemplateModelLoader {
                         attrValueWithoutParams.append(attrValue.subSequence(lastMatchEnd, matcher.start()));
                         lastMatchEnd = matcher.end();
 
+                        String paramName = matcher.group(1);
+
+                        if (formIdToInputNames.containsKey(paramName)) {
+                            // You can't use a form-bound field as a template parameter
+                            throw new RuntimeException("The template for " + templateClassName
+                                    + " contains a parameter reference ${" + paramName
+                                    + "}, but the field of the same name is bound to the form with id " + paramName);
+                        }
+
                         // Check that the field in the DataModel class with the same name as the parameter
                         // is publicly accessible
-                        String paramName = matcher.group(1);
                         allParamNames.add(paramName);
                         paramsInAttrVals.add(paramName);
                         if (urlFields.contains(paramName) || WebUtils.isURLAttr(tagName, attrName)) {
@@ -731,13 +531,16 @@ class TemplateModelLoader {
                 }
             }
 
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
             // Check forms against the DataModel type they are bound to
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
 
             // Make sure there's a 1:1 mapping between the ids of forms in the template HTML and DataModel-typed fields
             // that are not a subclass of TemplateModel (these are the types that are bound to forms).
-            check1To1Mapping(templateClass.getName(), "template params", allParamNames, "fields", allFieldNames);
+            HashSet<String> allParamNamesAndFormIds = new HashSet<>(formIdToInputNames.keySet());
+            allParamNamesAndFormIds.addAll(allParamNames);
+            check1To1Mapping(templateClass.getName(), "template params and form ids", allParamNamesAndFormIds,
+                    "fields", allFieldNames);
 
             // Make sure there's a 1:1 mapping between the ids of forms in the template HTML and DataModel-typed fields
             // that are not a subclass of TemplateModel (these are the types that are bound to forms).
@@ -760,8 +563,221 @@ class TemplateModelLoader {
                 Class<? extends DataModel> formModel = formFieldNameToReferencedType.get(formId);
                 // formModelClassToElement.put(formModel, formElt);
 
-                // Copy any constraint annotations in this DataModel across to the elements in the form.
-                addConstraintsToForm(templateClassName, formModel, formElt, inputNames);
+                // -----------------------------------------------------------------------------------------------------
+                // Add constraints to the form given the constraint annotations on the fields of the DataModel object
+                // -----------------------------------------------------------------------------------------------------
+
+                // Remove any CSRF input elements that are already in the form (shouldn't be there)
+                for (Element csrfElt : formElt.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME)) {
+                    csrfElt.remove();
+                }
+                inputNames.remove(CSRF.CSRF_PARAM_NAME);
+
+                // Add CSRF input to form with placeholder value that will be overwritten with the real CSRF token
+                // when the page is served
+                Element csrfElt = formElt.appendElement("input");
+                csrfElt.attr("name", CSRF.CSRF_PARAM_NAME);
+                csrfElt.attr("type", "hidden");
+                csrfElt.attr("value", CSRF.CSRF_TOKEN_PLACEHOLDER);
+
+                // Get all input elements in this form, grouped by matching name (radio buttons have
+                // multiple input fields with the same value in the "name" attribute)
+                HashMap<String, ArrayList<Element>> nameToInputElts = new HashMap<>();
+                for (Element elt : formElt.getElementsByAttribute("name")) {
+                    String name = elt.attr("name");
+                    if (inputNames.contains(name)) {
+                        ArrayList<Element> inputs = nameToInputElts.get(name);
+                        if (inputs == null) {
+                            nameToInputElts.put(name, inputs = new ArrayList<>());
+                        }
+                        if (elt.tagName().equals("select")) {
+                            // For select elements, add all the child option elements instead
+                            // TODO: test this
+                            for (Element option : elt.getElementsByTag("option")) {
+                                inputs.add(option);
+                            }
+                        } else {
+                            inputs.add(elt);
+                        }
+                    }
+                }
+
+                // Iterate through fields of the DataModel
+                for (String fieldName : inputNames) {
+                    Field field;
+                    try {
+                        field = formModel.getField(fieldName);
+                    } catch (NoSuchFieldException | SecurityException e1) {
+                        // Should not happen
+                        throw new RuntimeException(e1);
+                    }
+                    Class<?> fieldType = field.getType();
+
+                    // Go through all input elements that have the same name as this DataModel field,
+                    // and update the element to have constraint attributes matching the DataModel
+                    // constraint annotations
+                    ArrayList<Element> inputsWithSameNameAsField = nameToInputElts.get(fieldName);
+                    if (inputsWithSameNameAsField == null) {
+                        // Should not happen
+                        throw new RuntimeException("No inputs named " + fieldName + " in form model "
+                                + formModel.getName() + " in template for " + templateClassName);
+                    }
+                    for (Element namedInput : inputsWithSameNameAsField) {
+                        String tagName = namedInput.tagName();
+                        String type = namedInput.attr("type");
+
+                        // Add "required" attr if the field has a type or annotation that makes the value required 
+                        if (FieldChecker.fieldIsRequired(field)) {
+                            if (tagName.equals("option")) {
+                                // This is an <option> inside a <select>
+                                type = "select";
+                                // Set "required" attr on the <select>, not the <option>
+                                namedInput.parent().attr("required", "");
+                            } else {
+                                // Everything else should be an <input> inside a <form>
+                                namedInput.attr("required", "");
+                            }
+                        }
+
+                        // Get data constraint annotations for DataModel field
+                        boolean needsTrimming = true;
+                        boolean needsSpaceNormalization = false;
+                        boolean isEmail = false;
+                        Integer minLength = null, maxLength = null, min = null, max = null;
+                        for (Annotation annotation : field.getAnnotations()) {
+                            Class<? extends Annotation> annotationType = annotation.annotationType();
+                            if (annotationType == MinLength.class) {
+                                minLength = ((MinLength) annotation).value();
+                            } else if (annotationType == MaxLength.class) {
+                                maxLength = ((MaxLength) annotation).value();
+                            } else if (annotationType == MinIntegerValue.class) {
+                                min = ((MinIntegerValue) annotation).value();
+                            } else if (annotationType == MaxIntegerValue.class) {
+                                max = ((MaxIntegerValue) annotation).value();
+                            } else if (annotationType == Email.class) {
+                                isEmail = true;
+                            } else if (annotationType == Regex.class) {
+                                //TODO: make sure that Java regexes are compatible with JS regexes.
+                                // See also http://html5pattern.com/
+                                namedInput.attr("pattern", ((Regex) annotation).regex());
+                            } else if (annotationType == NormalizeSpacing.class) {
+                                needsSpaceNormalization = true;
+                            } else if (annotationType == NoTrim.class) {
+                                needsTrimming = false;
+                            }
+                        }
+
+                        // Add type constraints to form inputs based on the type of fields in the DataModel
+                        if (fieldType == LocalDate.class) {
+                            namedInput.attr("type", "date");
+                            // TODO: also add regex pattern to constrain date to the isoDate format?
+                            // TODO: (This doesn't seem to work currently.)
+                            // TODO: add date picker popup.
+
+                        } else if (fieldType == Integer.class || fieldType == Integer.TYPE || fieldType == Long.class
+                                || fieldType == Long.TYPE || fieldType == Short.class || fieldType == Short.TYPE
+                                || fieldType == Float.class || fieldType == Float.TYPE || fieldType == Double.class
+                                || fieldType == Double.TYPE) {
+                            // TODO: does "type='number'" work for float/double?
+                            namedInput.attr("type", "number");
+
+                            if (min != null) {
+                                namedInput.attr("min", "" + min);
+                            }
+                            if (max != null) {
+                                namedInput.attr("max", "" + max);
+                            }
+
+                        } else if (fieldType == Boolean.class || fieldType == Boolean.TYPE) {
+                            // Boolean fields are bound to checkboxes
+
+                            if (!type.isEmpty() && !type.equals("checkbox"))
+                                throw new RuntimeException("Field \"" + fieldName + "\" in form \"" + formId
+                                        + "\" in template for " + templateClassName
+                                        + " needs to be of type \"checkbox\", since "
+                                        + "it is bound to a Boolean field");
+
+                            namedInput.attr("type", "checkbox");
+
+                        } else if (fieldType.isEnum()) {
+                            // Enum-typed fields are bound to radio buttons
+
+                            if (!type.isEmpty() && !(type.equals("radio") || type.equals("select"))) {
+                                throw new RuntimeException("Field \"" + fieldName + "\" in form \"" + formId
+                                        + "\" in template for " + templateClassName
+                                        + " needs to be of type \"radio\", "
+                                        + "since it is bound to an enum-typed field");
+                            }
+
+                            // Make sure all radio or option values map to a valid enum value
+                            String radioVal = namedInput.attr("value");
+                            if (radioVal == null) {
+                                throw new RuntimeException("Missing attribute \"value\" for field \"" + fieldName
+                                        + "\" in form \"" + formId + "\" in template for " + templateClassName);
+                            }
+                            boolean enumOK = false;
+                            try {
+                                @SuppressWarnings({ "unchecked", "rawtypes", "unused" })
+                                Enum<?> enumVal = Enum.valueOf((Class<Enum>) fieldType, radioVal);
+                                enumOK = true;
+                            } catch (IllegalArgumentException e) {
+                            }
+                            if (!enumOK) {
+                                throw new RuntimeException("Illegal value \"" + radioVal
+                                        + "\" for radio or option field \"" + fieldName + "\" in form \"" + formId
+                                        + "\" of template for " + templateClassName);
+                            }
+
+                        } else if (fieldType == String.class) {
+                            // Password fields get marked as type="password", everything else that is 
+                            // bound to a String gets marked as type="text"
+
+                            if (fieldName.equals("password")) {
+                                namedInput.attr("type", "password");
+                            } else {
+                                if (isEmail) {
+                                    namedInput.attr("type", "email");
+                                } else {
+                                    namedInput.attr("type", "text");
+                                }
+
+                                //FIXME: need to validate minlength and maxlength using JS, and reflect 
+                                // validity in Bootstrap. For all forms:
+                                // -- load the following jQuery plugin if there are forms on the page:
+                                //    http://docs.jquery.com/Plugins/Validation
+                                // -- add in head: $("#commentForm").validate();
+                                if (minLength != null) {
+                                    namedInput.attr("minlength", "" + minLength);
+                                }
+                                if (maxLength != null) {
+                                    namedInput.attr("maxlength", "" + maxLength);
+                                }
+
+                                if (needsTrimming) {
+                                    //TODO: Add JS that trims spacing in form fields upon focus loss
+                                    // unless @NoTrim annotation is present
+                                }
+                                if (needsSpaceNormalization) {
+                                    //TODO: Add JS that auto-normalizes spacing in form fields if
+                                    // @NormalizeSpacing annotation is present
+                                }
+                            }
+
+                        } else if (fieldType == Character.class || fieldType == Character.TYPE) {
+                            namedInput.attr("type", "text").attr("maxlength", "1");
+
+                        } else if (fieldType == FileUpload.class) {
+                            // Force form type to multipart/form-data if one of the DataModel fields
+                            // is of type FileUpload
+                            namedInput.attr("type", "file");
+                            formElt.attr("enctype", "multipart/form-data");
+
+                        } else {
+                            throw new RuntimeException("Illegal type " + fieldType.getName() + " for field \""
+                                    + fieldName + "\" in form \"" + formId + "\" of template for " + templateClassName);
+                        }
+                    }
+                }
 
                 // If form is to be submitted via POST, try substituting the route URL for the
                 // RestHandler that handles the POST into the action attribute
@@ -774,15 +790,28 @@ class TemplateModelLoader {
                 }
             }
 
-            // --------------------------------------------------------------------
-            // Statically check field types
-            // --------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------
+            // Statically check TemplateModel field types
+            // ---------------------------------------------------------------------------------------------------------
 
-            for (Field field : allFields) {
+            for (Field field : publicFields) {
                 String fieldName = field.getName();
                 Class<?> fieldType = field.getType();
 
-                if (fieldType.isAssignableFrom(List.class)) {
+                if (fieldType.isAssignableFrom(TemplateModel.class)) {
+                    // A nested template is assumed to be rendered into non-text HTML (i.e. we assume it won't just result
+                    // in an HTML text node). HTML cannot be rendered into attribute values, so we disallow the use of
+                    // TemplateModel-typed template parameters into attribute values.
+                    if (paramsInAttrVals.contains(fieldName)) {
+                        // Nested template parameters can be rendered into text, but not attribute vals
+                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName + " has type "
+                                + fieldType.getSimpleName() + ", which is a " + TemplateModel.class.getSimpleName()
+                                + ", and therefore will be rendered into HTML. "
+                                + "However, the corresponding template parameter is used in an attribute value in "
+                                + "the template, and attribute values cannot accept HTML.");
+                    }
+
+                } else if (fieldType.isAssignableFrom(List.class)) {
                     // Lists can only have element type <? extends TemplateModel>
 
                     Class<?> listEltType;
@@ -818,19 +847,6 @@ class TemplateModelLoader {
                         // Nested arrays of template parameters can be rendered into text, but not attribute vals
                         throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName + " has type "
                                 + TemplateModel.class.getSimpleName() + "[], which will be rendered into HTML. "
-                                + "However, the corresponding template parameter is used in an attribute value in "
-                                + "the template, and attribute values cannot accept HTML.");
-                    }
-
-                } else if (fieldType.isAssignableFrom(TemplateModel.class)) {
-                    // A nested template is assumed to be rendered into non-text HTML (i.e. we assume it won't just result
-                    // in an HTML text node). HTML cannot be rendered into attribute values, so we disallow the use of
-                    // TemplateModel-typed template parameters into attribute values.
-                    if (paramsInAttrVals.contains(fieldName)) {
-                        // Nested template parameters can be rendered into text, but not attribute vals
-                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName + " has type "
-                                + fieldType.getSimpleName() + ", which is a " + TemplateModel.class.getSimpleName()
-                                + ", and therefore will be rendered into HTML. "
                                 + "However, the corresponding template parameter is used in an attribute value in "
                                 + "the template, and attribute values cannot accept HTML.");
                     }
@@ -872,82 +888,6 @@ class TemplateModelLoader {
                     }
                 }
             }
-
-            // --------------------------------------------------------------------
-            // TODO: Statically check field annotations against field types
-            // --------------------------------------------------------------------
-
-            // TODO: do something with paramsInURLAttrVals
-
-            //            if (content instanceof DataModel) {
-            //                ((DataModel) content).renderTemplate(prettyPrint, 0, buf);
-            //            } else if (content instanceof List) {
-            //                for (Object o : (List<?>) content) {
-            //                    if (o instanceof DataModel) {
-            //                        ((DataModel) o).renderTemplate(prettyPrint, 0, buf);
-            //                    } else {
-            //                        throw new IllegalArgumentException("Content has type List<" + o.getClass().getName()
-            //                                + ">, needs to be type List<? extends " + DataModel.class.getName() + ">");
-            //                    }
-            //                }
-            //            } else if (content.getClass().isArray()) {
-            //                int n = Array.getLength(content);
-            //                if (n > 0) {
-            //                    for (int i = 0; i < n; i++) {
-            //                        Object o = Array.get(content, i);
-            //                        if (o instanceof DataModel) {
-            //                            ((DataModel) o).renderTemplate(prettyPrint, 0, buf);
-            //                        } else {
-            //                            throw new IllegalArgumentException("Content has type " + o.getClass().getName()
-            //                                    + "[], needs to be type " + DataModel.class.getName() + "[]");
-            //                        }
-            //                    }
-            //                }
-            //            } else {
-            //                throw new IllegalArgumentException("Content must be of type " + DataModel.class.getName() + ", "
-            //                        + DataModel.class.getName() + "[], or List<? extends " + DataModel.class.getName() + ">");
-            //            }
-
-            //        List<?> list = List.class.isAssignableFrom(fieldType) ? (List<?>) fieldValue : null;
-            //        Object[] array = fieldType.isArray() ? (Object[]) fieldValue : null;
-            //        if (list != null || array != null) {
-            //            int n = list != null ? list.size() : array.length;
-            //            // Render each item in the list
-            //            for (int i = 0; i < n; i++) {
-            //                Object elt = list != null ? list.get(i) : array[i];
-            //                if (elt != null) {
-            //                    if (elt instanceof DataModel) {
-            //                        // Render HTML template for DataModel-typed list item
-            //                        wasIndented |= ((DataModel) elt).renderTemplate(reqURLPath, indentLevel, prettyPrint,
-            //                                buf);
-            //
-            //                    } else {
-            //                        // For any other list or array element type, recursively render
-            //                        // list/array elements
-            //                        wasIndented |= recursivelyRender(isAttrVal, isURLAttr, elt, reqURLPath, indentLevel,
-            //                                prettyPrint, buf);
-            //
-            //                        if (!prettyPrint && i > 0) {
-            //                            // Insert a space between adjacent values stringified from a list or array
-            //                            // to ensure they are separated. (Hopefully this is the most useful
-            //                            // behavior; if you need {"a", "b", "c"} -> "abc" without spaces, you need
-            //                            // to do the join of the parameters manually before inserting into the
-            //                            // template.)
-            //                            buf.append(' ');
-            //                        }
-            //                    }
-            //                }
-            //            }
-            //        }
-
-            //        // Look for fields labeled with IsURL annotation
-            //        for (Field field : templateClass.getFields()) {
-            //            for (Annotation annotation : field.getAnnotations()) {
-            //                if (annotation.annotationType() == IsURL.class) {
-            //                    // TODO
-            //                }
-            //            }
-            //        }
         }
     }
 
@@ -974,9 +914,9 @@ class TemplateModelLoader {
      */
     public void loadTemplate(Class<? extends TemplateModel> templateClass, String templateStrOverride) {
 
-        // --------------------------------------------------------------------
+        // -------------------------------------------------------------------------------------------------------------
         // Load HTML template corresponding with TemplateModel class
-        // --------------------------------------------------------------------
+        // -------------------------------------------------------------------------------------------------------------
 
         String templateStr = null;
         if (templateStrOverride != null) {
@@ -1039,9 +979,9 @@ class TemplateModelLoader {
                     + templateClass.getName());
         }
 
-        // --------------------------------------------------------------------
+        // -------------------------------------------------------------------------------------------------------------
         // Parse the HTML in the template string
-        // --------------------------------------------------------------------
+        // -------------------------------------------------------------------------------------------------------------
 
         // See if this is a whole-page HTML document, as opposed to an HTML fragment
         int firstTagIdx = templateStr.indexOf("<");

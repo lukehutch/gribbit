@@ -26,27 +26,20 @@
 package gribbit.model;
 
 import gribbit.auth.CSRF;
+import gribbit.model.util.FieldChecker;
 import gribbit.request.Request;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.ExceptionResponse;
 import gribbit.response.exception.InternalServerErrorException;
-import gribbit.server.config.GribbitProperties;
-import gribbit.server.siteresources.DataModelLoader;
+import gribbit.server.GribbitServer;
+import gribbit.util.JSON;
 import gribbit.util.Log;
-import gribbit.util.StringUtils;
-import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
-import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * A model that can be bound from the parameters in a POST request, and/or that can be used to populate an HTML
@@ -56,53 +49,6 @@ import java.util.Map.Entry;
  * these constraints will be applied when submitted form data is bound to the model.
  */
 public abstract class DataModel {
-
-    private static boolean isBasicFieldType(Class<?> fieldType) {
-        return fieldType == String.class //
-                || fieldType == Integer.class || fieldType == Integer.TYPE //
-                || fieldType == Long.class || fieldType == Long.TYPE //
-                || fieldType == Short.class || fieldType == Short.TYPE //
-                || fieldType == Float.class || fieldType == Float.TYPE //
-                || fieldType == Double.class || fieldType == Double.TYPE //
-                || fieldType == Boolean.class || fieldType == Boolean.TYPE //
-                || fieldType == Character.class || fieldType == Character.TYPE //
-                || fieldType == LocalDate.class // 
-                || fieldType.isEnum();
-    }
-
-    /**
-     * Returns true if the DataModel's public fields consist only of basic types (builtins or their wrapper classes,
-     * String, LocalDate, or enum).
-     */
-    public static boolean isFlatModel(Class<? extends DataModel> dataModelClass) {
-        for (Field formField : dataModelClass.getFields()) {
-            if (!DataModelLoader.fieldIsPrivate(formField, /* checkGet = */true, /* checkSet = */true)) {
-                Class<?> formFieldType = formField.getType();
-                if (!isBasicFieldType(formFieldType)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /**
-     * TODO: Call this from classpath scanner (but allow List and Array types, and TemplateModel params inside
-     * TemplateModel types).
-     * 
-     * Should probably split out field type checking for all 3 DataModel types
-     */
-    public static void checkPostParamFieldTypes(Class<? extends DataModel> postParamDataModel) {
-        for (Field field : postParamDataModel.getFields()) {
-            if (!DataModelLoader.fieldIsPrivate(field, /* checkGet = */false, /* checkSet = */true)) {
-                Class<?> fieldType = field.getType();
-                if (!isBasicFieldType(fieldType)) {
-                    throw new RuntimeException("Unsupported field type " + fieldType.getSimpleName() + " for field "
-                            + postParamDataModel.getName() + "." + field.getName());
-                }
-            }
-        }
-    }
 
     /**
      * Bind formModelInstance data object from an HTTP request. The name of each field in formModelInstance object is
@@ -127,9 +73,10 @@ public abstract class DataModel {
             String fieldName = field.getName();
             unusedPostParams.remove(fieldName);
 
-            if (DataModelLoader.fieldIsPrivate(field, /* checkGet = */false, /* checkSet = */true)) {
+            if (FieldChecker.fieldIsPrivate(field, /* checkGet = */false, /* checkSet = */true)) {
                 // Ignore attempts to set fields annotated with @Private or @OnlySend,
                 // or where the field is a DBModel id field
+
                 // Log.warning("Attempt to bind POST param \"" + field.getName() + "\" to field marked @"
                 //         + Private.class.getName() + " or @" + OnlySend.class.getName()
                 //         + " (or an id field of a subclass of " + DBModel.class.getName() + ") in class "
@@ -161,7 +108,7 @@ public abstract class DataModel {
 
                             // There is a field in formModelInstance DataModel that is not in the
                             // POST request
-                            if (DataModelLoader.fieldIsRequired(field)) {
+                            if (FieldChecker.fieldIsRequired(field)) {
                                 throw new BadRequestException(request, "Field " + getClass().getName() + "."
                                         + fieldName + " required, but not sent in POST request");
                             }
@@ -270,9 +217,9 @@ public abstract class DataModel {
 
         // Check that the values in the fields satisfy the constraints
         try {
-            DataModelLoader.checkFieldValuesAgainstConstraints(this);
+            GribbitServer.siteResources.checkFieldValuesAgainstConstraintAnnotations(this);
         } catch (Exception e) {
-            throw new BadRequestException(request, "Form values invalid: " + e.getMessage());
+            throw new BadRequestException(request, "Form values do not satisfy constraints: " + e.getMessage());
         }
 
         for (String unusedParam : unusedPostParams) {
@@ -286,255 +233,18 @@ public abstract class DataModel {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Recursively render JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel objects.
-     * This produces a JSON rendering that may be served over a Web connection without exposing internal server state.
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static void toJSONRec(Object obj, boolean prettyPrint, int depth, StringBuilder buf) {
-        if (obj == null) {
-            buf.append("null");
-            return;
-        } else {
-            Class<? extends Object> klass = obj.getClass();
-            try {
-                boolean renderFieldsAsMap = false;
-                if (DataModel.class.isAssignableFrom(klass)) {
-                    renderFieldsAsMap = true;
-
-                } else if (klass == String.class) {
-                    buf.append('"');
-                    WebUtils.escapeJSONString((String) obj, buf);
-                    buf.append('"');
-
-                } else if (klass == Integer.class || klass == Boolean.class || klass == Long.class
-                        || klass == Float.class || klass == Double.class || klass == Short.class) {
-                    buf.append(obj.toString());
-
-                } else if (klass == Byte.class) {
-                    buf.append(Integer.toString(((Byte) obj).intValue()));
-
-                } else if (klass == Character.class) {
-                    buf.append('"');
-                    WebUtils.escapeJSONString(((Character) obj).toString(), buf);
-                    buf.append('"');
-
-                } else if (klass.isArray() || List.class.isAssignableFrom(klass)) {
-                    // Render an array or list
-                    boolean isList = List.class.isAssignableFrom(klass);
-                    List<?> list = isList ? (List<?>) obj : null;
-                    int n = isList ? list.size() : Array.getLength(obj);
-                    if (n == 0) {
-                        buf.append(prettyPrint ? "[ ]" : "[]");
-                    } else {
-                        buf.append(prettyPrint ? "[ " : "[");
-                        for (int i = 0; i < n; i++) {
-                            if (i > 0) {
-                                buf.append(prettyPrint ? ", " : ",");
-                            }
-                            // Recursively render value
-                            toJSONRec(isList ? list.get(i) : Array.get(obj, i), prettyPrint, depth + 1, buf);
-                        }
-                        buf.append(prettyPrint ? " ]" : "]");
-                    }
-
-                } else if (Iterable.class.isAssignableFrom(klass)) {
-                    // Render an Iterable (e.g. a Set)
-                    Iterable<?> iterable = (Iterable<?>) obj;
-                    boolean empty = true;
-                    buf.append(prettyPrint ? "[ " : "[");
-                    int i = 0;
-                    for (Object element : iterable) {
-                        if (i++ > 0) {
-                            buf.append(prettyPrint ? ", " : ",");
-                        }
-                        // Recursively render value
-                        toJSONRec(element, prettyPrint, depth + 1, buf);
-                        empty = false;
-                    }
-                    if (!empty && prettyPrint) {
-                        buf.append(' ');
-                    }
-                    buf.append(prettyPrint ? (!empty ? " ]" : "]") : "]");
-
-                } else if (Map.class.isAssignableFrom(klass)) {
-                    // Render a Map as a JSON associative array.
-                    Map<?, ?> map = (Map<?, ?>) obj;
-                    if (map.size() == 0) {
-                        buf.append(prettyPrint ? "{ }" : "{}");
-                    } else {
-                        buf.append(prettyPrint ? "{\n" : "{");
-                        if (prettyPrint) {
-                            // If prettyprinting, get first non-null key and see if it
-                            // implements Comparable, and if so, sort the keys into order
-                            ArrayList<?> keys = new ArrayList<>(map.keySet());
-                            int n = keys.size();
-                            Object firstKey = keys.get(0);
-                            if (firstKey == null && n > 1) {
-                                firstKey = keys.get(1);
-                            }
-                            if (firstKey != null) {
-                                if (Comparable.class.isAssignableFrom(firstKey.getClass())) {
-                                    Collections.sort((ArrayList<Comparable>) keys);
-                                }
-                            }
-                            for (int i = 0; i < n; i++) {
-                                Object key = keys.get(i);
-                                Object val = map.get(key);
-
-                                // Render key 
-                                if (prettyPrint) {
-                                    buf.append(StringUtils.spaces(depth + 1));
-                                }
-                                buf.append('"');
-                                WebUtils.escapeJSONString(key.toString(), buf);
-                                buf.append(prettyPrint ? "\" : " : "\":");
-
-                                // Recursively render value
-                                toJSONRec(val, prettyPrint, depth + 1, buf);
-                                if (i < n - 1) {
-                                    buf.append(prettyPrint ? ",\n" : ",");
-                                } else if (prettyPrint) {
-                                    buf.append('\n');
-                                }
-                            }
-                        } else {
-                            // Save on time if not prettyprinting
-                            int remaining = map.size();
-                            for (Entry ent : map.entrySet()) {
-                                Object key = ent.getKey();
-                                Object val = ent.getValue();
-
-                                // Render key 
-                                if (prettyPrint) {
-                                    buf.append(StringUtils.spaces(depth + 1));
-                                }
-                                buf.append('"');
-                                WebUtils.escapeJSONString(key.toString(), buf);
-                                buf.append(prettyPrint ? "\" : " : "\":");
-
-                                // Recursively render value
-                                toJSONRec(val, prettyPrint, depth + 1, buf);
-                                if (--remaining > 0) {
-                                    buf.append(prettyPrint ? ",\n" : ",");
-                                } else if (prettyPrint) {
-                                    buf.append('\n');
-                                }
-                            }
-                        }
-                        if (prettyPrint) {
-                            buf.append(StringUtils.spaces(depth));
-                        }
-                        buf.append('}');
-                    }
-
-                } else {
-                    // Some other class -- render fields as a JSON associative array using introspection
-                    renderFieldsAsMap = true;
-                }
-
-                if (renderFieldsAsMap) {
-                    // DataModel, DBModel, or some other class -- render fields as a JSON associative array
-                    ArrayList<Field> fieldsToInclude = new ArrayList<>();
-                    Field[] fields = klass.getFields();
-                    for (int i = 0; i < fields.length; i++) {
-                        Field field = fields[i];
-                        // DataModel fields annotated with @Private or @OnlyReceive and
-                        // DBModel id fields cannot be sent to the user
-                        if (!(obj instanceof DataModel) || !DataModelLoader.fieldIsPrivate(field, //
-                                /* checkGet = */true, /* checkSet = */false)) {
-                            // In case class is not itself public, need to call setAccessible(true)
-                            // FIXME: Need to do the same everywhere else we get fields, or
-                            // FIXME: alternatively catch IllegalAccessException and tell the user
-                            // FIXME: that the class needs to be public.
-                            field.setAccessible(true);
-                            fieldsToInclude.add(field);
-                        }
-                    }
-                    int n = fieldsToInclude.size();
-                    if (n == 0) {
-                        buf.append(prettyPrint ? "{ }" : "{}");
-                    } else {
-                        buf.append(prettyPrint ? "{\n" : "{");
-                        for (int i = 0; i < n; i++) {
-                            Field field = fieldsToInclude.get(i);
-
-                            // Render field name as key
-                            if (prettyPrint) {
-                                buf.append(StringUtils.spaces(depth + 1));
-                            }
-                            buf.append('"');
-                            WebUtils.escapeJSONString(field.getName(), buf);
-                            buf.append(prettyPrint ? "\" : " : "\":");
-
-                            // Render value
-                            // Turn primitive types into strings, they have their own getter methods
-                            Class<?> fieldType = field.getType();
-                            if (fieldType == Integer.TYPE) {
-                                buf.append(Integer.toString(field.getInt(obj)));
-                            } else if (fieldType == Boolean.TYPE) {
-                                buf.append(Boolean.toString(field.getBoolean(obj)));
-                            } else if (fieldType == Long.TYPE) {
-                                buf.append(Long.toString(field.getLong(obj)));
-                            } else if (fieldType == Float.TYPE) {
-                                buf.append(Float.toString(field.getFloat(obj)));
-                            } else if (fieldType == Double.TYPE) {
-                                buf.append(Double.toString(field.getDouble(obj)));
-                            } else if (fieldType == Short.TYPE) {
-                                buf.append(Short.toString(field.getShort(obj)));
-                            } else if (fieldType == Byte.TYPE) {
-                                buf.append(Integer.toString((int) field.getByte(obj)));
-                            } else if (fieldType == Character.TYPE) {
-                                buf.append('"');
-                                WebUtils.escapeJSONString(Character.toString(field.getChar(obj)), buf);
-                                buf.append('"');
-                            } else {
-                                // Not a primitive type; recursively render value
-                                toJSONRec(field.get(obj), prettyPrint, depth + 1, buf);
-                            }
-                            if (i < n - 1) {
-                                buf.append(prettyPrint ? ",\n" : ",");
-                            } else if (prettyPrint) {
-                                buf.append('\n');
-                            }
-                        }
-                        if (prettyPrint) {
-                            buf.append(StringUtils.spaces(depth));
-                        }
-                        buf.append('}');
-                    }
-                }
-            } catch (IllegalArgumentException | IllegalAccessException e) {
-                throw new RuntimeException("Could not render object into JSON", e);
-            }
-        }
-    }
-
-    /**
      * Render this DataModel as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel
      * objects. This produces a JSON rendering that may be served over a Web connection without exposing internal server
      * state.
      */
-    public String toJSON(boolean prettyPrint) {
-        StringBuilder buf = new StringBuilder(8192);
-        toJSONRec(this, prettyPrint, 0, buf);
-        return buf.toString();
-    }
-
-    /**
-     * Recursively render an Object (or array, list, map or set of objects) as JSON, skipping fields marked with the
-     * annotanions Private or OnlyReceive, and id fields of DBModel objects. This produces a JSON rendering that may be
-     * served over a Web connection without exposing internal server state.
-     */
-    public static String toJSON(Object obj, boolean prettyPrint) {
-        StringBuilder buf = new StringBuilder(8192);
-        toJSONRec(obj, prettyPrint, 0, buf);
-        return buf.toString();
+    public String toJSON() {
+        return JSON.toJSON(this);
     }
 
     /** Render a DataModel object as a JSON string. */
     @Override
     public String toString() {
-        return this.toJSON(GribbitProperties.PRETTY_PRINT_JSON);
+        return toJSON();
     }
 
 }

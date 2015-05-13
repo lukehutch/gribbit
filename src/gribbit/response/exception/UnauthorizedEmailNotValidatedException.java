@@ -51,19 +51,18 @@ public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
             // Call the get() method of the custom error handler route. 
             // Throws ExceptionResponse in the place of the object that is currently being constructed if
             // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse =
-                    customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
             // Set status code in case custom handler forgets to set it
             this.exceptionResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
         } else {
-            this.exceptionResponse =
-                    new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized: email not validated");
+            this.exceptionResponse = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED,
+                    "Unauthorized: email not validated");
         }
 
         // Redirect the user back to the page they were trying to get to once they do log in successfully
         this.exceptionResponse.logOutUser();
-        this.exceptionResponse
-                .setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request.getURLPath(), 300));
+        this.exceptionResponse.setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request
+                .getURLPathUnhashed(), 300));
     }
 
     /**

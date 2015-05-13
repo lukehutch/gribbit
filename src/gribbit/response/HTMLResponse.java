@@ -26,10 +26,9 @@
 package gribbit.response;
 
 import gribbit.auth.CSRF;
-import gribbit.model.DataModel;
 import gribbit.model.TemplateModel;
 import gribbit.request.Request;
-import gribbit.server.config.GribbitProperties;
+import gribbit.util.JSON;
 import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -64,13 +63,15 @@ public class HTMLResponse extends Response {
      */
     @Override
     public ByteBuf getContent(Request request) {
-        String contentStr = request.isGetModelRequest()
-        // Render as JSON
-        ? DataModel.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON)
-                // Empty content
-                : content == null ? Unpooled.EMPTY_BUFFER
-                // Render as HTML
-                        : content.renderTemplate(request.getURLPathUnhashed(), GribbitProperties.PRETTY_PRINT_HTML);
+        String contentStr =
+        // Return empty string for null content
+        content == null ? "" //
+                : request.isGetModelRequest()
+                // Render as JSON if ?_getmodel=1 is appended to the URL
+                ? JSON.toJSON(content)
+                        // Render as HTML otherwise
+                        : content.renderTemplate(request.getURLPathUnhashed());
+
         ByteBuf contentBytes = Unpooled.buffer(contentStr.length() * 3 / 2);
         ByteBufUtil.writeUtf8(contentBytes, contentStr);
         int contentLength = contentBytes.readableBytes();

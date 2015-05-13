@@ -78,7 +78,15 @@ public class HTMLPageTemplateModel extends TemplateModel {
      */
     public static final String _template = "<!DOCTYPE html>" //
             // charset should come before title
-            + "<html><head><meta charset=\"utf-8\"><title>${title}</title></head>" //
+            + "<html>"//
+            + "<head>" //
+            + "<meta charset=\"utf-8\">" //
+            + "<title>${title}</title>" + "</head>" //
+            + "<body>" //
             // flash messages come at the beginning of the body
-            + "<body>${flashMessages}${content}</body></html>";
+            + "${flashMessages}" //
+            // templated content comes next
+            + "${content}" //
+            + "</body>" //
+            + "</html>";
 }
