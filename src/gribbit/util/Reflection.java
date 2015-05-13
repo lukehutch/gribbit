@@ -52,6 +52,7 @@ public class Reflection {
                 if (constructor == null) {
                     throw new InstantiationException("No default (zero-argument) constructor");
                 }
+                constructor.setAccessible(true);
 
                 // Try calling default constructor
                 @SuppressWarnings("unchecked")
