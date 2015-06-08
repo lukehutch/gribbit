@@ -26,7 +26,6 @@
 package gribbit.response.exception;
 
 import gribbit.auth.Cookie;
-import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
 import gribbit.route.Route;
@@ -44,13 +43,13 @@ public class UnauthorizedException extends ExceptionResponse {
      * redirect cookie so that if the user does later successfully log in, they'll end up where they were originally
      * trying to go when they were denied access.
      */
-    public UnauthorizedException(Request request, User user) throws ExceptionResponse {
+    public UnauthorizedException(Request request) throws ExceptionResponse {
         Route customHandlerRoute = GribbitServer.siteResources.getUnauthorizedRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route. 
             // Throws ExceptionResponse in the place of the object that is currently being constructed if
             // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            this.exceptionResponse = customHandlerRoute.callHandler(request, /* isErrorHandler = */true);
             // Set status code in case custom handler forgets to set it
             this.exceptionResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
         } else {

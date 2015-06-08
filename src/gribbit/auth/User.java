@@ -140,16 +140,16 @@ public class User extends DBModelStringKey {
     public static User validateTok(Request request, String email, String suppliedToken, TokenType tokType)
             throws ExceptionResponse {
         if (email.isEmpty() || email.equals("null") || email.indexOf('@') < 0) {
-            throw new BadRequestException(request, /* user = */null, "Invalid email address");
+            throw new BadRequestException(request, "Invalid email address");
         }
         if (suppliedToken == null || suppliedToken.isEmpty()) {
-            throw new BadRequestException(request, /* user = */null, "Invalid token");
+            throw new BadRequestException(request, "Invalid token");
         }
 
         // Look up user with this email addr
         User user = User.findByEmail(email);
         if (user == null) {
-            throw new BadRequestException(request, /* user = */null, "User account does not exist");
+            throw new BadRequestException(request, "User account does not exist");
         }
 
         switch (tokType) {
@@ -195,7 +195,7 @@ public class User extends DBModelStringKey {
         default:
             break;
         }
-        throw new BadRequestException(request, /* user = */null, "Token has expired or does not match");
+        throw new BadRequestException(request, "Token has expired or does not match");
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -283,7 +283,7 @@ public class User extends DBModelStringKey {
      */
     public void changePassword(Request request, String newPassword, Response response) throws ExceptionResponse {
         if (sessionTokHasExpired()) {
-            throw new UnauthorizedException(request, this);
+            throw new UnauthorizedException(request);
         }
         // Re-hash user password
         passwordHash = Hash.hashPassword(newPassword);
@@ -335,10 +335,9 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Decrypt the session cookie in the HttpRequest, look up the user, and return the user if the user's auth token is
-     * valid (i.e. if their session has not expired or been revoked).
-     * 
-     * @return Returns null if session is invalid or user is no longer allowed to log in.
+     * Decrypt the session cookie in the HttpRequest, look up the user in the database, and set the user field in the
+     * request if the user's auth token is valid (i.e. if their session has not expired or been revoked). Otherwise sets
+     * the user field to null.
      */
     public static User getLoggedInUser(Request request) {
         // Get email address from cookie
@@ -412,7 +411,7 @@ public class User extends DBModelStringKey {
                 // Shouldn't happen, since we just created session tok, but just in case
                 clearSessionTok();
                 Log.error("Couldn't create auth session for: " + id);
-                throw new UnauthorizedException(request, this);
+                throw new UnauthorizedException(request);
             }
 
             // Save tokens in database
@@ -426,7 +425,7 @@ public class User extends DBModelStringKey {
         } else {
             // User is not authorized
             Log.error("User is not whitelisted for login: " + id);
-            throw new UnauthorizedException(request, this);
+            throw new UnauthorizedException(request);
         }
     }
 
@@ -448,7 +447,7 @@ public class User extends DBModelStringKey {
             // of that email account, so this is still secure.
             if (findByEmail(email) != null) {
                 Log.error("Could not create new user: user \"" + email + "\" already exists");
-                throw new UnauthorizedException(request, null);
+                throw new UnauthorizedException(request);
             }
 
             User user = new User(email);
@@ -466,7 +465,7 @@ public class User extends DBModelStringKey {
         } else {
             // User is not authorized
             Log.error("User is not whitelisted for account creation: " + email);
-            throw new UnauthorizedException(request, null);
+            throw new UnauthorizedException(request);
         }
     }
 

@@ -26,7 +26,6 @@
 package gribbit.request.handler;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.EXPECT;
-import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
@@ -35,11 +34,7 @@ import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.MethodNotAllowedException;
 import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.NotModifiedException;
-import gribbit.response.exception.UnauthorizedEmailNotValidatedException;
 import gribbit.response.exception.UnauthorizedException;
-import gribbit.route.RouteHandler;
-import gribbit.route.RouteHandlerAuthAndValidatedEmailRequired;
-import gribbit.route.RouteHandlerAuthRequired;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -316,51 +311,38 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             // Call route handlers until one is able to handle the route,
             // or until we run out of handlers
-            User user = null;
             Route authorizedRoute = null;
             ArrayList<Route> allRoutes = GribbitServer.siteResources.getAllRoutes();
             for (int i = 0, n = allRoutes.size(); i < n; i++) {
                 Route route = allRoutes.get(i);
                 // If the request URI matches this route path
                 if (route.matches(reqURLUnhashed)) {
-                    Class<? extends RouteHandler> handler = route.getHandler();
-
                     if (!(request.getMethod() == HttpMethod.GET || request.getMethod() == HttpMethod.POST)) {
-
-                        // We only support GET and POST at this point
+                        // Only GET and POST are supported
                         throw new MethodNotAllowedException();
 
                     } else if ((request.getMethod() == HttpMethod.GET && !route.hasGetMethod())
                             || (request.getMethod() == HttpMethod.POST && !route.hasPostMethod())) {
-
                         // Tried to call an HTTP method that is not defined for this route
                         throw new MethodNotAllowedException();
 
-                    } else if (RouteHandlerAuthRequired.class.isAssignableFrom(handler)) {
-
-                        // This handler requires authentication -- check if user is logged in
-                        user = User.getLoggedInUser(request);
-                        if (user == null) {
-
-                            // User is not logged in, and route requires them to be
-                            throw new UnauthorizedException(request, user);
-
-                        } else if (RouteHandlerAuthAndValidatedEmailRequired.class.isAssignableFrom(handler)
-                                && !user.emailIsValidated()) {
-
-                            // User is logged in, but their email address has not yet been validated
-                            throw new UnauthorizedEmailNotValidatedException(request, user);
-
-                        } else {
-
-                            // Authorization required and user logged in: OK to handle request
-                            // with this route
-                            authorizedRoute = route;
-                        }
-                    } else {
-
+                    } else if (route.authNotRequired()) {
                         // Authorization not required -- OK to handle request with this route
                         authorizedRoute = route;
+                        
+                    } else {
+                        // This route requires authentication -- check if user is logged in
+                        request.lookupUser();
+                        
+                        // Test if user can access this route
+                        if (!route.isAuthorized(request)) {
+                            throw new UnauthorizedException(request);
+                            
+                        } else {
+                            // Authorization is required, the user is logged in, and they passed any auth tests:
+                            // OK to handle request with this route
+                            authorizedRoute = route;                            
+                        }
                     }
 
                     // URI matches, so don't need to search further URIs
@@ -378,6 +360,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // response is still null but authorizedRoute is non-null, then there was no error response
             // such as Unauthorized, and the user is authorized for this route (so they are also
             // authorized for the WebSocket attached to the route).
+            
+            // Note that currently, the WebSocketHandler constructor below will always fail if the user
+            // is not logged in, to mitigate DoS attacks on un-authenticated sockets.
 
             // TODO: Read WS routes from class annotations to see if WS is allowed?
             // TODO: Or always allow WS connections so that GET/POST can be submitted via WS?
@@ -389,7 +374,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     && authorizedRoute != null && response == null //
                     && request.isWebSocketUpgradeRequest() && msg instanceof HttpRequest) {
                 this.webSocketHandler = new WebSocketHandler(ctx, (HttpRequest) msg, request.getOrigin(),
-                        request.getQueryParam("_csrf"), user, authorizedRoute);
+                        request.getQueryParam("_csrf"), request.getUser(), authorizedRoute);
                 // Finished handling the websocket upgrade request (or returned an error)
                 return;
             }
@@ -407,7 +392,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     // Neither a route handler nor a static resource matched the request URI.
                     // Return 404 Not Found.
-                    throw new NotFoundException(request, user);
+                    throw new NotFoundException(request);
 
                 } else {
 
@@ -520,7 +505,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     try {
                         // Call the RestHandler for the route
-                        response = authorizedRoute.callHandler(request, user, /* isErrorHandler = */false);
+                        response = authorizedRoute.callHandler(request, /* isErrorHandler = */false);
 
                     } catch (ExceptionResponse e) {
 
@@ -529,7 +514,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         response = e.getResponse();
 
                     } catch (Exception e) {
-                        throw new InternalServerErrorException(request, user, "Exception while handling URI "
+                        throw new InternalServerErrorException(request, "Exception while handling URI "
                                 + reqURLUnhashed, e);
                     }
                 }

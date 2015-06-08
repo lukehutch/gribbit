@@ -36,14 +36,15 @@ import static io.netty.handler.codec.http.HttpHeaderNames.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.Cookie;
+import gribbit.auth.User;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
-import io.netty.handler.codec.http.ServerCookieDecoder;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.time.ZonedDateTime;
@@ -79,6 +80,13 @@ public class Request {
     private HashMap<String, String> postParamToValue;
     private HashMap<String, FileUpload> postParamToFileUpload;
     private Map<String, List<String>> queryParamToVals;
+
+    /**
+     * The logged-in user, if the user is logged in (has a valid session cookie) and this request is for a route that
+     * requires authentication. Note that even if this field is set, the user still may be denied access to one or more
+     * routes, depending on route authentication requirements.
+     */
+    private User user;
 
     /**
      * Header for CORS, and for protecting against CSWSH. See:
@@ -481,5 +489,24 @@ public class Request {
      */
     public boolean isWebSocketUpgradeRequest() {
         return isWebSocketUpgradeRequest;
+    }
+
+    /**
+     * The logged-in user, if the user is logged in (has a valid session cookie) and this request is for a route that
+     * requires authentication. Note that even if this field is set, the user still may be denied access to one or more
+     * routes, depending on route authentication requirements. This must be called after the call to lookupUser().
+     */
+    public User getUser() {
+        return user;
+    }
+
+    /**
+     * Set the user field based on the session cookie in the request. Performs a database lookup, so this is deferred so
+     * that routes that do not require authorization do not perform this lookup.
+     */
+    public void lookupUser() {
+        if (this.user == null) {
+            this.user = User.getLoggedInUser(this);
+        }
     }
 }

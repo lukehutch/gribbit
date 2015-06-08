@@ -38,6 +38,7 @@ import gribbit.util.Log;
 import gribbit.util.Reflection;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
@@ -168,12 +169,9 @@ public class RouteMapping {
         if (handler.getAnnotation(Disabled.class) != null) {
             // Log.info("Found disabled handler: " + handler.getName());
 
-        } else if (handler == RouteHandler.class || handler == RouteHandlerAuthNotRequired.class
-                || handler == RouteHandlerAuthRequired.class
-                || handler == RouteHandlerAuthAndValidatedEmailRequired.class) {
-            // Don't register handler for generic super-interfaces 
+        } else if (!Modifier.isAbstract(handler.getModifiers())) {
+            // Don't register abstract RouteHandler classes 
 
-        } else {
             // Check if route has been overridden for this handler
             RoutePath routeOverrideAnnotation = handler.getAnnotation(RoutePath.class);
             String routeOverride = routeOverrideAnnotation == null ? null : routeOverrideAnnotation.value();

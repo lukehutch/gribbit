@@ -25,7 +25,6 @@
  */
 package gribbit.response.exception;
 
-import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
 import gribbit.route.Route;
@@ -40,7 +39,7 @@ public class BadRequestException extends ExceptionResponse {
     /**
      * This exception is thrown when user-supplied data in the request is invalid.
      */
-    public BadRequestException(Request request, User user, String msg) throws ExceptionResponse {
+    public BadRequestException(Request request, String msg) throws ExceptionResponse {
         super(msg);
         if (msg != null) {
             Log.fine("Bad Request: " + msg);
@@ -50,7 +49,7 @@ public class BadRequestException extends ExceptionResponse {
             // Call the get() method of the custom error handler route.
             // Throws ExceptionResponse in the place of the object that is currently being constructed if
             // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            this.exceptionResponse = customHandlerRoute.callHandler(request, /* isErrorHandler = */true);
             // Set status code in case custom handler forgets to set it
             this.exceptionResponse.setStatus(HttpResponseStatus.BAD_REQUEST);
         } else {
@@ -62,28 +61,14 @@ public class BadRequestException extends ExceptionResponse {
      * This exception is thrown when user-supplied data in the request is invalid.
      */
     public BadRequestException() throws ExceptionResponse {
-        this(null, null, null);
+        this(null, null);
     }
 
     /**
      * This exception is thrown when user-supplied data in the request is invalid.
      */
     public BadRequestException(Request request) throws ExceptionResponse {
-        this(request, null, null);
-    }
-
-    /**
-     * This exception is thrown when user-supplied data in the request is invalid.
-     */
-    public BadRequestException(Request request, User user) throws ExceptionResponse {
-        this(request, user, null);
-    }
-
-    /**
-     * This exception is thrown when user-supplied data in the request is invalid.
-     */
-    public BadRequestException(Request request, String msg) throws ExceptionResponse {
-        this(request, null, msg);
+        this(request, null);
     }
 
     /**

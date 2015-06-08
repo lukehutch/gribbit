@@ -25,7 +25,6 @@
  */
 package gribbit.response.exception;
 
-import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
 import gribbit.route.Route;
@@ -57,13 +56,13 @@ public class InternalServerErrorException extends ExceptionResponse {
         super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), e);
     }
 
-    private void generateResponse(Request request, User user) throws ExceptionResponse {
+    private void generateResponse(Request request) throws ExceptionResponse {
         Route customHandlerRoute = GribbitServer.siteResources.getInternalServerErrorRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route.
             // Throws ExceptionResponse in the place of the object that is currently being constructed if
             // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+            this.exceptionResponse = customHandlerRoute.callHandler(request, /* isErrorHandler = */true);
             // Set status code in case custom handler forgets to set it
             this.exceptionResponse.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
         } else {
@@ -75,25 +74,9 @@ public class InternalServerErrorException extends ExceptionResponse {
     /**
      * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
      */
-    public InternalServerErrorException(Request request, User user, String msg, Exception e) throws ExceptionResponse {
-        super(msg, e);
-        generateResponse(request, user);
-    }
-
-    /**
-     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
-     */
-    public InternalServerErrorException(Request request, User user, String msg) throws ExceptionResponse {
-        super(msg);
-        generateResponse(request, user);
-    }
-
-    /**
-     * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
-     */
     public InternalServerErrorException(Request request, String msg, Exception e) throws ExceptionResponse {
         super(msg, e);
-        generateResponse(request, /* user = */null);
+        generateResponse(request);
     }
 
     /**
@@ -101,6 +84,6 @@ public class InternalServerErrorException extends ExceptionResponse {
      */
     public InternalServerErrorException(Request request, String msg) throws ExceptionResponse {
         super(msg);
-        generateResponse(request, /* user = */null);
+        generateResponse(request);
     }
 }

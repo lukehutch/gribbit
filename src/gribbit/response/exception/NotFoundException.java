@@ -25,7 +25,6 @@
  */
 package gribbit.response.exception;
 
-import gribbit.auth.User;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
 import gribbit.route.Route;
@@ -44,7 +43,7 @@ public class NotFoundException extends ExceptionResponse {
     /**
      * This exception is thrown when a user tries to access a resource that doesn't exist (404).
      */
-    public NotFoundException(Request request, User user) throws ExceptionResponse {
+    public NotFoundException(Request request) throws ExceptionResponse {
         String uri = request.getURLPathUnhashed();
         Route customHandlerRoute = GribbitServer.siteResources.getNotFoundRoute();
         if (customHandlerRoute != null) {
@@ -55,7 +54,7 @@ public class NotFoundException extends ExceptionResponse {
                 // Call the get() method of the custom error handler route. 
                 // Throws ExceptionResponse in the place of the object that is currently being constructed if
                 // an ExceptionResponse is thrown by the get() method of the custom error handler
-                this.exceptionResponse = customHandlerRoute.callHandler(request, user, /* isErrorHandler = */true);
+                this.exceptionResponse = customHandlerRoute.callHandler(request, /* isErrorHandler = */true);
                 // Set status code in case custom handler forgets to set it
                 this.exceptionResponse.setStatus(HttpResponseStatus.NOT_FOUND);
             }

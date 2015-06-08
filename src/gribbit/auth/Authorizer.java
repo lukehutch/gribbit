@@ -23,11 +23,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.route;
+package gribbit.auth;
 
+import gribbit.request.Request;
+import gribbit.route.Route;
 
 /**
- * Neither auth nor validated email required.
+ * Used with with Auth annotation to determine if a user is allowed to access a given route. This method will always be
+ * called with a non-null value for request.getUser().
  */
-public class RouteHandlerAuthNotRequired extends RouteHandler {
+public interface Authorizer {
+    public boolean isAuthorized(Request request, Route route);
 }

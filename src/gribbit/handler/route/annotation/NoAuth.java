@@ -23,10 +23,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.route;
+package gribbit.handler.route.annotation;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Auth and validated email required.
+ * If this annotation is added to a RouteHandler class, authorization is not needed for the route. (If an Auth
+ * annotation exists too, it overrides a NoAuth annotation.)
  */
-public class RouteHandlerAuthAndValidatedEmailRequired extends RouteHandlerAuthRequired {
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface NoAuth {
 }

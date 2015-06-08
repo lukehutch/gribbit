@@ -34,7 +34,7 @@ import gribbit.response.flashmsg.FlashMessage;
  * param values. Note: you should normally subclass RouteHandlerAuthNotRequired, RouteHandlerAuthRequired or
  * RouteHandlerAuthAndValidatedEmailRequired, and not RouteHandler itself.
  */
-public class RouteHandler {
+public abstract class RouteHandler {
 
     public Request request;
 

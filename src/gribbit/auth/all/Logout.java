@@ -25,16 +25,18 @@
  */
 package gribbit.auth.all;
 
+import gribbit.handler.route.annotation.NoAuth;
 import gribbit.handler.route.annotation.RoutePath;
 import gribbit.response.Response;
 import gribbit.response.exception.RedirectException;
-import gribbit.route.RouteHandlerAuthNotRequired;
+import gribbit.route.RouteHandler;
 
 /**
  * Default GET/POST handler for /logout URL. Logs the user out then redirects to the home page.
  */
 @RoutePath("/logout")
-public class Logout extends RouteHandlerAuthNotRequired {
+@NoAuth
+public class Logout extends RouteHandler {
     public Response get() throws RedirectException {
         RedirectException redir = new RedirectException("/");
         redir.getResponse().logOutUser(request);

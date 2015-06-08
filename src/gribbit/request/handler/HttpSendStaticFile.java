@@ -165,7 +165,7 @@ public class HttpSendStaticFile {
                 } catch (IOException e1) {
                 }
             }
-            throw new InternalServerErrorException(request, /* user = */ null, "Exception serving static file", e);
+            throw new InternalServerErrorException(request, "Exception serving static file", e);
         }
     }
 }

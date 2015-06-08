@@ -25,9 +25,12 @@
  */
 package gribbit.route;
 
+import gribbit.auth.Authorizer;
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
+import gribbit.handler.route.annotation.Auth;
 import gribbit.handler.route.annotation.Cached;
+import gribbit.handler.route.annotation.NoAuth;
 import gribbit.model.DataModel;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
@@ -60,27 +63,56 @@ public class Route {
     private Method postMethod;
     private Class<? extends DataModel> postParamType;
 
+    private Authorizer authorizer;
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * The default route authorizer -- requires the user to be logged in, but other than that, doesn't impose any other
+     * auth requirements on the user. Routes must explicitly use a NoAuth annotation or set their own Authorizer using
+     * the Auth annotation if they want to override this.
+     */
+    private static class LoggedInAuthorizer implements Authorizer {
+        @Override
+        public boolean isAuthorized(Request request, Route route) {
+            // Technically this will always return true, because Authorizers won't be called if request.getUser()
+            // is null, which happens when the user's session cookie is not valid
+            return request.getUser() != null;
+        }
+    }
+
+    /**
+     * Returns true if no authorization is required to invoke methods on this route. (This is used to speed up requests
+     * that do not require the user to be logged in, by skipping a database lookup for the user based on the session
+     * cookie.)
+     */
+    public boolean authNotRequired() {
+        return authorizer == null;
+    }
+
+    /**
+     * Call the Authorizer for this route, if any. Returns true if the route does not require authorization, or if the
+     * authorization test passes.
+     */
+    public boolean isAuthorized(Request request) {
+        return authorizer == null || (request.getUser() != null && authorizer.isAuthorized(request, this));
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Invoke a default method in a Route subinterface. */
-    private Response invokeMethod(Request request, User user, Method method, Object[] methodParamVals)
-            throws ExceptionResponse {
+    private Response invokeMethod(Request request, Method method, Object[] methodParamVals) throws ExceptionResponse {
         // Create a handler instance
         RouteHandler instance;
         try {
             instance = handlerClass.newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
-            throw new InternalServerErrorException(request, user, "Exception while creating instance of handler class "
+            throw new InternalServerErrorException(request, "Exception while creating instance of handler class "
                     + handlerClass.getName(), e);
         }
 
         // Set the request field
         instance.request = request;
-
-        // Also set the user field if this is an auth-required handler
-        if (instance instanceof RouteHandlerAuthRequired) {
-            ((RouteHandlerAuthRequired) instance).user = user;
-        }
 
         try {
             // Invoke the method
@@ -91,13 +123,13 @@ public class Route {
                 Log.warning(handlerClass.getName() + "." + method.getName()
                         + " returned a null response -- responding with 204: No Content");
                 response = new ErrorResponse(HttpResponseStatus.NO_CONTENT, "");
-
             }
 
             // For non-error responses
             if (response.getStatus() == HttpResponseStatus.OK) {
 
                 // Add the user's CSRF token to the response, if available
+                User user = request.getUser();
                 response.setCsrfTok(user != null ? user.csrfTok : null);
 
                 // If last modified time was not filled in in the response, fill it in with the current time
@@ -131,14 +163,14 @@ public class Route {
             if (cause instanceof ExceptionResponse) {
                 throw (ExceptionResponse) cause;
             } else if (cause instanceof Exception) {
-                throw new InternalServerErrorException(request, user, "Exception while invoking the method "
+                throw new InternalServerErrorException(request, "Exception while invoking the method "
                         + handlerClass.getName() + "." + method.getName(), (Exception) cause);
             } else {
-                throw new InternalServerErrorException(request, user, "Exception while invoking the method "
+                throw new InternalServerErrorException(request, "Exception while invoking the method "
                         + handlerClass.getName() + "." + method.getName() + ": caused by " + cause.getMessage());
             }
         } catch (Exception e) {
-            throw new InternalServerErrorException(request, user, "Exception while invoking the method "
+            throw new InternalServerErrorException(request, "Exception while invoking the method "
                     + handlerClass.getName() + "." + method.getName(), e);
         }
     }
@@ -148,6 +180,30 @@ public class Route {
     public Route(Class<? extends RouteHandler> handlerClass, String routePath) {
         this.handlerClass = handlerClass;
         this.routePath = routePath;
+
+        Authorizer authorizer = null;
+        Auth auth = handlerClass.getAnnotation(Auth.class);
+        if (auth != null) {
+            Class<? extends Authorizer> authorizerClass = auth.authorizer();
+            try {
+                // Try instantiating the user-provided Authorizer class
+                authorizer = authorizerClass.newInstance();
+            } catch (InstantiationException | IllegalAccessException e) {
+                // Critical error -- don't start server if Authorizer can't be instantiated,
+                // it could lead to a serious vulnerability.
+                throw new RuntimeException("Could not instantiate class " + authorizerClass.getName(), e);
+            }
+        }
+        if (authorizer == null) {
+            NoAuth noAuth = handlerClass.getAnnotation(NoAuth.class);
+            if (noAuth != null) {
+                // If there's no @Auth annotation, but there is a @NoAuth annotation, don't require authorization --
+                // leave authorizer set to null.
+            } else {
+                // If no @Auth or @NoAuth annotation, require the user to be logged in.
+                authorizer = new LoggedInAuthorizer();
+            }
+        }
 
         // Check for a Cached annotation on the handler subinterface
         Cached cachedAnnotation = handlerClass.getAnnotation(Cached.class);
@@ -246,7 +302,7 @@ public class Route {
      * 
      * @param user
      */
-    private Object[] bindPostParamFromPOSTData(Request request, User user) throws ExceptionResponse {
+    private Object[] bindPostParamFromPOSTData(Request request) throws ExceptionResponse {
         if (postParamType == null) {
             // post() takes no params
             return null;
@@ -259,7 +315,7 @@ public class Route {
             } catch (InstantiationException e) {
                 // Should never happen, we already tried instantiating all DataModel subclasses
                 // that are bound to POST request handlers when site resources were loaded
-                throw new InternalServerErrorException(request, user, "Could not instantiate POST parameter of type "
+                throw new InternalServerErrorException(request, "Could not instantiate POST parameter of type "
                         + postParamType.getName(), e);
             }
 
@@ -277,7 +333,7 @@ public class Route {
      * If a get() method takes one or more parameters, bind the parameters from URI segments after the end of the
      * route's base URI, e.g. /person/53 for a route of /person gives one Integer-typed param value of 53
      */
-    private Object[] bindGetParamsFromURI(Request request, User user) throws ExceptionResponse {
+    private Object[] bindGetParamsFromURI(Request request) throws ExceptionResponse {
         String reqURI = request.getURLPathUnhashed();
         if (getParamTypes.length == 0) {
             // get() takes no params
@@ -299,7 +355,7 @@ public class Route {
                         nextSlashIdx = reqURI.length();
                     }
                     if (nextSlashIdx - slashIdx < 2) {
-                        throw new BadRequestException(request, user, "Insufficient URL parameters, expected "
+                        throw new BadRequestException(request, "Insufficient URL parameters, expected "
                                 + getParamTypes.length + ", got " + i);
                     }
                     String uriSegment = reqURI.substring(slashIdx + 1, nextSlashIdx);
@@ -308,7 +364,7 @@ public class Route {
                             // Specifically parse integers for int-typed method parameters 
                             getParamVals[i] = Integer.parseInt(uriSegment);
                         } catch (NumberFormatException e) {
-                            throw new BadRequestException(request, user,
+                            throw new BadRequestException(request,
                                     "Malformed URL parameter, expected integer for URI parameter");
                         }
                     } else {
@@ -323,7 +379,7 @@ public class Route {
                 }
                 if (slashIdx < reqURI.length() - 1) {
                     // Still at least one URL param left
-                    throw new BadRequestException(request, user, "Too many URL parameters");
+                    throw new BadRequestException(request, "Too many URL parameters");
                 }
             }
             return getParamVals;
@@ -340,14 +396,12 @@ public class Route {
      * @param isErrorHandler
      *            If true, assume the HTTP method is GET, even if the request that caused the error was of type POST.
      */
-    public Response callHandler(Request request, User user, boolean isErrorHandler) throws ExceptionResponse {
+    public Response callHandler(Request request, boolean isErrorHandler) throws ExceptionResponse {
         Response response;
-        if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass) && user == null) {
-            // Should not happen (the user object should only be non-null if the user is authorized),
-            // but just to be safe, double check that user is authorized if they are calling an
+        if (!authNotRequired() && request.getUser() == null) {
+            // Should never happen (request.getUser() should only be null if authNotRequired() is true),
+            // but just to be safe, double check that user is logged in if they are calling an
             // authorization-required handler
-            Log.error("Tried to call handler of type " + RouteHandlerAuthRequired.class.getName()
-                    + " with a null user object -- unauthorized");
             response = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
 
         } else {
@@ -357,32 +411,33 @@ public class Route {
             if (reqMethod == HttpMethod.GET) {
 
                 // Bind URI params
-                Object[] getParamVals = bindGetParamsFromURI(request, user);
+                Object[] getParamVals = bindGetParamsFromURI(request);
 
                 // Invoke the get() method with URI params
-                response = invokeMethod(request, user, getMethod, getParamVals);
+                response = invokeMethod(request, getMethod, getParamVals);
 
             } else if (reqMethod == HttpMethod.POST) {
 
                 // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
-                // unathenticated route
-                if (RouteHandlerAuthRequired.class.isAssignableFrom(handlerClass)) {
+                // unathenticated route. (Really, POST requests should only be on authenticated routes,
+                // since they change server state...) -- TODO: enforce this statically?
+                if (!authNotRequired()) {
+                    User user = request.getUser();
                     if (user == null) {
-                        throw new BadRequestException(request, user, "User not logged in, could not check CSRF token. "
+                        throw new BadRequestException(request, "User not logged in, could not check CSRF token. "
                                 + "POST requests are only accepted from logged-in users.");
                     } else {
                         if (!CSRF.csrfTokMatches(request.getPostParam(CSRF.CSRF_PARAM_NAME), user)) {
-                            throw new BadRequestException(request, user,
-                                    "Missing or incorrect CSRF token in POST request");
+                            throw new BadRequestException(request, "Missing or incorrect CSRF token in POST request");
                         }
                     }
                 }
 
                 // Bind the post() method's single parameter (if it has one) from the POST data in the request
-                Object[] postParamVal = bindPostParamFromPOSTData(request, user);
+                Object[] postParamVal = bindPostParamFromPOSTData(request);
 
                 // Invoke the post() method
-                response = invokeMethod(request, user, postMethod, postParamVal);
+                response = invokeMethod(request, postMethod, postParamVal);
 
             } else {
                 // Method not allowed

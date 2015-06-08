@@ -36,8 +36,8 @@ import gribbit.response.exception.RedirectException;
 import gribbit.response.exception.UnauthorizedException;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
-import gribbit.route.RouteHandlerAuthNotRequired;
 import gribbit.route.Route;
+import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
@@ -51,7 +51,7 @@ import java.time.ZonedDateTime;
  * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
  */
 @RoutePath("/oauth/google")
-public class GoogleLogin extends RouteHandlerAuthNotRequired {
+public class GoogleLogin extends RouteHandler {
     static {
         if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
@@ -79,7 +79,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
      */
     public static void refreshAccessTokenIfNeeded(Request request, User user) throws ExceptionResponse {
         if (user == null) {
-            throw new BadRequestException(request, user, "User is null");
+            throw new BadRequestException(request, "User is null");
         }
         String refreshToken = user.getData(GOOGLE_REFRESH_TOKEN_KEY);
         String accessToken = user.getData(GOOGLE_ACCESS_TOKEN_KEY);
@@ -91,7 +91,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
             // generate a new access token from the refresh token
 
             if (refreshToken == null) {
-                throw new BadRequestException(request, user, "No refresh token");
+                throw new BadRequestException(request, "No refresh token");
             }
             Log.info("Updating access token for user " + user.id); // TODO: for debugging, remove later
 
@@ -106,7 +106,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                         "client_secret", GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET, //
                         "grant_type", "refresh_token");
             } catch (Exception e) {
-                throw new BadRequestException(request, user, "Could not get access token using refresh token");
+                throw new BadRequestException(request, "Could not get access token using refresh token");
             }
             // The access token obtained from the refresh token.
             accessToken = auth.access_token;
@@ -190,7 +190,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                                 "redirect_uri", callbackURI(),//
                                 "grant_type", "authorization_code");
                     } catch (Exception e) {
-                        throw new BadRequestException(request, user, "Could not get authorization code");
+                        throw new BadRequestException(request, "Could not get authorization code");
                     }
 
                     // The access token obtained from the authorization code
@@ -200,7 +200,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                         // Should not happen, should always get an access token.
                         // On any result code other than 200 OK (e.g. 400 Bad Request / 401 Not Authorized),
                         // the POST request above will have already thrown an exception.
-                        throw new BadRequestException(request, user, "Could not fetch access token");
+                        throw new BadRequestException(request, "Could not fetch access token");
                     }
                     long timeNowEpochSeconds = ZonedDateTime.now().toEpochSecond();
                     long accessTokenExpiresSeconds = timeNowEpochSeconds + accessTokenExpiresInSeconds;
@@ -213,7 +213,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
                                 "https://www.googleapis.com/oauth2/v1/userinfo", //
                                 "access_token", accessToken);
                     } catch (Exception e) {
-                        throw new BadRequestException(request, user, "Could not get userInfo");
+                        throw new BadRequestException(request, "Could not get userInfo");
                     }
 
                     String email = userInfo.email;
@@ -349,7 +349,7 @@ public class GoogleLogin extends RouteHandlerAuthNotRequired {
             unauthorizedException = new RedirectException(GribbitServer.siteResources.getUnauthorizedRoute());
         } else {
             // Otherwise the URL is fine (not full of OAuth tokens), just return an Unauthorized response type
-            unauthorizedException = new UnauthorizedException(request, user);
+            unauthorizedException = new UnauthorizedException(request);
         }
         // Clear session cookies in response
         if (user != null) {

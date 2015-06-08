@@ -23,15 +23,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.route;
+package gribbit.handler.route.annotation;
 
-import gribbit.auth.User;
+import gribbit.auth.Authorizer;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Auth required, but validated email NOT required.
+ * If this annotation is added to a RouteHandler class, the given Authorizer class is used to test if the user is
+ * allowed to access this route.
  */
-public class RouteHandlerAuthRequired extends RouteHandler {
-    
-    public User user;
-
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface Auth {
+    /** The Authorizer class for the route. */
+    Class<? extends Authorizer> authorizer();
 }
