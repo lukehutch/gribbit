@@ -401,11 +401,19 @@ public class User extends DBModelStringKey {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
 
-            // Create new session token
-            sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
-
-            // Create new random CSRF token every time user logs in
-            csrfTok = CSRF.generateRandomCSRFToken();
+            User existingUser = User.findByEmail(this.id);
+            if (existingUser != null) {
+                // Use existing session and CSRF tokens, if user is already logged in somewhere else.
+                // Without reusing these tokens, we either have to store multiple live session tokens for the
+                // user, so they can be logged in from multiple devices simultaneously, or logging in from
+                // each new device will log the user out of their existing session on another device.
+                this.sessionTok = existingUser.sessionTok;
+                this.csrfTok = existingUser.csrfTok;
+            } else {
+                // Create new session and CSRF token if there is no session token for the user in the database.
+                this.sessionTok = new Token(TokenType.SESSION, Cookie.SESSION_COOKIE_MAX_AGE_SECONDS);
+                this.csrfTok = CSRF.generateRandomCSRFToken();
+            }
 
             if (sessionTokHasExpired()) {
                 // Shouldn't happen, since we just created session tok, but just in case
@@ -414,7 +422,7 @@ public class User extends DBModelStringKey {
                 throw new UnauthorizedException(request);
             }
 
-            // Save tokens in database
+            // Save User object to database
             save();
 
             // Save login cookies in result
