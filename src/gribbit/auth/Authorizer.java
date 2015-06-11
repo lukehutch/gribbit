@@ -26,12 +26,26 @@
 package gribbit.auth;
 
 import gribbit.request.Request;
+import gribbit.response.exception.ExceptionResponse;
 import gribbit.route.Route;
 
 /**
  * Used with with Auth annotation to determine if a user is allowed to access a given route. This method will always be
- * called with a non-null value for request.getUser().
+ * called with a non-null value for request.getUser(). Throws an ExceptionResponse if the user is not logged in, or is
+ * logged in but is not authorized for this route.
  */
 public interface Authorizer {
-    public boolean isAuthorized(Request request, Route route);
+    /**
+     * Check if the user is authorized for this route. Throws an ExceptionResponse if the user is not authorized.
+     * 
+     * @param request
+     *            The request. Note that request.getUser() will always return a non-null User object, because an
+     *            Authorizer is only called if the route requires the user to be logged in, and the User object is
+     *            looked up for the current user (based on the session cookie) before the Authorizer is called.
+     * @param route
+     *            The route to check.
+     * @throws ExceptionResponse
+     *             Thrown if the user is not logged in, or is logged in but is not authorized for this route.
+     */
+    public void checkAuth(Request request, Route route) throws ExceptionResponse;
 }

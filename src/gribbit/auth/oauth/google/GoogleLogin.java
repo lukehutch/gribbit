@@ -46,9 +46,11 @@ import gribbit.util.RequestBuilder;
 import java.time.ZonedDateTime;
 
 /**
- * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login (i.e. the
+ * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login. (i.e. The
  * route for this handler is "/oauth/google", but the additional URI param "login" should be provided after the route,
- * giving "/oauth/google/login" -- this route is also used for handling the OAuth2 callback, at /oauth/google/callback).
+ * giving "/oauth/google/login".)
+ * 
+ * This route is also used for handling the OAuth2 callback, at /oauth/google/callback .
  */
 @RoutePath("/oauth/google")
 public class GoogleLogin extends RouteHandler {
@@ -110,8 +112,8 @@ public class GoogleLogin extends RouteHandler {
             }
             // The access token obtained from the refresh token.
             accessToken = auth.access_token;
-            long accessTokenExpiresSeconds =
-                    currentTimeEpochSeconds + (auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in));
+            long accessTokenExpiresSeconds = currentTimeEpochSeconds
+                    + (auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in));
 
             // Replace refresh token with the new one, if provided (although in general, we won't be given
             // a new refresh token if we already have one)
@@ -147,8 +149,7 @@ public class GoogleLogin extends RouteHandler {
                 + "&scope=openid%20email"
                 // Where to redirect to after authorization
                 + "&redirect_uri=" + callbackURI()
-                // TODO -- do we need this for anything?
-                // TODO (Maybe to allow already logged-in user to sign into another service?)
+                // TODO -- add CSRF token to "state"
                 // "&state=this_can_be_anything_to_help_correlate_the_response%3Dlike_session_id"
                 + "&state="
                 // Request offline access -- generates a refresh token
@@ -321,9 +322,8 @@ public class GoogleLogin extends RouteHandler {
                     throw e;
 
                 } catch (Exception e) {
-                    error =
-                            "Exception during Google OAuth2 login"
-                                    + (e.getMessage() == null ? "" : ": " + e.getMessage());
+                    error = "Exception during Google OAuth2 login"
+                            + (e.getMessage() == null ? "" : ": " + e.getMessage());
                     Log.error(error);
                 }
             } else {

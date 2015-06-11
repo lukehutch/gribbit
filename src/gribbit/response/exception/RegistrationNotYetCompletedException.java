@@ -28,6 +28,8 @@ package gribbit.response.exception;
 import gribbit.auth.Cookie;
 import gribbit.request.Request;
 import gribbit.response.ErrorResponse;
+import gribbit.response.flashmsg.FlashMessage;
+import gribbit.response.flashmsg.FlashMessage.FlashType;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -37,31 +39,37 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the user does
  * later successfully log in, they'll end up where they were originally trying to go when they were denied access.
  */
-public class UnauthorizedEmailNotValidatedException extends ExceptionResponse {
+public class RegistrationNotYetCompletedException extends ExceptionResponse {
     /**
      * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs
      * their email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the
      * user does later successfully log in, they'll end up where they were originally trying to go when they were denied
      * access.
      */
-    public UnauthorizedEmailNotValidatedException(Request request) throws ExceptionResponse {
+    public RegistrationNotYetCompletedException(Request request) throws ExceptionResponse {
         Route customHandlerRoute = GribbitServer.siteResources.getUnauthorizedEmailNotValidatedRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route. 
             // Throws ExceptionResponse in the place of the object that is currently being constructed if
             // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callHandler(request, /* isErrorHandler = */true);
+            this.exceptionResponse = customHandlerRoute.callErrorHandler(request);
             // Set status code in case custom handler forgets to set it
             this.exceptionResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
         } else {
             this.exceptionResponse = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED,
-                    "Unauthorized: email not validated");
+                    "Unauthorized: registration not yet completed");
         }
 
         // Redirect the user back to the page they were trying to get to once they do log in successfully
         this.exceptionResponse.logOutUser();
         this.exceptionResponse.setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request
                 .getURLPathUnhashed(), 300));
+
+        // This flash message is pretty useless unless the OnRegistrationNotYetCompleted handler has not been
+        // set, because the user is just directed back to the home page ("/"), instead of to a page where they
+        // can complete the registration process.
+        request.addFlashMessage(new FlashMessage(FlashType.WARNING, "Registration not completed",
+                "You must finish registering your account before you can log in"));
     }
 
     /**

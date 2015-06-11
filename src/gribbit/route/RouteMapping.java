@@ -30,7 +30,7 @@ import gribbit.handler.route.annotation.On404NotFound;
 import gribbit.handler.route.annotation.OnBadRequest;
 import gribbit.handler.route.annotation.OnInternalServerError;
 import gribbit.handler.route.annotation.OnUnauthorized;
-import gribbit.handler.route.annotation.OnUnauthorizedEmailNotValidated;
+import gribbit.handler.route.annotation.OnRegistrationNotYetCompleted;
 import gribbit.handler.route.annotation.RoutePath;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
@@ -212,7 +212,7 @@ public class RouteMapping {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = unauthorizedRoute;
                     unauthorizedRoute = routeInfo;
-                } else if (annType == OnUnauthorizedEmailNotValidated.class) {
+                } else if (annType == OnRegistrationNotYetCompleted.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = unauthorizedEmailNotValidatedRoute;
                     unauthorizedEmailNotValidatedRoute = routeInfo;

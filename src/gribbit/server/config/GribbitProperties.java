@@ -56,6 +56,10 @@ public class GribbitProperties {
 
     public static String OAUTH_GOOGLE_CLIENT_ID = properties.getProperty("oauth.google.client.id");
     public static String OAUTH_GOOGLE_CLIENT_SECRET = properties.getProperty("oauth.google.client.secret");
+    public static String OAUTH_FACEBOOK_CLIENT_ID = properties.getProperty("oauth.facebook.client.id");
+    public static String OAUTH_FACEBOOK_CLIENT_SECRET = properties.getProperty("oauth.facebook.client.secret");
+    // See https://developers.facebook.com/docs/facebook-login/permissions/v2.3
+    public static String OAUTH_FACEBOOK_SCOPE = properties.getProperty("oauth.facebook.scope");
 
     public static String DB_NAME = properties.getProperty("dbname", "gribbit");
 

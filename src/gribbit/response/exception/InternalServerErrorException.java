@@ -62,7 +62,7 @@ public class InternalServerErrorException extends ExceptionResponse {
             // Call the get() method of the custom error handler route.
             // Throws ExceptionResponse in the place of the object that is currently being constructed if
             // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callHandler(request, /* isErrorHandler = */true);
+            this.exceptionResponse = customHandlerRoute.callErrorHandler(request);
             // Set status code in case custom handler forgets to set it
             this.exceptionResponse.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
         } else {

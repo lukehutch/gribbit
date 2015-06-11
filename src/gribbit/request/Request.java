@@ -492,21 +492,14 @@ public class Request {
     }
 
     /**
-     * The logged-in user, if the user is logged in (has a valid session cookie) and this request is for a route that
-     * requires authentication. Note that even if this field is set, the user still may be denied access to one or more
-     * routes, depending on route authentication requirements. This must be called after the call to lookupUser().
-     */
-    public User getUser() {
-        return user;
-    }
-
-    /**
      * Set the user field based on the session cookie in the request. Performs a database lookup, so this is deferred so
-     * that routes that do not require authorization do not perform this lookup.
+     * that routes that do not require authorization do not perform this lookup. Returns the User object for the user,
+     * if they are logged in. Caches the result across calls, so only performs the database lookup on the first call.
      */
-    public void lookupUser() {
+    public User lookupUser() {
         if (this.user == null) {
             this.user = User.getLoggedInUser(this);
         }
+        return this.user;
     }
 }

@@ -34,7 +34,6 @@ import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.MethodNotAllowedException;
 import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.NotModifiedException;
-import gribbit.response.exception.UnauthorizedException;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -326,23 +325,16 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         // Tried to call an HTTP method that is not defined for this route
                         throw new MethodNotAllowedException();
 
-                    } else if (route.authNotRequired()) {
-                        // Authorization not required -- OK to handle request with this route
-                        authorizedRoute = route;
-                        
                     } else {
-                        // This route requires authentication -- check if user is logged in
-                        request.lookupUser();
-                        
-                        // Test if user can access this route
-                        if (!route.isAuthorized(request)) {
-                            throw new UnauthorizedException(request);
-                            
-                        } else {
-                            // Authorization is required, the user is logged in, and they passed any auth tests:
-                            // OK to handle request with this route
-                            authorizedRoute = route;                            
-                        }
+                        // Call request.lookupUser() to check the session cookies to see if the user is logged in, 
+                        // if the route requires users to be logged in. If auth is required, see if the user can
+                        // access the requested route.
+                        // Throws an ExceptionResponse if not authorized.
+                        route.checkAuth(request);
+
+                        // If we reach here, either authorization is not required for the route, or the user is
+                        // logged in and they passed all auth tests. OK to handle the request with this route.
+                        authorizedRoute = route;
                     }
 
                     // URI matches, so don't need to search further URIs
@@ -360,9 +352,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // response is still null but authorizedRoute is non-null, then there was no error response
             // such as Unauthorized, and the user is authorized for this route (so they are also
             // authorized for the WebSocket attached to the route).
-            
+
             // Note that currently, the WebSocketHandler constructor below will always fail if the user
-            // is not logged in, to mitigate DoS attacks on un-authenticated sockets.
+            // is not logged in (i.e. when request.lookupUser() returns null), to mitigate DoS attacks
+            // on un-authenticated sockets.
 
             // TODO: Read WS routes from class annotations to see if WS is allowed?
             // TODO: Or always allow WS connections so that GET/POST can be submitted via WS?
@@ -374,7 +367,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     && authorizedRoute != null && response == null //
                     && request.isWebSocketUpgradeRequest() && msg instanceof HttpRequest) {
                 this.webSocketHandler = new WebSocketHandler(ctx, (HttpRequest) msg, request.getOrigin(),
-                        request.getQueryParam("_csrf"), request.getUser(), authorizedRoute);
+                        request.getQueryParam("_csrf"), request.lookupUser(), authorizedRoute);
                 // Finished handling the websocket upgrade request (or returned an error)
                 return;
             }
@@ -505,7 +498,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                     try {
                         // Call the RestHandler for the route
-                        response = authorizedRoute.callHandler(request, /* isErrorHandler = */false);
+                        response = authorizedRoute.callHandler(request);
 
                     } catch (ExceptionResponse e) {
 
@@ -534,9 +527,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
             // Serve the response to the client 
-            HttpSendResponse.sendResponse(request, response, isHEAD, request.acceptEncodingGzip(),
-                    timeNow, hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite,
-                    ctx);
+            HttpSendResponse.sendResponse(request, response, isHEAD, request.acceptEncodingGzip(), timeNow,
+                    hashTheResponse, hashKeyRemainingAgeSeconds, hashKey, addKeepAliveHeader, closeAfterWrite, ctx);
 
             // Log the request and response
             HttpResponseStatus status = response.getStatus();

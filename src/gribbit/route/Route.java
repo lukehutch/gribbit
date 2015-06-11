@@ -39,6 +39,7 @@ import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.ExceptionResponse;
 import gribbit.response.exception.InternalServerErrorException;
+import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
 import gribbit.util.Log;
 import gribbit.util.Reflection;
@@ -74,28 +75,32 @@ public class Route {
      */
     private static class LoggedInAuthorizer implements Authorizer {
         @Override
-        public boolean isAuthorized(Request request, Route route) {
-            // Technically this will always return true, because Authorizers won't be called if request.getUser()
-            // is null, which happens when the user's session cookie is not valid
-            return request.getUser() != null;
+        public void checkAuth(Request request, Route route) throws ExceptionResponse {
+            // This will never throw an exception. By default, we only require a user to be logged in to be able
+            // to access routes that are not annotated with @NoAuth (and that do not have their own explicit @Auth
+            // annotation specifying an overriding Authorizer). Authorizers are only be called if the user is
+            // already verified to be logged in.
         }
     }
 
     /**
-     * Returns true if no authorization is required to invoke methods on this route. (This is used to speed up requests
-     * that do not require the user to be logged in, by skipping a database lookup for the user based on the session
-     * cookie.)
+     * Call the Authorizer for this route, if any. Returns with no effect if the route does not require authorization,
+     * or if the authorization test passes. Throws an ExceptionResponse if the route requires authorization and the user
+     * is not logged in or is not authorized for the route.
      */
-    public boolean authNotRequired() {
-        return authorizer == null;
-    }
-
-    /**
-     * Call the Authorizer for this route, if any. Returns true if the route does not require authorization, or if the
-     * authorization test passes.
-     */
-    public boolean isAuthorized(Request request) {
-        return authorizer == null || (request.getUser() != null && authorizer.isAuthorized(request, this));
+    public void checkAuth(Request request) throws ExceptionResponse {
+        if (authorizer != null) {
+            // There is an Authorizer specified, so the user must be logged in.
+            // Look up the User object based on the session cookies in the request. 
+            if (request.lookupUser() == null) {
+                // If there are no valid session cookies, the user is not logged in, so throw UnauthorizedException.
+                throw new UnauthorizedException(request);
+            }
+            // If the user is logged in, check if they can access this Route by calling the associated Authorizer.
+            // Will throw an ExceptionResponse of some sort if the user is not authorized for this route.
+            authorizer.checkAuth(request, this);
+        }
+        // If we get to here, the user is authorized fro the route.
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -128,9 +133,11 @@ public class Route {
             // For non-error responses
             if (response.getStatus() == HttpResponseStatus.OK) {
 
-                // Add the user's CSRF token to the response, if available
-                User user = request.getUser();
-                response.setCsrfTok(user != null ? user.csrfTok : null);
+                // Add the user's CSRF token to the response, if user is logged in
+                if (authorizer != null) {
+                    User user = request.lookupUser();
+                    response.setCsrfTok(user != null ? user.csrfTok : null);
+                }
 
                 // If last modified time was not filled in in the response, fill it in with the current time
                 if (response.getLastModifiedEpochSeconds() == 0) {
@@ -389,63 +396,60 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Call the get() or post() method for the Route subinterface corresponding to the request URI.
+     * Call the get() or post() method for the Route corresponding to the request URI.
      * 
      * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed etc.
-     * 
-     * @param isErrorHandler
-     *            If true, assume the HTTP method is GET, even if the request that caused the error was of type POST.
      */
-    public Response callHandler(Request request, boolean isErrorHandler) throws ExceptionResponse {
+    public Response callHandler(Request request) throws ExceptionResponse {
         Response response;
-        if (!authNotRequired() && request.getUser() == null) {
-            // Should never happen (request.getUser() should only be null if authNotRequired() is true),
-            // but just to be safe, double check that user is logged in if they are calling an
-            // authorization-required handler
-            response = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Not authorized");
+        // Determine param vals for method
+        HttpMethod reqMethod = request.getMethod();
 
-        } else {
-            // Determine param vals for method
+        if (reqMethod == HttpMethod.GET) {
+            // Bind URI params
+            Object[] getParamVals = bindGetParamsFromURI(request);
 
-            HttpMethod reqMethod = request.getMethod();
-            if (reqMethod == HttpMethod.GET) {
+            // Invoke the get() method with URI params
+            response = invokeMethod(request, getMethod, getParamVals);
 
-                // Bind URI params
-                Object[] getParamVals = bindGetParamsFromURI(request);
-
-                // Invoke the get() method with URI params
-                response = invokeMethod(request, getMethod, getParamVals);
-
-            } else if (reqMethod == HttpMethod.POST) {
-
-                // For POST requests, check CSRF cookies against CSRF POST param, unless this is an
-                // unathenticated route. (Really, POST requests should only be on authenticated routes,
-                // since they change server state...) -- TODO: enforce this statically?
-                if (!authNotRequired()) {
-                    User user = request.getUser();
-                    if (user == null) {
-                        throw new BadRequestException(request, "User not logged in, could not check CSRF token. "
-                                + "POST requests are only accepted from logged-in users.");
-                    } else {
-                        if (!CSRF.csrfTokMatches(request.getPostParam(CSRF.CSRF_PARAM_NAME), user)) {
-                            throw new BadRequestException(request, "Missing or incorrect CSRF token in POST request");
-                        }
+        } else if (reqMethod == HttpMethod.POST) {
+            // For POST requests on @NoAuth handlers, don't need to check CSRF cookies.
+            // For POST requests on non-@NoAuth handlers, check CSRF cookies against CSRF POST param.
+            if (authorizer != null) {
+                User user = request.lookupUser();
+                if (user == null) {
+                    // Should not happen -- checkAuth() has already determined that user is not null if
+                    // authorizer is not null
+                    throw new BadRequestException(request, "User not logged in, could not check CSRF token. "
+                            + "POST requests are only accepted from logged-in users.");
+                } else {
+                    if (!CSRF.csrfTokMatches(request.getPostParam(CSRF.CSRF_PARAM_NAME), user)) {
+                        throw new BadRequestException(request, "Missing or incorrect CSRF token in POST request");
                     }
                 }
-
-                // Bind the post() method's single parameter (if it has one) from the POST data in the request
-                Object[] postParamVal = bindPostParamFromPOSTData(request);
-
-                // Invoke the post() method
-                response = invokeMethod(request, postMethod, postParamVal);
-
-            } else {
-                // Method not allowed
-                response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
             }
+
+            // Bind the post() method's single parameter (if it has one) from the POST data in the request
+            Object[] postParamVal = bindPostParamFromPOSTData(request);
+
+            // Invoke the post() method
+            response = invokeMethod(request, postMethod, postParamVal);
+
+        } else {
+            // Method not allowed
+            response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
         }
 
         return response;
+    }
+
+    /**
+     * Call the get() method for an error handler Route.
+     */
+    public Response callErrorHandler(Request request) throws ExceptionResponse {
+        // Bind any URI params; invoke the get() method with URI params, and return the Response.
+        Object[] getParamVals = bindGetParamsFromURI(request);
+        return invokeMethod(request, getMethod, getParamVals);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
