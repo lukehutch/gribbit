@@ -206,7 +206,7 @@ public class GribbitServer {
             // http://maxrohde.com/2013/09/07/setting-up-ssl-with-netty/
             // http://blog.hintcafe.com/post/33709433256/https-server-in-java-using-netty-and-keystore
             // https://www.sslshopper.com/ssl-converter.html
-            
+
             // TODO: Listen on both SSL and non-SSL ports; redirect non-SSL to SSL; make cookies SSL-only
             SslContext sslCtx;
             if (GribbitProperties.SSL) {

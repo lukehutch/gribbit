@@ -63,12 +63,12 @@ public class FlashMessage extends TemplateModel {
     }
 
     public static final String _template = //
-            // FlashType objects are rendered directly into CSS classes here by overriding the toString() method
-            // of the FlashType enum
-            "<div class='alert ${flashType}'>" //
-                    + "<a class='close' data-dismiss='alert'>&times;</a>" //  
-                    + "<strong>${strongText}</strong> ${message}" //
-                    + "</div>";
+    // FlashType objects are rendered directly into CSS classes here by overriding the toString() method
+    // of the FlashType enum
+    "<div class='alert ${flashType}'>" //
+            + "<a class='close' data-dismiss='alert'>&times;</a>" //  
+            + "<strong>${strongText}</strong> ${message}" //
+            + "</div>";
 
     /**
      * Create a list of flash messages from a cookie string, or returns null if the cookie string is null or contains no

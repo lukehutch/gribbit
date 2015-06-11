@@ -37,8 +37,8 @@ import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLResponse;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.InternalServerErrorException;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
 import gribbit.util.Log;
@@ -85,8 +85,8 @@ public class Route {
 
     /**
      * Call the Authorizer for this route, if any. Returns with no effect if the route does not require authorization,
-     * or if the authorization test passes. Throws a RequestHandlingException if the route requires authorization and the user
-     * is not logged in or is not authorized for the route.
+     * or if the authorization test passes. Throws a RequestHandlingException if the route requires authorization and
+     * the user is not logged in or is not authorized for the route.
      */
     public void checkAuth(Request request) throws RequestHandlingException {
         if (authorizer != null) {
@@ -106,7 +106,8 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Invoke a default method in a Route subinterface. */
-    private Response invokeMethod(Request request, Method method, Object[] methodParamVals) throws RequestHandlingException {
+    private Response invokeMethod(Request request, Method method, Object[] methodParamVals)
+            throws RequestHandlingException {
         // Create a handler instance
         RouteHandler instance;
         try {

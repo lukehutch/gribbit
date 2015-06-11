@@ -26,15 +26,15 @@
 package gribbit.response.exception;
 
 import gribbit.response.ErrorResponse;
-import gribbit.route.RouteHandler;
 import gribbit.route.Route;
+import gribbit.route.RouteHandler;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown to redirect a user to another URL. This RequestHandlingException is special in that the constructor
- * does not optionally take an exception message, instead it takes the URI to redirect to, or a route handler to
- * redirect to, in the from of a Class<? extends RouteHandler> or RouteInfo object, optionally (in the static factory
- * methods) with parameters to append to the get() method's URI.
+ * This exception is thrown to redirect a user to another URL. This RequestHandlingException is special in that the
+ * constructor does not optionally take an exception message, instead it takes the URI to redirect to, or a route
+ * handler to redirect to, in the from of a Class<? extends RouteHandler> or RouteInfo object, optionally (in the static
+ * factory methods) with parameters to append to the get() method's URI.
  */
 public class RedirectException extends RequestHandlingException {
 

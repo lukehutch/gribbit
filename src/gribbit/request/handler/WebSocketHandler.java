@@ -58,9 +58,9 @@ import java.net.URI;
  * authenticated user).
  */
 public class WebSocketHandler {
-    
+
     // Put the following into tail-content.html to add WebSocket support to a page:
-    
+
     //    <script type="text/javascript">
     //
     //    function wsOpened(event) {
@@ -124,7 +124,7 @@ public class WebSocketHandler {
     //    }
     //
     //  </script>
-    
+
     /** Websocket handshaker. */
     private WebSocketServerHandshaker handshaker;
 

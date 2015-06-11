@@ -44,7 +44,7 @@ public class GribbitProperties {
             throw new RuntimeException("Could not parse loglevel in properties file");
         }
     }
-    
+
     public static boolean SSL = PropertyUtils.getPropertyBoolean(properties, "ssl", true);
     public static int PORT = PropertyUtils.getPropertyInt(properties, "port", SSL ? 8443 : 8080);
 

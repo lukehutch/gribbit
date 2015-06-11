@@ -299,7 +299,7 @@ public class FieldChecker {
         if (field == null) {
             return true;
         }
-        
+
         int modifiers = field.getModifiers();
         return
         // Class is not public

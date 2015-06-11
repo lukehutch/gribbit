@@ -573,9 +573,8 @@ public class Base64 {
         int d = 0;
         for (int cc = 0, eLen = (len / 3) * 3; d < eLen;) {
             // Assemble three bytes into an int from four "valid" characters.
-            int i =
-                    IA[s.charAt(sIx++)] << 18 | IA[s.charAt(sIx++)] << 12 | IA[s.charAt(sIx++)] << 6
-                            | IA[s.charAt(sIx++)];
+            int i = IA[s.charAt(sIx++)] << 18 | IA[s.charAt(sIx++)] << 12 | IA[s.charAt(sIx++)] << 6
+                    | IA[s.charAt(sIx++)];
 
             // Add the bytes
             dArr[d++] = (byte) (i >> 16);

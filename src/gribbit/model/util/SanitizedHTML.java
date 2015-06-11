@@ -71,8 +71,8 @@ public class SanitizedHTML {
      *            that view their content.
      */
     public SanitizedHTML(String unsafeHTML, String[] tagAttrWhitelist) {
-        HashMap<String, HashSet<String>> whitelist =
-                tagAttrWhitelist == null ? defaultWhitelist : createWhitelist(tagAttrWhitelist);
+        HashMap<String, HashSet<String>> whitelist = tagAttrWhitelist == null ? defaultWhitelist
+                : createWhitelist(tagAttrWhitelist);
         StringBuilder buf = new StringBuilder();
         List<Node> nodes = Jsoup.parseBodyFragment(unsafeHTML).body().childNodes();
         sanitize(nodes, whitelist, buf);
@@ -91,7 +91,7 @@ public class SanitizedHTML {
     }
 
     private static HashMap<String, HashSet<String>> defaultWhitelist = //
-            createWhitelist(new String[] { "a.href", "br", "b", "i" });
+    createWhitelist(new String[] { "a.href", "br", "b", "i" });
 
     private static HashMap<String, HashSet<String>> createWhitelist(String[] strings) {
         HashMap<String, HashSet<String>> whitelist = new HashMap<>();

@@ -79,7 +79,7 @@ public class HttpUtils {
     public static void setDateAndCacheHeaders(HttpHeaders httpHeaders, ZonedDateTime timeNow,
             long lastModifiedEpochSeconds, long hashKeyMaxRemainingAgeSeconds, String hashKey) {
         ZonedDateTime time = timeNow == null ? ZonedDateTime.now() : timeNow;
-        
+
         // Date header uses server time, and should use the same clock as Expires and Last-Modified
         httpHeaders.set(DATE, time.format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
