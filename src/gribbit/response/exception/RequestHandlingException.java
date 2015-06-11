@@ -34,22 +34,22 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
  * request, where the exception should generate an HTTP response.
  */
-public abstract class ExceptionResponse extends Exception {
+public abstract class RequestHandlingException extends Exception {
 
-    Response exceptionResponse;
+    Response errorResponse;
 
     /**
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse() {
+    public RequestHandlingException() {
     }
 
     /**
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(String msg) {
+    public RequestHandlingException(String msg) {
         super(msg);
     }
 
@@ -57,7 +57,7 @@ public abstract class ExceptionResponse extends Exception {
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(Exception e) {
+    public RequestHandlingException(Exception e) {
         super(e);
         Log.exceptionWithoutCallerRef("Exception while generating response", e);
     }
@@ -66,7 +66,7 @@ public abstract class ExceptionResponse extends Exception {
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(String msg, Exception e) {
+    public RequestHandlingException(String msg, Exception e) {
         super(msg, e);
         Log.exceptionWithoutCallerRef("Exception while generating response: " + msg, e);
     }
@@ -75,57 +75,57 @@ public abstract class ExceptionResponse extends Exception {
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(Response exceptionResponse) {
+    public RequestHandlingException(Response errorResponse) {
         this();
-        this.exceptionResponse = exceptionResponse;
+        this.errorResponse = errorResponse;
     }
 
     /**
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(Response exceptionResponse, String msg) {
+    public RequestHandlingException(Response errorResponse, String msg) {
         this(msg);
-        this.exceptionResponse = exceptionResponse;
+        this.errorResponse = errorResponse;
     }
 
     /**
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(Response exceptionResponse, Exception e) {
+    public RequestHandlingException(Response errorResponse, Exception e) {
         this(e);
-        this.exceptionResponse = exceptionResponse;
+        this.errorResponse = errorResponse;
     }
 
     /**
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public ExceptionResponse(Response exceptionResponse, String msg, Exception e) {
+    public RequestHandlingException(Response errorResponse, String msg, Exception e) {
         this(msg, e);
-        this.exceptionResponse = exceptionResponse;
+        this.errorResponse = errorResponse;
     }
 
     /**
      * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
      * request, where the exception should generate an HTTP response.
      */
-    public void setResponse(Response exceptionResponse) {
-        this.exceptionResponse = exceptionResponse;
+    public void setResponse(Response errorResponse) {
+        this.errorResponse = errorResponse;
     }
 
     /**
-     * Returns a Response object for this exception. N.B. the exceptionResponse object needs to be initialized by all
+     * Returns a Response object for this exception. N.B. the errorResponse object needs to be initialized by all
      * subclasses.
      */
-    public Response getResponse() {
-        if (exceptionResponse == null) {
-            // Should not happen, subclasses should initialize exceptionResponse
-            Log.exception("exceptionResponse not initialized", this);
+    public Response getErrorResponse() {
+        if (errorResponse == null) {
+            // Should not happen, subclasses should initialize errorResponse
+            Log.exception("errorResponse not initialized", this);
             return new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
         } else {
-            return exceptionResponse;
+            return errorResponse;
         }
     }
 

@@ -37,28 +37,28 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * cookie so that if the user does later successfully log in, they'll end up where they were originally trying to go
  * when they were denied access.
  */
-public class UnauthorizedException extends ExceptionResponse {
+public class UnauthorizedException extends RequestHandlingException {
     /**
      * This exception is thrown when a user tries to access a resource they are not authorized to access. Sets the
      * redirect cookie so that if the user does later successfully log in, they'll end up where they were originally
      * trying to go when they were denied access.
      */
-    public UnauthorizedException(Request request) throws ExceptionResponse {
+    public UnauthorizedException(Request request) throws RequestHandlingException {
         Route customHandlerRoute = GribbitServer.siteResources.getUnauthorizedRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route. 
-            // Throws ExceptionResponse in the place of the object that is currently being constructed if
-            // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callErrorHandler(request);
+            // Throws RequestHandlingException in the place of the object that is currently being constructed if
+            // a RequestHandlingException is thrown by the get() method of the custom error handler
+            this.errorResponse = customHandlerRoute.callErrorHandler(request);
             // Set status code in case custom handler forgets to set it
-            this.exceptionResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
+            this.errorResponse.setStatus(HttpResponseStatus.UNAUTHORIZED);
         } else {
-            this.exceptionResponse = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
+            this.errorResponse = new ErrorResponse(HttpResponseStatus.UNAUTHORIZED, "Unauthorized");
         }
 
         // Redirect the user back to the page they were trying to get to once they do log in successfully
-        this.exceptionResponse.logOutUser();
-        this.exceptionResponse.setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request
+        this.errorResponse.logOutUser();
+        this.errorResponse.setCookie(new Cookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME, "/", request
                 .getURLPathUnhashed(), 300));
     }
 

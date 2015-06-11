@@ -31,7 +31,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 /**
  * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
  */
-public class ForbiddenException extends ExceptionResponse {
+public class ForbiddenException extends RequestHandlingException {
     /**
      * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
      */

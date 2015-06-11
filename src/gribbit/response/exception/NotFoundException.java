@@ -36,30 +36,30 @@ import java.util.regex.Pattern;
 /**
  * This exception is thrown when a user tries to access a resource that doesn't exist (404).
  */
-public class NotFoundException extends ExceptionResponse {
+public class NotFoundException extends RequestHandlingException {
 
     private static final Pattern favicon = Pattern.compile("^(.*/)?favicon\\.(ico|png|gif|jpeg|jpg|apng)$");
 
     /**
      * This exception is thrown when a user tries to access a resource that doesn't exist (404).
      */
-    public NotFoundException(Request request) throws ExceptionResponse {
+    public NotFoundException(Request request) throws RequestHandlingException {
         String uri = request.getURLPathUnhashed();
         Route customHandlerRoute = GribbitServer.siteResources.getNotFoundRoute();
         if (customHandlerRoute != null) {
             if (favicon.matcher(uri).matches()) {
                 // Don't give favicon requests a custom 404 page when there is a custom handler registered
-                this.exceptionResponse = new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found");
+                this.errorResponse = new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found");
             } else {
                 // Call the get() method of the custom error handler route. 
-                // Throws ExceptionResponse in the place of the object that is currently being constructed if
-                // an ExceptionResponse is thrown by the get() method of the custom error handler
-                this.exceptionResponse = customHandlerRoute.callErrorHandler(request);
+                // Throws RequestHandlingException in the place of the object that is currently being constructed if
+                // a RequestHandlingException is thrown by the get() method of the custom error handler
+                this.errorResponse = customHandlerRoute.callErrorHandler(request);
                 // Set status code in case custom handler forgets to set it
-                this.exceptionResponse.setStatus(HttpResponseStatus.NOT_FOUND);
+                this.errorResponse.setStatus(HttpResponseStatus.NOT_FOUND);
             }
         } else {
-            this.exceptionResponse = new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found");
+            this.errorResponse = new ErrorResponse(HttpResponseStatus.NOT_FOUND, "404 Not Found");
         }
     }
 

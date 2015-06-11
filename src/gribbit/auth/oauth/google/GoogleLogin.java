@@ -31,7 +31,7 @@ import gribbit.handler.route.annotation.RoutePath;
 import gribbit.request.Request;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.ExceptionResponse;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.RedirectException;
 import gribbit.response.exception.UnauthorizedException;
 import gribbit.response.flashmsg.FlashMessage;
@@ -79,7 +79,7 @@ public class GoogleLogin extends RouteHandler {
      * Check if a user's access token has expired or is about to expire, and if so, generate a new access token using
      * the user's refresh token. Can be used by a web socket connection to keep a user's login alive.
      */
-    public static void refreshAccessTokenIfNeeded(Request request, User user) throws ExceptionResponse {
+    public static void refreshAccessTokenIfNeeded(Request request, User user) throws RequestHandlingException {
         if (user == null) {
             throw new BadRequestException(request, "User is null");
         }
@@ -162,7 +162,7 @@ public class GoogleLogin extends RouteHandler {
     // This handler is initially called with "/login" appended to the URI, initiating the OAuth process.
     // The route of this same handler is given to Google with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
-    public Response get(String action) throws ExceptionResponse {
+    public Response get(String action) throws RequestHandlingException {
         User user = null;
         String error = request.getQueryParam("error");
         if (error != null) {
@@ -244,7 +244,7 @@ public class GoogleLogin extends RouteHandler {
                             // See: http://goo.gl/aUoDLl
                             RedirectException ex = new RedirectException( //
                                     getAuthorizationCodeURL(/* forceApprovalPrompt = */true));
-                            ex.getResponse().logOutUser(user);
+                            ex.getErrorResponse().logOutUser(user);
                             throw ex;
 
                         } else {
@@ -253,19 +253,19 @@ public class GoogleLogin extends RouteHandler {
                             // URL when they were originally told they were unauthorized. If so, try again, otherwise
                             // redirect back home.
                             String redirectOrigin = request.getCookieValue(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
-                            ExceptionResponse redirException;
+                            RequestHandlingException redirException;
                             if (redirectOrigin == null) {
                                 // Redirect home if the user didn't previously try to go directly to another URL
                                 redirException = new RedirectException("/");
                             } else {
                                 // Redirect to wherever the user was trying to get before, and clear the redirect cookie
                                 redirException = new RedirectException(redirectOrigin);
-                                redirException.getResponse().deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+                                redirException.getErrorResponse().deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
                             }
 
                             if (user == null) {
                                 // There was no user with this email address -- create a new user
-                                user = User.createFederatedLoginUser(request, email, redirException.getResponse());
+                                user = User.createFederatedLoginUser(request, email, redirException.getErrorResponse());
 
                                 user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
                                 if (!user.emailValidated) {
@@ -310,14 +310,14 @@ public class GoogleLogin extends RouteHandler {
                             user.save();
 
                             // Log the user in by setting session cookies in the response
-                            user.logIn(request, redirException.getResponse());
+                            user.logIn(request, redirException.getErrorResponse());
 
                             // Perform the redirect
                             throw redirException;
                         }
                     }
 
-                } catch (ExceptionResponse e) {
+                } catch (RequestHandlingException e) {
                     // Pass back to caller
                     throw e;
 
@@ -342,7 +342,7 @@ public class GoogleLogin extends RouteHandler {
                     "Could not log you in, please check your password or contact the site administrator."));
         }
         // Generate Unauthorized response
-        ExceptionResponse unauthorizedException;
+        RequestHandlingException unauthorizedException;
         if ("callback".equals(action)) {
             // We don't want the long callback URI in the browser address field,
             // so redirect to the unauthorized handler's route
@@ -354,9 +354,9 @@ public class GoogleLogin extends RouteHandler {
         // Clear session cookies in response
         if (user != null) {
             // This logout method is a little faster, because user doesn't have to be looked up in request
-            unauthorizedException.getResponse().logOutUser(user);
+            unauthorizedException.getErrorResponse().logOutUser(user);
         } else {
-            unauthorizedException.getResponse().logOutUser(request);
+            unauthorizedException.getErrorResponse().logOutUser(request);
         }
         throw unauthorizedException;
     }

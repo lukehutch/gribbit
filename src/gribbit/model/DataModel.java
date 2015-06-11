@@ -29,7 +29,7 @@ import gribbit.auth.CSRF;
 import gribbit.model.util.FieldChecker;
 import gribbit.request.Request;
 import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.ExceptionResponse;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.server.GribbitServer;
 import gribbit.util.JSON;
@@ -65,7 +65,7 @@ public abstract class DataModel {
      * @throws AppException
      *             if any of the constraint annotations are not specified
      */
-    public void bindFromPost(Request request) throws ExceptionResponse {
+    public void bindFromPost(Request request) throws RequestHandlingException {
 
         // Match field names against POST param names, and set values of fields whenever there is a match
         HashSet<String> unusedPostParams = new HashSet<String>(request.getPostParamNames());

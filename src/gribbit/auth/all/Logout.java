@@ -39,7 +39,7 @@ import gribbit.route.RouteHandler;
 public class Logout extends RouteHandler {
     public Response get() throws RedirectException {
         RedirectException redir = new RedirectException("/");
-        redir.getResponse().logOutUser(request);
+        redir.getErrorResponse().logOutUser(request);
         throw redir;
     }
 

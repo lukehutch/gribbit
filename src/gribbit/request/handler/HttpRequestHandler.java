@@ -41,7 +41,7 @@ import gribbit.response.ErrorResponse;
 import gribbit.response.HTMLPageResponse;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.ExceptionResponse;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.MethodNotAllowedException;
 import gribbit.response.exception.NotFoundException;
@@ -375,7 +375,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                             // Call request.lookupUser() to check the session cookies to see if the user is logged in, 
                             // if the route requires users to be logged in. If auth is required, see if the user can
                             // access the requested route.
-                            // Throws an ExceptionResponse if not authorized.
+                            // Throws a RequestHandlingException if not authorized.
                             route.checkAuth(request);
 
                             // If we reach here, either authorization is not required for the route, or the user is
@@ -648,7 +648,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         // Call the route handler for this request, generating the response
                         // -----------------------------------------------------------------
 
-                        // Call the RestHandler for the route. May throw an ExceptionResponse, or other Exception
+                        // Call the RestHandler for the route. May throw a RequestHandlingException or other Exception
                         response = authorizedRoute.callHandler(request);
                     }
                 }
@@ -662,9 +662,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // so that the decoder is destroyed in the finally block
                 requestComplete = true;
 
-                if (e instanceof ExceptionResponse) {
-                    // Get the Response object if an ExceptionResponse was thrown
-                    response = ((ExceptionResponse) e).getResponse();
+                if (e instanceof RequestHandlingException) {
+                    // Get the Response object if a RequestHandlingException was thrown
+                    response = ((RequestHandlingException) e).getErrorResponse();
                 } else {
                     // Return an Internal Server Error response if an unexpected exception was thrown
                     response = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, e.getMessage());

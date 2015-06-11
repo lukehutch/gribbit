@@ -31,12 +31,12 @@ import gribbit.route.Route;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown to redirect a user to another URL. This ExceptionResponse is special in that the constructor
+ * This exception is thrown to redirect a user to another URL. This RequestHandlingException is special in that the constructor
  * does not optionally take an exception message, instead it takes the URI to redirect to, or a route handler to
  * redirect to, in the from of a Class<? extends RouteHandler> or RouteInfo object, optionally (in the static factory
  * methods) with parameters to append to the get() method's URI.
  */
-public class RedirectException extends ExceptionResponse {
+public class RedirectException extends RequestHandlingException {
 
     /**
      * Redirect to a raw URL. Not recommended for site-local URLs; it's better to use one of the other constructors that

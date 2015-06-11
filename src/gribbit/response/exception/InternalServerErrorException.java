@@ -34,7 +34,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 /**
  * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
  */
-public class InternalServerErrorException extends ExceptionResponse {
+public class InternalServerErrorException extends RequestHandlingException {
     /**
      * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
      */
@@ -56,17 +56,17 @@ public class InternalServerErrorException extends ExceptionResponse {
         super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), e);
     }
 
-    private void generateResponse(Request request) throws ExceptionResponse {
+    private void generateResponse(Request request) throws RequestHandlingException {
         Route customHandlerRoute = GribbitServer.siteResources.getInternalServerErrorRoute();
         if (customHandlerRoute != null) {
             // Call the get() method of the custom error handler route.
-            // Throws ExceptionResponse in the place of the object that is currently being constructed if
-            // an ExceptionResponse is thrown by the get() method of the custom error handler
-            this.exceptionResponse = customHandlerRoute.callErrorHandler(request);
+            // Throws RequestHandlingException in the place of the object that is currently being constructed if
+            // a RequestHandlingException is thrown by the get() method of the custom error handler
+            this.errorResponse = customHandlerRoute.callErrorHandler(request);
             // Set status code in case custom handler forgets to set it
-            this.exceptionResponse.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
+            this.errorResponse.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
         } else {
-            this.exceptionResponse =
+            this.errorResponse =
                     new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
         }
     }
@@ -74,7 +74,7 @@ public class InternalServerErrorException extends ExceptionResponse {
     /**
      * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
      */
-    public InternalServerErrorException(Request request, String msg, Exception e) throws ExceptionResponse {
+    public InternalServerErrorException(Request request, String msg, Exception e) throws RequestHandlingException {
         super(msg, e);
         generateResponse(request);
     }
@@ -82,7 +82,7 @@ public class InternalServerErrorException extends ExceptionResponse {
     /**
      * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
      */
-    public InternalServerErrorException(Request request, String msg) throws ExceptionResponse {
+    public InternalServerErrorException(Request request, String msg) throws RequestHandlingException {
         super(msg);
         generateResponse(request);
     }
