@@ -78,8 +78,10 @@ public class HttpUtils {
      */
     public static void setDateAndCacheHeaders(HttpHeaders httpHeaders, ZonedDateTime timeNow,
             long lastModifiedEpochSeconds, long hashKeyMaxRemainingAgeSeconds, String hashKey) {
+        ZonedDateTime time = timeNow == null ? ZonedDateTime.now() : timeNow;
+        
         // Date header uses server time, and should use the same clock as Expires and Last-Modified
-        httpHeaders.set(DATE, timeNow.format(DateTimeFormatter.RFC_1123_DATE_TIME));
+        httpHeaders.set(DATE, time.format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
         // Last-Modified is used to determine whether a Not Modified response should be returned on the next request
         if (lastModifiedEpochSeconds > 0) {
@@ -104,7 +106,7 @@ public class HttpUtils {
 
             // Cache hash URIs for one year
             httpHeaders.set(CACHE_CONTROL, "public, max-age=" + maxAgeSeconds);
-            httpHeaders.set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+            httpHeaders.set(EXPIRES, time.plusSeconds(maxAgeSeconds).format(DateTimeFormatter.RFC_1123_DATE_TIME));
             httpHeaders.set(ETAG, hashKey);
         }
 
