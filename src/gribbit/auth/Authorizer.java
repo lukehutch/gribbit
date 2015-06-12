@@ -47,5 +47,5 @@ public interface Authorizer {
      * @throws RequestHandlingException
      *             Thrown if the user is not logged in, or is logged in but is not authorized for this route.
      */
-    public void checkAuth(Request request, Route route) throws RequestHandlingException;
+    public void throwExceptionIfNotAuthorized(Request request, Route route) throws RequestHandlingException;
 }

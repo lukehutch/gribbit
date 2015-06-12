@@ -267,17 +267,6 @@ public class GoogleLogin extends RouteHandler {
                                 // There was no user with this email address -- create a new user
                                 user = User.createFederatedLoginUser(request, email, redirException.getErrorResponse());
 
-                                user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
-                                if (!user.emailValidated) {
-                                    // Add a flash message if the verified_email field is not set to true,
-                                    // so that the user doesn't get confused about why we're asking them to
-                                    // validate their email address. (TODO: under what circumstances will
-                                    // Google report verified_email == false?)
-                                    addFlashMessage(new FlashMessage(FlashType.WARNING, "Please verify email address",
-                                            "Google has informed us that you have not verified your email "
-                                                    + "address with them. Please do so, then log out and "
-                                                    + "log back into this site."));
-                                }
                                 user.putData("name", userInfo.name);
                                 user.putData("givenName", userInfo.given_name);
                                 user.putData("surname", userInfo.family_name);
@@ -292,15 +281,24 @@ public class GoogleLogin extends RouteHandler {
                                 Log.info(request.getRequestor() + "\tCreated new Google user " + email);
 
                             } else {
-                                if (!user.emailValidated) {
-                                    // If email was not previously validated, see if it is now.
-                                    user.emailValidated = userInfo.verified_email != null && userInfo.verified_email;
-                                }
-
                                 // res.clearFlashMessages();
                                 // res.addFlashMessage(FlashType.SUCCESS, "Welcome back",
                                 // "You are now signed in with the email address " + email);
                                 Log.info(request.getRequestor() + "\tGoogle login okay for user " + email);
+                            }
+
+                            if (userInfo.verified_email != null && userInfo.verified_email) {
+                                user.registrationComplete = true;
+                            }
+                            if (!user.registrationComplete) {
+                                // Add a flash message if the verified_email field is not set to true,
+                                // so that the user doesn't get confused about why we're asking them to
+                                // validate their email address. (TODO: under what circumstances will
+                                // Google report verified_email == false?)
+                                addFlashMessage(new FlashMessage(FlashType.WARNING, "Please verify email address",
+                                        "Google has informed us that you have not verified your email "
+                                                + "address with them. Please do so, then log out and "
+                                                + "log back into this site."));
                             }
 
                             // Store tokens in user record

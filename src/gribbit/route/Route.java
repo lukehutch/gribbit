@@ -38,6 +38,7 @@ import gribbit.response.HTMLResponse;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.InternalServerErrorException;
+import gribbit.response.exception.RegistrationNotYetCompletedException;
 import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
@@ -69,17 +70,20 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * The default route authorizer -- requires the user to be logged in, but other than that, doesn't impose any other
-     * auth requirements on the user. Routes must explicitly use a NoAuth annotation or set their own Authorizer using
-     * the Auth annotation if they want to override this.
+     * The default route authorizer. Routes must explicitly use a NoAuth annotation or set their own Authorizer using
+     * the Auth annotation if they want to override this. All other routes require the user to be logged in -- if the
+     * user is not logged in, an UnauthorizedException is thrown before this handler is even called. If the user is
+     * logged in, this default handler only throws a RegistrationNotYetCompletedException if
+     * user.registrationIsComplete() is false.
      */
     private static class LoggedInAuthorizer implements Authorizer {
         @Override
-        public void checkAuth(Request request, Route route) throws RequestHandlingException {
-            // This will never throw an exception. By default, we only require a user to be logged in to be able
-            // to access routes that are not annotated with @NoAuth (and that do not have their own explicit @Auth
-            // annotation specifying an overriding Authorizer). Authorizers are only be called if the user is
-            // already verified to be logged in.
+        public void throwExceptionIfNotAuthorized(Request request, Route route) throws RequestHandlingException {
+            if (!request.lookupUser().registrationIsComplete()) {
+                // User is logged in, but registration is not yet completed (e.g. they haven't verified their
+                // email address).
+                throw new RegistrationNotYetCompletedException(request);
+            }
         }
     }
 
@@ -88,7 +92,7 @@ public class Route {
      * or if the authorization test passes. Throws a RequestHandlingException if the route requires authorization and
      * the user is not logged in or is not authorized for the route.
      */
-    public void checkAuth(Request request) throws RequestHandlingException {
+    public void throwExceptionIfNotAuthorized(Request request) throws RequestHandlingException {
         if (authorizer != null) {
             // There is an Authorizer specified, so the user must be logged in.
             // Look up the User object based on the session cookies in the request. 
@@ -98,9 +102,9 @@ public class Route {
             }
             // If the user is logged in, check if they can access this Route by calling the associated Authorizer.
             // Will throw a RequestHandlingException of some sort if the user is not authorized for this route.
-            authorizer.checkAuth(request, this);
+            authorizer.throwExceptionIfNotAuthorized(request, this);
         }
-        // If we get to here, the user is authorized fro the route.
+        // If we get to here, the user is authorized for the route.
     }
 
     // -----------------------------------------------------------------------------------------------------------------

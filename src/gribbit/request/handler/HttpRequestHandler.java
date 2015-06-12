@@ -376,7 +376,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                             // if the route requires users to be logged in. If auth is required, see if the user can
                             // access the requested route.
                             // Throws a RequestHandlingException if not authorized.
-                            route.checkAuth(request);
+                            route.throwExceptionIfNotAuthorized(request);
 
                             // If we reach here, either authorization is not required for the route, or the user is
                             // logged in and they passed all auth tests. OK to handle the request with this route.

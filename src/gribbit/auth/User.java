@@ -59,7 +59,7 @@ public class User extends DBModelStringKey {
 
     public String createdDate;
 
-    public Boolean emailValidated;
+    public Boolean registrationComplete;
 
     /**
      * Auth token, stored in both encrypted session-in-client cookie and server. Allows for browser cookie to be
@@ -228,7 +228,7 @@ public class User extends DBModelStringKey {
      */
     public String generateNewEmailValidationTok() {
         emailValidationTok = new Token(TokenType.EMAIL_VERIF, 1);
-        emailValidated = false;
+        registrationComplete = false;
         save();
         return emailValidationTok.token;
     }
@@ -261,13 +261,13 @@ public class User extends DBModelStringKey {
         save();
     }
 
-    public void markEmailValidated() {
-        emailValidated = true;
+    public void markRegistrationComplete() {
+        registrationComplete = true;
         save();
     }
 
-    public boolean emailIsValidated() {
-        return emailValidated != null && emailValidated;
+    public boolean registrationIsComplete() {
+        return registrationComplete != null && registrationComplete;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -442,7 +442,7 @@ public class User extends DBModelStringKey {
     /**
      * Create a user and log them in.
      */
-    private static User create(Request request, String email, String passwordHash, boolean validateEmail,
+    private static User create(Request request, String email, String passwordHash, boolean registrationComplete,
             Response response) throws RequestHandlingException {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
@@ -463,7 +463,7 @@ public class User extends DBModelStringKey {
             user.passwordHash = passwordHash;
 
             user.createdDate = ZonedDateTime.now().format(DateTimeFormatter.ISO_ZONED_DATE_TIME);
-            user.emailValidated = validateEmail;
+            user.registrationComplete = registrationComplete;
 
             // Log in and save user 
             user.logIn(request, response);
@@ -478,24 +478,27 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Create a user from email and password hash, and log them in.
+     * Create a user from email and password hash, and log them in. Marks the registration as incomplete, since the
+     * email address has to be validated, so the default Authenticator will throw an exception until the registration is
+     * complete.
      * 
      * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
     public static User create(Request request, String email, String passwordHash, Response response)
             throws RequestHandlingException {
-        return create(request, email, passwordHash, /* validateEmail = */false, response);
+        return create(request, email, passwordHash, /* registrationComplete = */false, response);
     }
 
     /**
-     * Create a user from a Persona login, and log them in.
+     * Create a user from an OAuth2 login, and log them in. Marks the registration as complete.
      *
      * @throws UnauthorizedException
      *             if a user with this email addr already exists.
      */
     public static User createFederatedLoginUser(Request request, String email, Response response)
             throws RequestHandlingException {
-        return create(request, email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* validateEmail = */true, response);
+        return create(request, email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* registrationComplete = */true,
+                response);
     }
 }
