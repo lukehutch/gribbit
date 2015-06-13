@@ -463,7 +463,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 //        }
                 //    });
 
-                // Close connection after flush if needed, and close file after flush 
+                // Close connection after flush if needed, and close file after flush.
+                // We can't close the file in a finally block, because the file writing is asynchronous, and
+                // the file shouldn't be closed until the last chunk has been written. 
                 final RandomAccessFile fileToClose = fileToServe;
                 lastContentFuture.addListener(new ChannelFutureListener() {
                     @Override
@@ -498,12 +500,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     /** Send an HTTP response. */
     private void sendResponse(Response response) {
-        boolean closeChannelAfterWrite = !request.isKeepAlive() || (response.getStatus() != HttpResponseStatus.OK
-        // TODO: In case of redirects (response.getStatus() == HttpResponseStatus.FOUND), should the channel be closed?
-                && response.getStatus() != HttpResponseStatus.FOUND);
-
+        // Add flash messages to response template, if any
         if (response instanceof HTMLPageResponse) {
-            // Add flash messages to response template, if any
+            // Only complete HTML pages have flash messages
             ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
             if (flashMessages != null) {
                 // Render pending flash messages into the HTML page
@@ -661,7 +660,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         }
 
         // Close the connection after serving the response if the response status is anything other than OK
-        if (request.isKeepAlive() && response.getStatus() == HttpResponseStatus.OK) {
+        boolean keepAlive = request.isKeepAlive() && (response.getStatus() == HttpResponseStatus.OK
+        // TODO: In case of redirects (HttpResponseStatus.FOUND), should the channel be closed?
+                || response.getStatus() != HttpResponseStatus.FOUND);
+        if (keepAlive) {
             headers.add(CONNECTION, KEEP_ALIVE);
         }
 
@@ -679,7 +681,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // TODO: Apache closes KeepAlive connections after a few seconds, see
             //       http://en.wikipedia.org/wiki/HTTP_persistent_connection
             // TODO: implement a stale connection tracker
-            if (closeChannelAfterWrite) {
+            if (!keepAlive) {
                 future.addListener(ChannelFutureListener.CLOSE);
             }
 
