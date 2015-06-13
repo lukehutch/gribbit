@@ -190,7 +190,7 @@ public abstract class Response {
     public boolean isScheduledForHashing() {
         return this.isScheduledForHashing;
     }
-    
+
     // -----------------------------------------------------------------------------------------------------
 
     /** Get the content of the response as a ByteBuf of UTF8 bytes. */
