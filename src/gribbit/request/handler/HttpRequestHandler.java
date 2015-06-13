@@ -707,12 +707,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Basic plaintext Internal Server Error page.
-     * 
-     * This is sent if an exception is thrown in the catch clause of the messageReceived method, i.e. if there was an
-     * exception while a response was being sent due to a RequestHandlingException or other exception being thrown.
-     * 
-     * This is the fallback if sendResponse() is failing for some reason.
+     * Basic plaintext Internal Server Error page. This is sent if an exception is thrown in the catch clause of the
+     * messageReceived method, i.e. if there was an exception while a response was being sent. This is the fallback if
+     * sendResponse() is failing for some reason.
      */
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
