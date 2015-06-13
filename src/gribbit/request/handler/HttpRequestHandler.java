@@ -292,6 +292,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 }
             }
 
+            // ------------------------------------------------------------------------------
+            // Generate and send the response
+            // ------------------------------------------------------------------------------
+
             File staticResourceFile = request.getStaticResourceFile();
             if (staticResourceFile != null) {
                 // Serve a static file
@@ -304,6 +308,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
 
         } catch (Exception e) {
+
+            // ------------------------------------------------------------------------------
+            // Send an error page or a redirect if an exception was thrown
+            // ------------------------------------------------------------------------------
+
             expectMoreChunks = false;
             if (e instanceof RequestHandlingException) {
                 // RequestHandlingException -- get the Response object
@@ -316,7 +325,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
         } finally {
             if (!expectMoreChunks) {
-                // Finished request -- destroy the multipart decoder and remove temporary files.
+                // Finished the request -- destroy the multipart decoder and remove temporary files.
                 // FIXME: need to call destroyDecoder() in cases where the connection goes stale, or is closed early
                 destroyPostRequestDecoder();
                 request = null;
@@ -326,7 +335,11 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Serve a static file. */
+    /**
+     * Serve a static file.
+     * 
+     * TODO: File serving is not authenticated. Set up separate authenticated and non-authenticated resource paths?
+     */
     private void serveStaticResourceFile(File staticResourceFile) throws RequestHandlingException {
         // A static resource matched the request URI, check last-modified timestamp
         // against the If-Modified-Since header timestamp in the request.
@@ -343,10 +356,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             try {
                 // Create new RandomAccessFile (which allows us to find file length etc.)
                 fileToServe = new RandomAccessFile(staticResourceFile, "r");
-
-                // -----------------------------------------
-                // Serve a static file (not authenticated)
-                // -----------------------------------------
 
                 DefaultHttpResponse httpRes = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
                 HttpHeaders headers = httpRes.headers();
@@ -486,11 +495,9 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
     private void handleGetOrPostRequest() throws RequestHandlingException {
         Route authorizedRoute = request.getAuthorizedRoute();
 
-        // ----------------------------------
-        // See if response should be hashed
-        // ----------------------------------
+        // See if response should be hashed.
 
-        // For hashed *non-file* URIs, the actual last modified timestamp of dynamically-served
+        // For hashed non-file URIs, the actual last modified timestamp of dynamically-served
         // content can't be read directly, so read the last modified timestamp stored for the
         // previously hashed version in the CacheExtension class, as long as the max age of the
         // cached version hasn't been exceeded, and see if the last modified timestamp is more
