@@ -47,15 +47,18 @@ public abstract class Response {
     protected long lastModifiedEpochSeconds, maxAgeSeconds;
     protected HashMap<String, String> customHeaders;
     protected String csrfTok;
+    private boolean isScheduledForHashing;
 
     public Response(HttpResponseStatus status) {
         this.status = status;
     }
 
+    /** Get the last modified timestamp for the content. 0 => unknown. */
     public long getLastModifiedEpochSeconds() {
         return lastModifiedEpochSeconds;
     }
 
+    /** Set the last modified timestamp for the content. 0 => unknown. */
     public Response setLastModifiedEpochSeconds(long lastModifiedEpochSeconds) {
         this.lastModifiedEpochSeconds = lastModifiedEpochSeconds;
         return this;
@@ -174,6 +177,20 @@ public abstract class Response {
         return this;
     }
 
+    // -----------------------------------------------------------------------------------------------------
+
+    /**
+     * Schedule the content of this response to be hashed for caching purposes.
+     */
+    public void scheduleForHashing() {
+        this.isScheduledForHashing = true;
+    }
+
+    /** If true, hash this content for caching puproses. */
+    public boolean isScheduledForHashing() {
+        return this.isScheduledForHashing;
+    }
+    
     // -----------------------------------------------------------------------------------------------------
 
     /** Get the content of the response as a ByteBuf of UTF8 bytes. */

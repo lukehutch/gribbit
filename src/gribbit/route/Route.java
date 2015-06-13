@@ -445,6 +445,11 @@ public class Route {
             response = new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "HTTP method not allowed");
         }
 
+        if (response == null) {
+            // Should not happen
+            throw new InternalServerErrorException("Didn't generate a response");
+        }
+
         return response;
     }
 

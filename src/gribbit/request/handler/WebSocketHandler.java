@@ -27,16 +27,15 @@ package gribbit.request.handler;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
+import gribbit.response.exception.ForbiddenException;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.util.WebUtils;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
@@ -161,13 +160,11 @@ public class WebSocketHandler {
     }
 
     public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin, String csrfQueryParam,
-            User user, Route authorizedRoute) {
+            User user, Route authorizedRoute) throws RequestHandlingException {
 
         if (user == null) {
             // Require users to be logged in before initiating WebSocket requests to mitigate DoS attacks
-            HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                    HttpResponseStatus.FORBIDDEN));
-            return;
+            throw new ForbiddenException();
         }
 
         // Protect against CSWSH: (Cross-Site WebSocket Hijacking)
@@ -183,9 +180,7 @@ public class WebSocketHandler {
         }
         if (originUri == null || !WebUtils.sameOrigin(originUri, GribbitServer.uri)) {
             // Reject scripted requests to open this websocket from a different domain
-            HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                    HttpResponseStatus.FORBIDDEN));
-            return;
+            throw new ForbiddenException();
         }
         // Log.info("Origin: " + origin.toString());
 
@@ -197,9 +192,7 @@ public class WebSocketHandler {
         // TODO: so that the CSRF token is available)
         if (!CSRF.csrfTokMatches(csrfQueryParam, user)) {
             // No valid CSRF token in User object
-            HttpUtils.sendHttpErrorResponse(ctx, null, new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                    HttpResponseStatus.FORBIDDEN));
-            return;
+            throw new ForbiddenException();
         }
 
         // Record which user was authenticated when the websocket upgrade request was made.

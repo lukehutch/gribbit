@@ -37,16 +37,29 @@ import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
+import gribbit.request.handler.WebSocketHandler;
+import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.MethodNotAllowedException;
+import gribbit.response.exception.NotFoundException;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.flashmsg.FlashMessage;
+import gribbit.route.Route;
+import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.HttpHeaderUtil;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
+import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -62,11 +75,15 @@ public class Request {
     private long reqReceivedTimeEpochMillis;
 
     private HttpMethod method;
+    private boolean isHEADRequest;
+    private boolean isKeepAlive;
     private String requestor;
     private String host;
     private String urlPath;
     private String urlHashKey;
     private String urlPathUnhashed;
+    private File staticResourceFile;
+    private Route authorizedRoute;
 
     private CharSequence accept;
     private CharSequence acceptCharset;
@@ -115,13 +132,27 @@ public class Request {
      */
     private boolean isWebSocketUpgradeRequest;
 
+    /** The websocket handler. */
+    private WebSocketHandler webSocketHandler;
+
     /** Flash messages. */
     private ArrayList<FlashMessage> flashMessages;
 
     // -----------------------------------------------------------------------------------------------------
 
-    public Request(HttpRequest httpReq) {
+    public Request(ChannelHandlerContext ctx, HttpRequest httpReq) throws RequestHandlingException {
         this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
+
+        // Decode the path.
+        QueryStringDecoder decoder = new QueryStringDecoder(httpReq.uri());
+        this.urlPath = decoder.path();
+        this.queryParamToVals = decoder.parameters();
+
+        // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
+        if (this.urlPath.equals("/bad-request")) {
+            throw new BadRequestException(this);
+        }
+
         HttpHeaders headers = httpReq.headers();
 
         // Parse and decode/decrypt cookies
@@ -145,6 +176,15 @@ public class Request {
 
         this.method = httpReq.method();
 
+        // Force the GET method if HEAD is requested
+        this.isHEADRequest = this.method == HttpMethod.HEAD;
+        if (this.isHEADRequest) {
+            this.method = HttpMethod.GET;
+        }
+
+        this.isKeepAlive = HttpHeaderUtil.isKeepAlive(httpReq)
+                && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
+
         CharSequence host = headers.get(HOST);
         this.host = host == null ? null : host.toString();
 
@@ -156,6 +196,14 @@ public class Request {
         this.referer = headers.get(REFERER);
         this.userAgent = headers.get(USER_AGENT);
 
+        InetSocketAddress requestorSocketAddr = (InetSocketAddress) ctx.channel().remoteAddress();
+        if (requestorSocketAddr != null) {
+            InetAddress address = requestorSocketAddr.getAddress();
+            if (address != null) {
+                this.requestor = address.getHostAddress();
+            }
+        }
+
         CharSequence acceptEncoding = headers.get(ACCEPT_ENCODING);
         this.acceptEncodingGzip = acceptEncoding != null && acceptEncoding.toString().toLowerCase().contains("gzip");
 
@@ -165,11 +213,6 @@ public class Request {
                     .parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
         }
 
-        // Decode the path.
-        QueryStringDecoder decoder = new QueryStringDecoder(httpReq.uri());
-        this.urlPath = decoder.path();
-        this.queryParamToVals = decoder.parameters();
-
         // If this is a hash URL, look up original URL whose served resource was hashed to give this hash URL.
         // We only need to serve the resource at a hash URL once per resource per client, since resources served
         // from hash URLs are indefinitely cached in the browser.
@@ -178,16 +221,84 @@ public class Request {
 
         // Look for _getmodel=1 and _ws=1 query parameters, then remove them if present so the user doesn't see them
         this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
-        this.isWebSocketUpgradeRequest = "1".equals(this.getQueryParam("_ws"));
         if (this.isGetModelRequest) {
             this.queryParamToVals.remove("_getmodel");
-        }
-        if (this.isWebSocketUpgradeRequest) {
-            this.queryParamToVals.remove("_ws");
         }
 
         // Get flash messages from cookie, if any
         this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
+
+        // ------------------------------------------------------------------------------
+        // Find the Route corresponding to the request URI, and authenticate user
+        // ------------------------------------------------------------------------------
+
+        // Call route handlers until one is able to handle the route,
+        // or until we run out of handlers
+        ArrayList<Route> allRoutes = GribbitServer.siteResources.getAllRoutes();
+        for (int i = 0, n = allRoutes.size(); i < n; i++) {
+            Route route = allRoutes.get(i);
+            // If the request URI matches this route path
+            if (route.matches(this.urlPathUnhashed)) {
+                if (!(this.method == HttpMethod.GET || this.method == HttpMethod.POST)) {
+                    // Only GET and POST are supported
+                    throw new MethodNotAllowedException();
+
+                } else if ((this.method == HttpMethod.GET && !route.hasGetMethod())
+                        || (this.method == HttpMethod.POST && !route.hasPostMethod())) {
+                    // Tried to call an HTTP method that is not defined for this route
+                    throw new MethodNotAllowedException();
+
+                } else {
+                    // Call request.lookupUser() to check the session cookies to see if the user is logged in, 
+                    // if the route requires users to be logged in. If auth is required, see if the user can
+                    // access the requested route.
+                    // Throws a RequestHandlingException if not authorized.
+                    route.throwExceptionIfNotAuthorized(this);
+
+                    // If we reach here, either authorization is not required for the route, or the user is
+                    // logged in and they passed all auth tests. OK to handle the request with this route.
+                    this.authorizedRoute = route;
+                }
+
+                // URI matches, so don't need to search further URIs
+                break;
+            }
+        }
+
+        // ------------------------------------------------------------------------------
+        // Handle websocket upgrade requests
+        // ------------------------------------------------------------------------------
+
+        this.isWebSocketUpgradeRequest = "1".equals(this.getQueryParam("_ws"));
+        if (this.isWebSocketUpgradeRequest) {
+            this.queryParamToVals.remove("_ws");
+        }
+
+        if (this.isWebSocketUpgradeRequest) {
+            if (!GribbitProperties.ALLOW_WEBSOCKETS || this.method != HttpMethod.GET || this.authorizedRoute == null) {
+                throw new BadRequestException();
+            }
+            // Create a new WebSocketHandler, and upgrade the connection
+            this.webSocketHandler = new WebSocketHandler(ctx, httpReq, this.origin, getQueryParam("_csrf"),
+                    lookupUser(), this.authorizedRoute);
+        }
+
+        // ------------------------------------------------------------------------------
+        // Try to match static resource requests if no Route matched
+        // ------------------------------------------------------------------------------
+
+        if (this.authorizedRoute == null) {
+            if (this.method == HttpMethod.GET) {
+                this.staticResourceFile = GribbitServer.siteResources.getStaticResource(this.urlPathUnhashed);
+                if (this.staticResourceFile == null) {
+                    // Neither a route handler nor a static resource matched the request URI. Throw 404 Not Found.
+                    throw new NotFoundException(this);
+                }
+            } else {
+                // Tried to post to a non-existent Route
+                throw new NotFoundException(this);
+            }
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -423,12 +534,12 @@ public class Request {
         return requestor == null ? "" : requestor;
     }
 
-    public void setRequestor(String requestor) {
-        this.requestor = requestor;
-    }
-
     public HttpMethod getMethod() {
         return method;
+    }
+
+    public boolean isHEADRequest() {
+        return isHEADRequest;
     }
 
     public void setMethod(HttpMethod method) {
@@ -489,6 +600,23 @@ public class Request {
      */
     public boolean isWebSocketUpgradeRequest() {
         return isWebSocketUpgradeRequest;
+    }
+
+    public WebSocketHandler getWebSocketHandler() {
+        return webSocketHandler;
+    }
+
+    public File getStaticResourceFile() {
+        return staticResourceFile;
+    }
+
+    /** The Route corresponding to the requested URL path. Will be non-null if this is not a static file request. */
+    public Route getAuthorizedRoute() {
+        return authorizedRoute;
+    }
+
+    public boolean isKeepAlive() {
+        return isKeepAlive;
     }
 
     /**
