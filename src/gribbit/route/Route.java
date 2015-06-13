@@ -220,13 +220,10 @@ public class Route {
         // Check for a Cached annotation on the handler subinterface
         Cached cachedAnnotation = handlerClass.getAnnotation(Cached.class);
         if (cachedAnnotation != null) {
-            int maxAgeSeconds = cachedAnnotation.maxAgeSeconds();
-            if (maxAgeSeconds < 0) {
-                // Negative maxAgeSeconds => 1 year (effectively cached indefinitely)
-                this.maxAgeSeconds = 31536000;
-            } else {
-                this.maxAgeSeconds = maxAgeSeconds;
-            }
+            this.maxAgeSeconds = Math
+                    .min(cachedAnnotation.maxAgeSeconds() < 0L ? Long.MAX_VALUE : cachedAnnotation.maxAgeSeconds(),
+                            // Negative maxAgeSeconds => 1 year (effectively cached indefinitely)
+                            31536000);
         }
 
         // Check for methods get() and post() in the handler subinterface

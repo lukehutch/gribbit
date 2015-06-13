@@ -47,7 +47,6 @@ public abstract class Response {
     protected long lastModifiedEpochSeconds, maxAgeSeconds;
     protected HashMap<String, String> customHeaders;
     protected String csrfTok;
-    private boolean isScheduledForHashing;
 
     public Response(HttpResponseStatus status) {
         this.status = status;
@@ -64,21 +63,33 @@ public abstract class Response {
         return this;
     }
 
+    /** Get the max age that this content can be cached for, or 0 for no caching. */
+    public long getMaxAgeSeconds() {
+        return maxAgeSeconds;
+    }
+
+    /**
+     * Schedule the content of this response to be hashed for caching purposes, or -1 to cache for a year (the maximum),
+     * or 0 for no caching.
+     */
+    public Response setMaxAgeSeconds(long maxAgeSeconds) {
+        // The caching spec only allows for resources to be cached for one year, or 31536000 seconds
+        this.maxAgeSeconds = Math.min(maxAgeSeconds < 0L ? Long.MAX_VALUE : maxAgeSeconds, 31536000L);
+        return this;
+    }
+
+    /** Ensure the response is not cached. */
+    public void noCache() {
+        setLastModifiedEpochSeconds(0);
+        setMaxAgeSeconds(0);
+    }
+
     public String getCsrfTok() {
         return csrfTok;
     }
 
     public Response setCsrfTok(String csrfTok) {
         this.csrfTok = csrfTok;
-        return this;
-    }
-
-    public long getMaxAgeSeconds() {
-        return maxAgeSeconds;
-    }
-
-    public Response setMaxAgeSeconds(long maxAgeSeconds) {
-        this.maxAgeSeconds = maxAgeSeconds;
         return this;
     }
 
@@ -175,20 +186,6 @@ public abstract class Response {
             user.logOut(this);
         }
         return this;
-    }
-
-    // -----------------------------------------------------------------------------------------------------
-
-    /**
-     * Schedule the content of this response to be hashed for caching purposes.
-     */
-    public void scheduleForHashing() {
-        this.isScheduledForHashing = true;
-    }
-
-    /** If true, hash this content for caching puproses. */
-    public boolean isScheduledForHashing() {
-        return this.isScheduledForHashing;
     }
 
     // -----------------------------------------------------------------------------------------------------

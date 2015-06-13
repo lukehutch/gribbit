@@ -50,11 +50,9 @@ import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.NotModifiedException;
 import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
-import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.util.Log;
 import gribbit.util.WebUtils;
 import io.netty.buffer.ByteBuf;
@@ -302,8 +300,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 serveStaticResourceFile(staticResourceFile);
             } else {
                 if (!expectMoreChunks) {
-                    // No more chunks to receive, handle the request
-                    handleGetOrPostRequest();
+                    // No more chunks to receive; handle the request.
+                    // Call the RestHandler for the route. May throw a RequestHandlingException.
+                    Response response = request.callRouteHandler();
+                    sendResponse(response);
                 }
             }
 
@@ -314,14 +314,16 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // ------------------------------------------------------------------------------
 
             expectMoreChunks = false;
+            Response response;
             if (e instanceof RequestHandlingException) {
                 // RequestHandlingException -- get the Response object
-                sendResponse(((RequestHandlingException) e).getErrorResponse());
+                response = ((RequestHandlingException) e).getErrorResponse();
             } else {
                 // Unexpected exception
-                sendResponse(new InternalServerErrorException(e).getErrorResponse());
+                response = new InternalServerErrorException(e).getErrorResponse();
                 Log.exception("Exception handling request", e);
             }
+            sendResponse(response);
 
         } finally {
             if (!expectMoreChunks) {
@@ -344,7 +346,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // A static resource matched the request URI, check last-modified timestamp
         // against the If-Modified-Since header timestamp in the request.
         long lastModifiedEpochSeconds = staticResourceFile.lastModified() / 1000;
-        if (!request.cachedVersionIsOlderThan(lastModifiedEpochSeconds)) {
+        if (!request.contentModified(lastModifiedEpochSeconds)) {
 
             // File has not been modified since it was last cached -- return Not Modified
             throw new NotModifiedException(lastModifiedEpochSeconds);
@@ -398,11 +400,14 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
                 String hashKey = request.getURLHashKey();
                 if (hashKey != null) {
-                    // File is hashed => cache indefinitely
-                    // (although the spec only allows for one year, or 31536000 seconds)
-                    int maxAge = 31536000;
-                    headers.set(CACHE_CONTROL, "public, max-age=" + maxAge);
-                    headers.set(EXPIRES, timeNow.plusSeconds(maxAge).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                    // File was requested on a hash URL => cache the most recent version of the file indefinitely
+                    // at the hash URL. If the file contents no longer match the hash (i.e. the contents have
+                    // changed since the hash for the request URI was looked up by the RouteHandler), it's no big
+                    // deal, we can just serve the newer file contents at the old hash, and the client will still
+                    // get the newest content, just cached against the old hash URL.
+                    int indefinitely = 31536000; // 1 year (max according to spec)
+                    headers.set(CACHE_CONTROL, "public, max-age=" + indefinitely);
+                    headers.set(EXPIRES, timeNow.plusSeconds(indefinitely).format(DateTimeFormatter.RFC_1123_DATE_TIME));
                     headers.set(ETAG, hashKey);
                 }
 
@@ -491,77 +496,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Handle GET or POST requests. */
-    private void handleGetOrPostRequest() throws RequestHandlingException {
-        Route authorizedRoute = request.getAuthorizedRoute();
-
-        // See if response should be hashed.
-
-        // For hashed non-file URIs, the actual last modified timestamp of dynamically-served
-        // content can't be read directly, so read the last modified timestamp stored for the
-        // previously hashed version in the CacheExtension class, as long as the max age of the
-        // cached version hasn't been exceeded, and see if the last modified timestamp is more
-        // recent than the version cached in the browser.
-        //
-        // The important ramification of this is that when the resource identified by the non-file
-        // URI changes, the CacheExtension class must be notified of that change (including in cases
-        // where the database is modified by another database client) if the modified version should
-        // start being served at a new hash URI immediately, otherwise the web client connected to
-        // this web server will continue to serve old resources until the max age of the cached
-        // content is exceeded.
-
-        boolean hashTheResponse = false;
-        if (request.isHashURL()) {
-            HashInfo hashInfo = CacheExtension.getHashInfo(request.getURLPathUnhashed());
-            if (hashInfo != null) {
-                long lastModifiedEpochSeconds = hashInfo.getLastModifiedEpochSeconds();
-                ZonedDateTime timeNow = ZonedDateTime.now();
-                long timeNowEpochSeconds = timeNow.toEpochSecond();
-
-                long maxAgeSeconds = authorizedRoute.getMaxAgeSeconds();
-
-                // Content is not hash-cached
-                long hashKeyRemainingAgeSeconds = maxAgeSeconds == 0L ? 0L //
-                        : lastModifiedEpochSeconds + maxAgeSeconds - timeNowEpochSeconds;
-
-                if (maxAgeSeconds > 0 && hashKeyRemainingAgeSeconds <= 0) {
-                    // Resource has expired -- call the route handler to generate a new response rather
-                    // than serving a Not Modified response, and schedule the response to be hashed or
-                    // re-hashed once the response has been generated.
-                    hashTheResponse = true;
-
-                } else if (!request.cachedVersionIsOlderThan(lastModifiedEpochSeconds)) {
-                    // Resource has not expired in cache, but client has requested it anyway.
-                    // However, resource has not been modified since it was last hashed --
-                    // return Not Modified.
-                    throw new NotModifiedException(lastModifiedEpochSeconds);
-
-                } else {
-                    // Resource has not expired in cache, but client has requested it anyway.
-                    // Resource *has* been modified since it was last hashed -- serve it the
-                    // normal way using the route handler, but don't hash the response, since
-                    // it has not expired yet.
-                }
-            } else {
-                // There is no original URI matching this hash URI, so the hash key was stale
-                // (i.e. a URI whose hashcode has been spoofed, or a very old hashcode from
-                // the previous time the server was run), but we still got a valid request URI
-                // by stripping away the hash code, so that is served below in the normal way.
-            }
-        }
-
-        // Call the RestHandler for the route. May throw a RequestHandlingException.
-        Response response = authorizedRoute.callHandler(request);
-        if (hashTheResponse) {
-            response.scheduleForHashing();
-        }
-
-        // Send the response
-        sendResponse(response);
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
     /** Send an HTTP response. */
     private void sendResponse(Response response) {
         boolean closeChannelAfterWrite = !request.isKeepAlive() || (response.getStatus() != HttpResponseStatus.OK
@@ -589,6 +523,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
         // Get the content of the response as a byte buffer.
         ByteBuf content = response.getContent(request);
+        byte[] contentBytes = content.array();
+        String contentType = response.getContentType(request);
 
         // If the response needs hashing, and the response does not have an error status, then schedule the
         // content of the response for hashing, and store a mapping from the original request URI to the
@@ -596,12 +532,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         // URI will replace this request URI with the hash URI instead. This will mean the client will
         // fetch that hash URI only once until it expires in the cache, so that on subsequent requests,
         // the linked resource won't even be requested from the server.
-        if (response.isScheduledForHashing() && response.getStatus() == HttpResponseStatus.OK) {
-            CacheExtension.updateHashURI(request.getURLPathUnhashed(), content, response.getLastModifiedEpochSeconds());
+        ZonedDateTime timeNow = ZonedDateTime.now();
+        long maxAgeSeconds = response.getMaxAgeSeconds();
+        if (maxAgeSeconds > 0L && response.getStatus() == HttpResponseStatus.OK) {
+            CacheExtension.updateHashURI(request.getURLPathUnhashed(), content, //
+                    /* lastModifiedEpochSeconds = */timeNow.toEpochSecond());
         }
-
-        byte[] contentBytes = content.array();
-        String contentType = response.getContentType(request);
 
         // Gzip content if the configuration property is set to allow gzip, and the client supports gzip encoding,
         // and the content size is larger than 1kb, and the content type is compressible 
@@ -648,42 +584,41 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         headers.add(ACCEPT_ENCODING, "gzip");
 
         // Date header uses server time, and should use the same clock as Expires and Last-Modified
-        ZonedDateTime timeNow = ZonedDateTime.now();
         headers.set(DATE, timeNow.format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
-        // Set caching headers -- see:
-        // http://www.mobify.com/blog/beginners-guide-to-http-cache-headers/
-        // https://www.mnot.net/cache_docs/
+        boolean cached = false;
+        if (response.getStatus() == HttpResponseStatus.OK) {
+            // Set caching headers -- see:
+            // http://www.mobify.com/blog/beginners-guide-to-http-cache-headers/
+            // https://www.mnot.net/cache_docs/
 
-        // Last-Modified is used to determine whether a Not Modified response should be returned on next request.
-        // RouteHandlers that want to make use of this value should check the return value of
-        // request.cachedVersionIsOlderThan(serverTimestamp), where serverTimestamp was the timestamp at which
-        // the value previously changed, and if the return value is false, throw NotModifiedException.
-        long lastModifiedEpochSeconds = response.getLastModifiedEpochSeconds();
-        if (lastModifiedEpochSeconds > 0L) {
-            headers.set(
-                    LAST_MODIFIED,
-                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSeconds), ZoneId.of("UTC")).format(
-                            DateTimeFormatter.RFC_1123_DATE_TIME));
-        } else {
-            // If no last modified time is set, see if the route included a hash key
-            String hashKey = request.getURLHashKey();
-            if (hashKey != null) {
-                // File is hashed => cache indefinitely
-                // (although the spec only allows for one year, or 31536000 seconds)
-                int maxAge = 31536000;
-                headers.set(CACHE_CONTROL, "public, max-age=" + maxAge);
-                headers.set(EXPIRES, timeNow.plusSeconds(maxAge).format(DateTimeFormatter.RFC_1123_DATE_TIME));
-                headers.set(ETAG, hashKey);
-            } else {
-                // Disable caching for all resources that are don't have a last modified time and are not hashed.
-                // Without these headers, the server will not have a last modified timestamp to check against its
-                // own timestamp on subsequent requests, so cannot return Not Modified.
-                // This is the minimum necessary set of headers for disabling caching, see http://goo.gl/yXGd2x
-                headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
-                headers.add(PRAGMA, "no-cache"); // HTTP 1.0
-                headers.add(EXPIRES, "0"); // Proxies
+            // Last-Modified is used to determine whether a Not Modified response should be returned on next request.
+            // RouteHandlers that want to make use of this value should check the return value of
+            // request.cachedVersionIsOlderThan(serverTimestamp), where serverTimestamp was the timestamp at which
+            // the value previously changed, and if the return value is false, throw NotModifiedException.
+            long lastModifiedEpochSeconds = response.getLastModifiedEpochSeconds();
+            if (lastModifiedEpochSeconds > 0L) {
+                headers.set(LAST_MODIFIED,
+                        ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSeconds), ZoneId.of("UTC"))
+                                .format(DateTimeFormatter.RFC_1123_DATE_TIME));
+
+            } else if (request.isHashURL() && maxAgeSeconds > 0L) {
+                // Only URLs that include a hash key (and whose response has a non-zero maxAgeSeconds) can be cached.
+                cached = true;
+                headers.set(CACHE_CONTROL, "public, max-age=" + maxAgeSeconds);
+                headers.set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                headers.set(ETAG, request.getURLHashKey());
             }
+        }
+        if (!cached) {
+            // Disable caching for all URLs that do not contain a hash key. In particular, caching is
+            // disabled for error messages, resources that don't have a last modified time, and responses
+            // from RouteHandlers that do not set a maxAge (and are therefore not hashed).
+
+            // This is the minimum necessary set of headers for disabling caching, see http://goo.gl/yXGd2x
+            headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
+            headers.add(PRAGMA, "no-cache"); // HTTP 1.0
+            headers.add(EXPIRES, "0"); // Proxies
         }
 
         // Delete requested cookies in the response
@@ -800,8 +735,15 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                         HttpResponseStatus.INTERNAL_SERVER_ERROR);
                 res.content().writeBytes("Internal Server Error".getBytes("UTF-8"));
-                res.headers().set(CONTENT_TYPE, "text/plain;charset=utf-8");
+                HttpHeaders headers = res.headers();
+                headers.set(CONTENT_TYPE, "text/plain;charset=utf-8");
                 HttpHeaderUtil.setContentLength(res, res.content().readableBytes());
+
+                // Disable caching
+                headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
+                headers.add(PRAGMA, "no-cache"); // HTTP 1.0
+                headers.add(EXPIRES, "0"); // Proxies
+
                 ChannelFuture f = ctx.writeAndFlush(res);
                 f.addListener(ChannelFutureListener.CLOSE);
             }
