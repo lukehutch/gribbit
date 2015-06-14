@@ -44,6 +44,7 @@ import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.MethodNotAllowedException;
 import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.RequestHandlingException;
+import gribbit.response.exception.UnauthorizedException;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
@@ -129,12 +130,7 @@ public class Request {
      */
     private boolean isGetModelRequest;
 
-    /**
-     * If set to true by appending "?_ws=1" to the URL, then upgrade the connection to a websocket.
-     */
-    private boolean isWebSocketUpgradeRequest;
-
-    /** The websocket handler. */
+    /** The websocket handler. Appending "?_ws=1" to the URL to upgrade the connection to a websocket. */
     private WebSocketHandler webSocketHandler;
 
     /** Flash messages. */
@@ -221,7 +217,7 @@ public class Request {
         this.urlHashKey = CacheExtension.getHashKey(this.urlPath);
         this.urlPathUnhashed = this.urlHashKey != null ? CacheExtension.getOrigURL(this.urlPath) : this.urlPath;
 
-        // Look for _getmodel=1 and _ws=1 query parameters, then remove them if present so the user doesn't see them
+        // Check for _getmodel=1 query parameter
         this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
         if (this.isGetModelRequest) {
             this.queryParamToVals.remove("_getmodel");
@@ -271,18 +267,22 @@ public class Request {
         // Handle websocket upgrade requests
         // ------------------------------------------------------------------------------
 
-        this.isWebSocketUpgradeRequest = "1".equals(this.getQueryParam("_ws"));
-        if (this.isWebSocketUpgradeRequest) {
-            this.queryParamToVals.remove("_ws");
-        }
-
-        if (this.isWebSocketUpgradeRequest) {
-            if (!GribbitProperties.ALLOW_WEBSOCKETS || this.method != HttpMethod.GET || this.authorizedRoute == null) {
+        boolean isWebSocketUpgradeRequest = "1".equals(this.getQueryParam("_ws"));
+        if (isWebSocketUpgradeRequest) {
+            if (!GribbitProperties.ALLOW_WEBSOCKETS) {
                 throw new BadRequestException();
+            }
+            if (this.authorizedRoute == null) {
+                throw new UnauthorizedException(this);
+            }
+            if (this.method != HttpMethod.GET) {
+                throw new MethodNotAllowedException();
             }
             // Create a new WebSocketHandler, and upgrade the connection
             this.webSocketHandler = new WebSocketHandler(ctx, httpReq, this.origin, getQueryParam("_csrf"),
                     lookupUser(), this.authorizedRoute);
+            // Remove the _ws query parameter
+            this.queryParamToVals.remove("_ws");
         }
 
         // ------------------------------------------------------------------------------
@@ -594,13 +594,8 @@ public class Request {
     }
 
     /**
-     * True if the request URL contained the query parameter "?_ws=1", in which case upgrade the connection to a
-     * websocket.
+     * Non-null if the request URL contained the query parameter "?_ws=1", which upgrades the connection to a websocket.
      */
-    public boolean isWebSocketUpgradeRequest() {
-        return isWebSocketUpgradeRequest;
-    }
-
     public WebSocketHandler getWebSocketHandler() {
         return webSocketHandler;
     }

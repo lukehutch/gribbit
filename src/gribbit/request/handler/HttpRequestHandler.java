@@ -198,8 +198,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // TODO: of requests for anonymous users); limit the total number of websockets that may
                 // TODO: be opened by one user
 
-                if (request.isWebSocketUpgradeRequest()) {
-                    this.webSocketHandler = request.getWebSocketHandler();
+                this.webSocketHandler = request.getWebSocketHandler();
+                if (this.webSocketHandler != null) {
                     // Websocket upgrade request has already been handled by the Request constructor
                     return;
                 }
@@ -297,7 +297,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             File staticResourceFile = request.getStaticResourceFile();
             if (staticResourceFile != null) {
                 // Serve a static file
-                serveStaticResourceFile(staticResourceFile);
+                sendFile(staticResourceFile);
             } else {
                 if (!expectMoreChunks) {
                     // No more chunks to receive; handle the request.
@@ -342,7 +342,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
      * 
      * TODO: File serving is not authenticated. Set up separate authenticated and non-authenticated resource paths?
      */
-    private void serveStaticResourceFile(File staticResourceFile) throws RequestHandlingException {
+    private void sendFile(File staticResourceFile) throws RequestHandlingException {
         // A static resource matched the request URI, check last-modified timestamp
         // against the If-Modified-Since header timestamp in the request.
         long lastModifiedEpochSeconds = staticResourceFile.lastModified() / 1000;
