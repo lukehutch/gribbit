@@ -425,6 +425,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     return;
                 }
 
+                // TODO: when a file is requested, if it's a compressible type, schedule it to be gzipped on disk, and
+                // return the gzipped version instead of the original version, as long as the gzipped version has a
+                // newer timestamp.
+                
                 // Write file content to channel.
                 // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
                 // progress (e.g. to update user's UI over a web socket to show download progress.)
@@ -463,7 +467,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 //        }
                 //    });
 
-                // Close connection after flush if needed, and close file after flush.
+                // Close the file and possibly the connection after the last chunk has been sent.
                 // We can't close the file in a finally block, because the file writing is asynchronous, and
                 // the file shouldn't be closed until the last chunk has been written. 
                 final RandomAccessFile fileToClose = fileToServe;
@@ -474,6 +478,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                             fileToClose.close();
                         } catch (IOException e) {
                         }
+                        future.channel().flush();
                         if (!request.isKeepAlive()) {
                             future.channel().close();
                         }

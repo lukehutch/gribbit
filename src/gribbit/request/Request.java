@@ -114,6 +114,8 @@ public class Request {
      * http://en.wikipedia.org/wiki/Cross-origin_resource_sharing
      * 
      * http://www.christian-schneider.net/CrossSiteWebSocketHijacking.html
+     * 
+     * FIXME: make use of this field when setting up websockets
      **/
     private CharSequence origin;
 
@@ -291,6 +293,7 @@ public class Request {
 
         if (this.authorizedRoute == null) {
             if (this.method == HttpMethod.GET) {
+                // Set the static file to be served, if one matches the requested URL
                 this.staticResourceFile = GribbitServer.siteResources.getStaticResource(this.urlPathUnhashed);
                 if (this.staticResourceFile == null) {
                     // Neither a route handler nor a static resource matched the request URI. Throw 404 Not Found.
