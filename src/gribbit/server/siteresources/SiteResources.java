@@ -247,7 +247,7 @@ public class SiteResources {
         // Full hot code swap / dynamic class reloading is problematic, see 
         // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
         HashSet<String> prevTemplateStaticFieldNames = GribbitServer.siteResources == null ? new HashSet<>()
-                : GribbitServer.siteResources.templateModelLoader.getInlineTemplateStaticFieldNames();
+                : GribbitServer.siteResources.templateModelLoader.getInlineTemplateStaticFieldNames(); 
         final HashMap<String, String> classAndFieldNameToLatestValue = new HashMap<>();
 
         // Hack to get the generic parameterized class type for DBModel, see Fast Classpath Scanner documentation 
@@ -299,14 +299,14 @@ public class SiteResources {
                     @Override
                     public void processMatch(Class<? extends TemplateModel> matchingClass) {
                         // If class has a field "public static final String _template", use the latest value read 
-                        // from the classfile, so that hot changes to template strings are supported (to support
+                        // from the classfile, so that changes to template strings are supported (to support
                         // hot template updates when debugging in Eclipse).
                         //
                         // N.B. Class-based MatchProcessors are called by FastClasspathScanner after all classfiles
                         // have been read, so by the time this code is called, classAndFieldNameToLatestValue has
                         // been populated with the latest values of all static template fields of all classes.
                         String latestStaticFieldTemplateStr = classAndFieldNameToLatestValue.get(matchingClass
-                                .getName() + "." + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
+                                .getName() + "." + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME); 
 
                         // Load and parse template corresponding to each TemplateModel class
                         Class<? extends TemplateModel> templateClass = (Class<? extends TemplateModel>) matchingClass;

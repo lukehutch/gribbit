@@ -41,6 +41,7 @@ import gribbit.model.field.visibility.annotation.PrivateGet;
 import gribbit.model.field.visibility.annotation.PrivateSet;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
+import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -346,12 +347,13 @@ public class FieldChecker {
                 || fieldType == Boolean.class || fieldType == Boolean.TYPE //
                 || fieldType == Character.class || fieldType == Character.TYPE //
                 || fieldType == LocalDate.class // 
-                || fieldType.isEnum();
+                || fieldType.isEnum() //
+                || fieldType == FileUpload.class;
     }
 
     /**
      * Returns true if the Class's public fields consist only of basic types (builtins or their wrapper classes, String,
-     * LocalDate, or enum).
+     * LocalDate, enum, or FileUpload).
      */
     public static boolean isFlatModel(Class<?> klass) {
         for (Field formField : klass.getFields()) {

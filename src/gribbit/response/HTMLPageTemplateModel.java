@@ -83,10 +83,10 @@ public class HTMLPageTemplateModel extends TemplateModel {
             + "<meta charset=\"utf-8\">" //
             + "<title>${title}</title>" + "</head>" //
             + "<body>" //
-            // flash messages come at the beginning of the body
+            // Include flash messages at beginning of body
             + "${flashMessages}" //
-            // templated content comes next
-            + "${content}" //
+            // Include templated body content
+            + "${body}" //
             + "</body>" //
             + "</html>";
 }

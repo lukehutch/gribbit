@@ -262,7 +262,7 @@ public abstract class TemplateModel {
                         encodeParamText(isAttrVal, isURLAttr, unsafeStr, buf);
                     }
 
-                } else if (fieldType.isAssignableFrom(TemplateModel.class)) {
+                } else if (TemplateModel.class.isAssignableFrom(fieldType)) {
                     if (isAttrVal) {
                         // Shouldn't happen, this was checked for on template load, but included here for XSS safety
                         throw new RuntimeException("Can't include HTML inside an attribute value");
@@ -272,7 +272,7 @@ public abstract class TemplateModel {
                     wasIndented |= ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel, prettyPrint,
                             buf);
 
-                } else if (fieldType.isArray() || fieldType.isAssignableFrom(List.class)) {
+                } else if (fieldType.isArray() || List.class.isAssignableFrom(fieldType)) {
                     if (isAttrVal) {
                         // Shouldn't happen, this was checked for on template load, but included here for XSS safety
                         throw new RuntimeException("Can't include HTML inside an attribute value");
@@ -292,12 +292,12 @@ public abstract class TemplateModel {
                         }
                     }
 
-                } else if (fieldType.isAssignableFrom(DataModel.class)) {
+                } else if (DataModel.class.isAssignableFrom(fieldType)) {
                     // Should never happen, this was disallowed on template loading
                     throw new RuntimeException("Form-bound " + DataModel.class.getSimpleName() + " subclass "
                             + fieldType.getName() + " cannot be substituted into a template parameter");
 
-                } else if (fieldType.isAssignableFrom(Class.class)) {
+                } else if (Class.class.isAssignableFrom(fieldType)) {
                     // Special case: if a field type is a Class<? extends RouteHandler>, then insert the URL of the
                     // RouteHandler's route as a string, so that routes can be inserted into href attributes.
                     //

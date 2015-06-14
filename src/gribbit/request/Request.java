@@ -75,8 +75,10 @@ import java.util.Map;
 import java.util.Set;
 
 public class Request {
-    private long reqReceivedTimeEpochMillis;
+    private ChannelHandlerContext ctx;
+    private HttpRequest httpReq;
 
+    private long reqReceivedTimeEpochMillis;
     private HttpMethod method;
     private boolean isHEADRequest;
     private boolean isKeepAlive;
@@ -140,18 +142,15 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public Request(ChannelHandlerContext ctx, HttpRequest httpReq) throws RequestHandlingException {
+    public Request(ChannelHandlerContext ctx, HttpRequest httpReq) {
+        this.ctx = ctx;
+        this.httpReq = httpReq;
         this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
 
         // Decode the path.
         QueryStringDecoder decoder = new QueryStringDecoder(httpReq.uri());
         this.urlPath = decoder.path();
         this.queryParamToVals = decoder.parameters();
-
-        // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
-        if (this.urlPath.equals("/bad-request")) {
-            throw new BadRequestException(this);
-        }
 
         HttpHeaders headers = httpReq.headers();
 
@@ -219,14 +218,32 @@ public class Request {
         this.urlHashKey = CacheExtension.getHashKey(this.urlPath);
         this.urlPathUnhashed = this.urlHashKey != null ? CacheExtension.getOrigURL(this.urlPath) : this.urlPath;
 
+        // Get flash messages from cookie, if any
+        this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Looks up the route for the request, and ensures the user is authorized to access the route, otherwise a
+     * RequestHandlingException is thrown.
+     * 
+     * This is performed in a separate step from the constructor so that a non-null Request object can still exist if
+     * any of the checks here fail and a RequestHandlingException is thrown, so that the constructor to the exception
+     * can accept a non-null Request object with the details of the request.
+     */
+    public void matchRoute() throws RequestHandlingException {
+
+        // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
+        if (this.urlPath.equals("/bad-request")) {
+            throw new BadRequestException(this);
+        }
+
         // Check for _getmodel=1 query parameter
         this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
         if (this.isGetModelRequest) {
             this.queryParamToVals.remove("_getmodel");
         }
-
-        // Get flash messages from cookie, if any
-        this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
 
         // ------------------------------------------------------------------------------
         // Find the Route corresponding to the request URI, and authenticate user
@@ -304,6 +321,30 @@ public class Request {
                 throw new NotFoundException(this);
             }
         }
+    }
+
+    /**
+     * If non-null, the request URL contained the query parameter "?_ws=1", which upgrades the connection to a
+     * websocket.
+     */
+    public WebSocketHandler getWebSocketHandler() {
+        return webSocketHandler;
+    }
+
+    /** If non-null, the request was for a static file. */
+    public File getStaticResourceFile() {
+        return staticResourceFile;
+    }
+
+    /**
+     * Call the GET or POST handler for the Route corresponding to the requested URL path.
+     */
+    public Response callRouteHandler() throws RequestHandlingException {
+        if (authorizedRoute == null) {
+            // Shouldn't happen, the caller should only call this method if the request URL matched an authorized route
+            throw new InternalServerErrorException("Unexpected: authorizedRoute is null");
+        }
+        return authorizedRoute.callHandler(this);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -594,29 +635,6 @@ public class Request {
      */
     public boolean isGetModelRequest() {
         return GribbitProperties.ALLOW_GET_MODEL && isGetModelRequest;
-    }
-
-    /**
-     * Non-null if the request URL contained the query parameter "?_ws=1", which upgrades the connection to a websocket.
-     */
-    public WebSocketHandler getWebSocketHandler() {
-        return webSocketHandler;
-    }
-
-    public File getStaticResourceFile() {
-        return staticResourceFile;
-    }
-
-    /**
-     * Call the GET or POST handler for the Route corresponding to the requested URL path. Will be non-null if this is
-     * not a static file request.
-     */
-    public Response callRouteHandler() throws RequestHandlingException {
-        if (authorizedRoute == null) {
-            // Shouldn't happen, the caller should never call this method for static resource file requests
-            throw new InternalServerErrorException("authorizedRoute is null");
-        }
-        return authorizedRoute.callHandler(this);
     }
 
     public boolean isKeepAlive() {

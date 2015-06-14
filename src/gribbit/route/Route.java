@@ -451,7 +451,7 @@ public class Route {
     }
 
     /**
-     * Call the get() method for an error handler Route.
+     * Call the get() method for an error handler Route. (Does not do any authentication.)
      */
     public Response callErrorHandler(Request request) throws RequestHandlingException {
         // Bind any URI params; invoke the get() method with URI params, and return the Response.

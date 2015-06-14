@@ -112,6 +112,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     private HttpPostRequestDecoder postRequestDecoder;
     private WebSocketHandler webSocketHandler;
+    private boolean skipRestOfRequest;
 
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -150,7 +151,14 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         this.ctx = ctx;
         boolean expectMoreChunks = false;
         try {
-
+            // If an exception was thrown partway through a request, skip rest of messages until LastHttpContent
+            if (skipRestOfRequest) {
+                if (msg instanceof LastHttpContent) {
+                    skipRestOfRequest = false;
+                }
+                return;
+            }
+            
             // ------------------------------------------------------------------------------
             // Handle WebSocket frames
             // ------------------------------------------------------------------------------
@@ -171,13 +179,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 HttpRequest httpReq = (HttpRequest) msg;
                 if (!httpReq.decoderResult().isSuccess()) {
                     // Malformed HTTP headers
-                    throw new BadRequestException(request);
+                    throw new BadRequestException(null);
                 }
 
                 // Parse the HttpRequest fields. 
-                // Throws an UnauthorizedException if the user is not authorized for the requested route.
-                // Throws NotFoundException if the requested path doesn't match any known Route or static resource. 
                 request = new Request(ctx, httpReq);
+                skipRestOfRequest = false;
 
                 // Complete websocket handshake if requested.
 
@@ -219,9 +226,10 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     // Start decoding HttpContent chunks.
                     destroyPostRequestDecoder();
                     postRequestDecoder = new HttpPostRequestDecoder(factory, httpReq);
-                    // TODO: verify that we'll always get at least one chunk with all POST requests
-                    expectMoreChunks = true;
                 }
+
+                // There will always be at least one message following an HttpRequest, an EmptyLastHttpContent
+                expectMoreChunks = true;
 
             } else if (request == null) {
                 // Failed to get a valid HttpRequest to start the request
@@ -283,23 +291,28 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 } catch (EndOfDataDecoderException e) {
                     // decoder.hasNext() doesn't actually work, this exception gets thrown
                 }
-
-                if (!(chunk instanceof LastHttpContent)) {
-                    // This is not the last chunk of HTTP content
-                    expectMoreChunks = true;
-                }
             }
 
-            // ------------------------------------------------------------------------------
-            // Generate and send the response
-            // ------------------------------------------------------------------------------
-
-            File staticResourceFile = request.getStaticResourceFile();
-            if (staticResourceFile != null) {
-                // Serve a static file
-                sendFile(staticResourceFile);
+            if (!(msg instanceof LastHttpContent)) {
+                // All requests, including GET requests, end with an EmptyLastHttpContent message
+                expectMoreChunks = true;
             } else {
-                if (!expectMoreChunks) {
+
+                // ------------------------------------------------------------------------------
+                // Generate and send the response
+                // ------------------------------------------------------------------------------
+
+                // Look up the route (or static file) based on the URL and HTTP method of the request.
+                // Throws an UnauthorizedException if the user is not authorized for the requested route.
+                // Throws NotFoundException if the requested path doesn't match any known Route or static resource.
+                // Upgrades the connection to a websocket connection if requested.
+                request.matchRoute();
+
+                File staticResourceFile = request.getStaticResourceFile();
+                if (staticResourceFile != null) {
+                    // Serve a static file
+                    sendFile(staticResourceFile);
+                } else {
                     // No more chunks to receive; handle the request.
                     // Call the RestHandler for the route. May throw a RequestHandlingException.
                     Response response = request.callRouteHandler();
@@ -313,24 +326,44 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // Send an error page or a redirect if an exception was thrown
             // ------------------------------------------------------------------------------
 
+            // Destroy the POST decoder in the finally block
             expectMoreChunks = false;
-            Response response;
-            if (e instanceof RequestHandlingException) {
-                // RequestHandlingException -- get the Response object
-                response = ((RequestHandlingException) e).getErrorResponse();
-            } else {
-                // Unexpected exception
-                response = new InternalServerErrorException(e).getErrorResponse();
-                Log.exception("Exception handling request", e);
+            if (!(msg instanceof LastHttpContent)) {
+                // Skip rest of messages up to the next LastHttpContent message
+                skipRestOfRequest = true;
             }
-            sendResponse(response);
+
+            // If there is no valid request object, can't generate a normal response page,
+            // because ErrorResponse requires a non-null request object to be able to call getContent() 
+            if (request == null) {
+                try {
+                    // Return plaintext error page
+                    exceptionCaught(ctx, e);
+                } catch (Exception e2) {
+                    Log.exception("Exception while calling fallback exception handler", e2);
+                }
+            } else {
+                // Return error page through the normal sendResponse() mechanism 
+                Response response;
+                if (e instanceof InternalServerErrorException) {
+                    response = ((InternalServerErrorException) e).getErrorResponse();
+                    Log.exception("Unexpected exception handling request", e);
+                } else if (e instanceof RequestHandlingException) {
+                    // RequestHandlingException -- get the Response object
+                    response = ((RequestHandlingException) e).getErrorResponse();
+                } else {
+                    // Unexpected exception
+                    response = new InternalServerErrorException(e).getErrorResponse();
+                    Log.exception("Unexpected exception handling request", e);
+                }
+                sendResponse(response);
+            }
 
         } finally {
             if (!expectMoreChunks) {
                 // Finished the request -- destroy the multipart decoder and remove temporary files.
                 // FIXME: need to call destroyDecoder() in cases where the connection goes stale, or is closed early
                 destroyPostRequestDecoder();
-                request = null;
             }
         }
     }
@@ -428,7 +461,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // TODO: when a file is requested, if it's a compressible type, schedule it to be gzipped on disk, and
                 // return the gzipped version instead of the original version, as long as the gzipped version has a
                 // newer timestamp.
-                
+
                 // Write file content to channel.
                 // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
                 // progress (e.g. to update user's UI over a web socket to show download progress.)
@@ -563,6 +596,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 gzippedContent = Unpooled.EMPTY_BUFFER;
             }
             contentToUse = gzippedContent;
+            isGzipped = true;
             // Release the content ByteBuf after last usage
             content.release();
             content = null;

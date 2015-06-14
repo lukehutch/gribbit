@@ -38,7 +38,7 @@ import gribbit.model.field.annotation.NoTrim;
 import gribbit.model.field.annotation.NormalizeSpacing;
 import gribbit.model.field.annotation.Regex;
 import gribbit.model.util.FieldChecker;
-import gribbit.response.HTMLPageResponse;
+import gribbit.response.HTMLPageTemplateModel;
 import gribbit.route.RouteHandler;
 import gribbit.util.Log;
 import gribbit.util.MultiMapKeyToSet;
@@ -52,13 +52,14 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.WildcardType;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.regex.Matcher;
 
 import org.jsoup.Jsoup;
@@ -144,24 +145,6 @@ class TemplateModelLoader {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Check the two sets of strings are equal, and if not, throw a RuntimeException. */
-    private static void check1To1Mapping(String className, String set1Label, Set<String> set1, String set2Label,
-            Set<String> set2) {
-        if (!set1.equals(set2)) {
-            HashSet<String> extras1 = new HashSet<>(set1);
-            extras1.removeAll(set2);
-            String extras1Err = extras1.isEmpty() ? "" : "extra " + set1Label + ": "
-                    + StringUtils.joinCommaSeparatedSorted(extras1);
-            HashSet<String> extras2 = new HashSet<>(set2);
-            extras2.removeAll(set1);
-            String extras2Err = extras2.isEmpty() ? "" : "extra " + set2Label + ": "
-                    + StringUtils.joinCommaSeparatedSorted(extras2);
-            throw new RuntimeException("Missing 1:1 correspondence between " + set1Label + " and " + set2Label + " in "
-                    + TemplateModel.class.getSimpleName() + " subclass " + className + ": " + extras1Err
-                    + (extras1Err.isEmpty() ? "" : "; ") + extras2Err);
-        }
-    }
-
     /**
      * Initialize templates after all classpath scanning is complete.
      */
@@ -206,8 +189,8 @@ class TemplateModelLoader {
             // Get a list of public fields, and for any fields that are a subclass of DataModel (i.e. for
             // fields that are bound to forms), create a mapping from the field name to the names of the
             // fields of the referenced type.
-            MultiMapKeyToSet<String, String> formIdToReferencedTypeFieldNames = new MultiMapKeyToSet<>();
-            HashMap<String, Class<? extends DataModel>> formFieldNameToReferencedType = new HashMap<>();
+            MultiMapKeyToSet<String, String> formIdToReferencedDataModelTypeFieldNames = new MultiMapKeyToSet<>();
+            HashMap<String, Class<? extends DataModel>> formFieldNameToReferencedDataModelType = new HashMap<>();
             ArrayList<Field> publicFields = new ArrayList<>();
             // templateClassToFields.put(templateClass, publicFields);
             HashSet<String> allFieldNames = new HashSet<>();
@@ -222,7 +205,7 @@ class TemplateModelLoader {
                     publicFields.add(field);
 
                     // Also identify DataModel-typed fields, they are bound to a form
-                    if (fieldType.isAssignableFrom(DataModel.class)) {
+                    if (DataModel.class.isAssignableFrom(fieldType)) {
                         @SuppressWarnings("unchecked")
                         Class<? extends DataModel> fieldTypeAsDataModel = (Class<? extends DataModel>) fieldType;
 
@@ -234,7 +217,7 @@ class TemplateModelLoader {
                                     + "fields with a type that is not supported for binding from POST requests");
                         }
 
-                        formFieldNameToReferencedType.put(fieldName, fieldTypeAsDataModel);
+                        formFieldNameToReferencedDataModelType.put(fieldName, fieldTypeAsDataModel);
 
                         // Find public fields of the referenced type -- these are bound to the inputs of the form
                         ArrayList<Field> referencedTypePublicFields = new ArrayList<>();
@@ -242,7 +225,7 @@ class TemplateModelLoader {
                         for (Field referencedTypeField : fieldType.getFields()) {
                             if (!FieldChecker.fieldIsPrivate(referencedTypeField, //
                                     /* checkGet = */true, /* checkSet = */true)) {
-                                formIdToReferencedTypeFieldNames.put(fieldName, referencedTypeField.getName());
+                                formIdToReferencedDataModelTypeFieldNames.put(fieldName, referencedTypeField.getName());
                                 referencedTypePublicFields.add(referencedTypeField);
                             }
                         }
@@ -261,29 +244,31 @@ class TemplateModelLoader {
             MultiMapKeyToSet<String, String> formIdToInputNames = new MultiMapKeyToSet<>();
             HashMap<String, Element> formIdToElement = new HashMap<>();
             for (Element formElt : templateDoc.getElementsByTag("form")) {
-                String id = formElt.attr("id");
+                String formId = formElt.attr("id");
 
                 // Ignore forms that don't have an id
-                if (!id.isEmpty()) {
+                if (!formId.isEmpty()) {
                     // Ignore forms that post to a different domain (although cross-domain posting is pretty
                     // useless these days, because CSRF protection is needed)
-                    if (WebUtils.isLocalURL(formElt.attr("action"))) {
-                        // Ignore forms that submit via GET (if method is not specified, this also implies GET).
-                        // GET requests are not bound to an object type.
-                        if (formElt.attr("method").equalsIgnoreCase("POST")) {
-                            formIdToElement.put(id, formElt);
+                    if (formElt.attr("action").isEmpty() || WebUtils.isLocalURL(formElt.attr("action"))) {
+                        formIdToElement.put(formId, formElt);
 
-                            // Create a mapping from the form id to the names of the input elements
-                            if (formIdToInputNames.containsKey(id)) {
-                                // Form ids must be unique, because they are bound to fields in the model
-                                throw new RuntimeException("There is more than one form with the same id \"" + id
-                                        + "\" in the template for class " + templateClass.getName());
+                        // Create a mapping from the form id to the names of the input elements
+                        if (formIdToInputNames.containsKey(formId)) {
+                            // Form ids must be unique, because they are bound to fields in the model
+                            throw new RuntimeException("There is more than one form with the same id \"" + formId
+                                    + "\" in the template for class " + templateClass.getName());
+                        }
+                        for (Element input : formElt.getElementsByTag("input")) {
+                            String name = input.attr("name");
+                            if (!name.isEmpty()) {
+                                formIdToInputNames.put(formId, name);
                             }
-                            for (Element input : formElt.getElementsByTag("input")) {
-                                String name = input.attr("name");
-                                if (!name.isEmpty()) {
-                                    formIdToInputNames.put(id, name);
-                                }
+                        }
+                        for (Element input : formElt.getElementsByTag("select")) {
+                            String name = input.attr("name");
+                            if (!name.isEmpty()) {
+                                formIdToInputNames.put(formId, name);
                             }
                         }
                     }
@@ -384,7 +369,12 @@ class TemplateModelLoader {
                     if (attrValueContainsParam) {
                         // OWASP Rule #2:
                         //     Only place untrusted data into a whitelist of safe attributes.
-                        if (attrName.equals("id") || attrName.equals("name")) {
+                        // This is extremely restrictive for some usages, e.g. href is XSS-unsafe, but you need to
+                        // insert a template parameter value in the href attribute of anchor elements all the time.
+                        // Require that the value is prefixed by some string to limit the effect of XSS attacks,
+                        // e.g. in the case of href, can use <a href="/img/${imgid}">, but not <a href="${imgurl}">.
+                        if (attrName.equals("id") || attrName.equals("name") //
+                                || attrName.equals("href") || attrName.equals("src")) {
                             // name and id are XSS-unsafe, because injected text can be made to 
                             // refer to any element on the page. Mitigate the effect by requiring
                             // that the attr value have a non-parameterized prefix.
@@ -393,8 +383,9 @@ class TemplateModelLoader {
                                         + " contains a template parameter in the value of the XSS-unsafe attribute \""
                                         + attrName
                                         + "\". To mitigate XSS attacks, the parameter must be prefixed with "
-                                        + "some non-parameter value, e.g. <div id=\"widget${widgetNum}\"> is OK, but "
-                                        + "<div id=\"${widgetName}\"> is not.");
+                                        + "some non-parameter characters, e.g. <div id=\"widget${widgetNum}\"> and "
+                                        + "<a href=\"/img/${imgurl}\"> are OK, but <div id=\"${widgetName}\"> and "
+                                        + "<a href=\"${imgurl}\"> are not.");
                             }
                         } else if (!WebUtils.XSS_SAFE_ATTRS.contains(attrName)) {
                             // Disable XSS safety check for the attributes of custom elements (these contain a
@@ -535,43 +526,67 @@ class TemplateModelLoader {
             // Check forms against the DataModel type they are bound to
             // ---------------------------------------------------------------------------------------------------------
 
-            // Make sure there's a 1:1 mapping between the union of ids of forms in the template HTML and parameter
-            // names in use, and all fields in the TemplateModel.
-            HashSet<String> allParamNamesAndFormIds = new HashSet<>(formIdToInputNames.keySet());
-            allParamNamesAndFormIds.addAll(allParamNames);
-            check1To1Mapping(templateClass.getName(), "template params and form ids", allParamNamesAndFormIds,
-                    "fields", allFieldNames);
+            // All template param names must map to a field name in the corresponding TemplateModel class
+            HashSet<String> unusedParamNames = new HashSet<>(allParamNames);
+            unusedParamNames.removeAll(allFieldNames);
+            if (!unusedParamNames.isEmpty()) {
+                throw new RuntimeException("Extra template params with no corresponding field in class "
+                        + templateClassName + ": " + StringUtils.joinCommaSeparatedSorted(unusedParamNames));
+            }
 
-            // Make sure there's a 1:1 mapping between the ids of forms in the template HTML and DataModel-typed fields
-            // (these are the types that are bound to forms).
-            check1To1Mapping(templateClass.getName(), "form ids", formIdToInputNames.keySet(),
-                    "DataModel-typed fields", formIdToReferencedTypeFieldNames.keySet());
+            // All fields in a TemplateModel subclass must map to a template param or form
+            HashSet<String> unusedFieldNames = new HashSet<>(allFieldNames);
+            unusedFieldNames.removeAll(allParamNames);
+            HashSet<String> unusedFormFieldNames = new HashSet<>(formFieldNameToReferencedDataModelType.keySet());
+            unusedFieldNames.removeAll(unusedFormFieldNames);
+            if (!unusedFieldNames.isEmpty()) {
+                throw new RuntimeException("Extra fields in class " + templateClassName
+                        + " with no corresponding template parameter or form id: "
+                        + StringUtils.joinCommaSeparatedSorted(unusedFieldNames));
+            }
+
+            // All DataModel-typed fields must correspond with a form id
+            unusedFormFieldNames.removeAll(formIdToInputNames.keySet());
+            if (!unusedFormFieldNames.isEmpty()) {
+                throw new RuntimeException("Extra " + DataModel.class.getSimpleName() + "-typed fields in class "
+                        + templateClassName + " with no corresponding form id: "
+                        + StringUtils.joinCommaSeparatedSorted(unusedFormFieldNames));
+            }
 
             // Compare form inputs to the fields of the DataModel that the form is bound to
-            for (String formId : formIdToInputNames.keySet()) {
-                // Check there is a 1:1 mapping between the names of the from inputs in the template HTML
-                // and the names of the public fields in the DataModel type that is bound to the form
+            for (String formId : formFieldNameToReferencedDataModelType.keySet()) {
                 HashSet<String> inputNames = formIdToInputNames.get(formId);
-                HashSet<String> referencedTypeFieldNames = formIdToReferencedTypeFieldNames.get(formId);
-                check1To1Mapping(templateClass.getName(), "input names for form with id '" + formId + "'", inputNames,
-                        "fields in the type definition of " + templateClass.getName() + "." + formId,
-                        referencedTypeFieldNames);
-
-                // Add a mapping from the model the from is bound to to the HTML form element.
-                // (Both these should be non-null here.)
+                HashSet<String> dataModelFieldNames = formIdToReferencedDataModelTypeFieldNames.get(formId);
+                Class<? extends DataModel> formModel = formFieldNameToReferencedDataModelType.get(formId);
                 Element formElt = formIdToElement.get(formId);
-                Class<? extends DataModel> formModel = formFieldNameToReferencedType.get(formId);
-                // formModelClassToElement.put(formModel, formElt);
-
-                // -----------------------------------------------------------------------------------------------------
-                // Add constraints to the form given the constraint annotations on the fields of the DataModel object
-                // -----------------------------------------------------------------------------------------------------
 
                 // Remove any CSRF input elements that are already in the form (shouldn't be there)
                 for (Element csrfElt : formElt.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME)) {
                     csrfElt.remove();
                 }
                 inputNames.remove(CSRF.CSRF_PARAM_NAME);
+
+                // Check there is a 1:1 mapping between the names of the from inputs in the template HTML
+                // and the names of the public fields in the DataModel type that is bound to the form
+                HashSet<String> unusedInputNames = new HashSet<>(inputNames);
+                unusedInputNames.removeAll(dataModelFieldNames);
+                HashSet<String> unusedDataModelFieldNames = new HashSet<>(dataModelFieldNames);
+                unusedDataModelFieldNames.removeAll(inputNames);
+                if (!unusedInputNames.isEmpty()) {
+                    throw new RuntimeException("Extra inputs in form " + formId + " in template for "
+                            + templateClassName + " with no corresponding field in " + formModel.getName() + ": "
+                            + StringUtils.joinCommaSeparatedSorted(unusedInputNames));
+                }
+                if (!unusedDataModelFieldNames.isEmpty()) {
+                    throw new RuntimeException("Extra fields in " + formModel.getName()
+                            + " with no corresponding inputs in form " + formId + " in template for "
+                            + templateClassName + ": "
+                            + StringUtils.joinCommaSeparatedSorted(unusedDataModelFieldNames));
+                }
+
+                // -----------------------------------------------------------------------------------------------------
+                // Add constraints to the form given the constraint annotations on the fields of the DataModel object
+                // -----------------------------------------------------------------------------------------------------
 
                 // Add CSRF input to form with placeholder value that will be overwritten with the real CSRF token
                 // when the page is served
@@ -783,9 +798,11 @@ class TemplateModelLoader {
                 // RestHandler that handles the POST into the action attribute
                 String submitURI = siteResources.routeURIForDataModel(formModel);
                 if (!formElt.attr("action").equals(submitURI)) {
-                    Log.warning("Form corresponding to template field " + templateClassName + "." + formId
-                            + " has action " + formElt.attr("action") + " , but based on its type, the form "
-                            + "will be posted to the handler at " + submitURI + " instead");
+                    if (!formElt.attr("action").isEmpty()) {
+                        Log.warning("Form corresponding to template field " + templateClassName + "." + formId
+                                + " has action " + formElt.attr("action") + " , but based on its type, the form "
+                                + "will be posted to the handler at " + submitURI + " instead");
+                    }
                     formElt.attr("action", submitURI);
                 }
             }
@@ -798,7 +815,7 @@ class TemplateModelLoader {
                 String fieldName = field.getName();
                 Class<?> fieldType = field.getType();
 
-                if (fieldType.isAssignableFrom(TemplateModel.class)) {
+                if (TemplateModel.class.isAssignableFrom(fieldType)) {
                     // A nested template is assumed to be rendered into non-text HTML (i.e. we assume it won't just result
                     // in an HTML text node). HTML cannot be rendered into attribute values, so we disallow the use of
                     // TemplateModel-typed template parameters into attribute values.
@@ -811,51 +828,54 @@ class TemplateModelLoader {
                                 + "the template, and attribute values cannot accept HTML.");
                     }
 
-                } else if (fieldType.isAssignableFrom(List.class)) {
+                } else if (List.class.isAssignableFrom(fieldType)) {
                     // Lists can only have element type <? extends TemplateModel>
 
-                    Class<?> listEltType;
+                    Class<?> listEltClass = null;
                     try {
                         ParameterizedType fieldGenericType = (ParameterizedType) field.getGenericType();
-                        listEltType = (Class<?>) fieldGenericType.getActualTypeArguments()[0];
+                        Type typeArgument0 = fieldGenericType.getActualTypeArguments()[0];
+                        if (typeArgument0 instanceof WildcardType) {
+                            // List<? extends ListEltClass>
+                            listEltClass = (Class<?>) (((WildcardType) typeArgument0).getUpperBounds()[0]);
+                        } else {
+                            // List<ListEltClass>
+                            listEltClass = (Class<?>) typeArgument0;
+                        }
                     } catch (Exception e) {
-                        throw new RuntimeException("Could not determine generic type of " + templateClass.getName()
-                                + "." + fieldName + " -- should be List<" + TemplateModel.class.getSimpleName() + ">",
-                                e);
                     }
-                    if (!listEltType.isAssignableFrom(TemplateModel.class)) {
+                    if (listEltClass == null || !TemplateModel.class.isAssignableFrom(listEltClass)) {
                         throw new RuntimeException("Type of " + templateClass.getName() + "." + fieldName
-                                + " should be List<" + TemplateModel.class.getSimpleName() + ">");
+                                + " should extend List<? extends " + TemplateModel.class.getSimpleName() + ">");
                     }
                     if (paramsInAttrVals.contains(fieldName)) {
                         // Nested lists of template parameters can be rendered into text, but not attribute vals
                         throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName
-                                + " has type List<" + TemplateModel.class.getSimpleName()
-                                + ">, which will be rendered into HTML. "
-                                + "However, the corresponding template parameter is used in an attribute value in "
-                                + "the template, and attribute values cannot accept HTML.");
+                                + " will be rendered as HTML, but the corresponding template parameter is used in an "
+                                + "attribute value in the template, and attribute values cannot accept HTML, they can "
+                                + "only take Strings or stringifiable values.");
                     }
 
                 } else if (fieldType.isArray()) {
                     // Arrays must be of type TemplateModel[]
                     Class<?> arrayEltType = fieldType.getComponentType();
-                    if (!arrayEltType.isAssignableFrom(TemplateModel.class)) {
+                    if (!TemplateModel.class.isAssignableFrom(arrayEltType)) {
                         throw new RuntimeException("Type of " + templateClass.getName() + "." + fieldName
-                                + " should be " + TemplateModel.class.getSimpleName() + "[]");
+                                + " should extend " + TemplateModel.class.getSimpleName() + "[]");
                     }
                     if (paramsInAttrVals.contains(fieldName)) {
                         // Nested arrays of template parameters can be rendered into text, but not attribute vals
-                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName + " has type "
-                                + TemplateModel.class.getSimpleName() + "[], which will be rendered into HTML. "
-                                + "However, the corresponding template parameter is used in an attribute value in "
-                                + "the template, and attribute values cannot accept HTML.");
+                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName
+                                + " will be rendered as HTML, but the corresponding template parameter is used in an "
+                                + "attribute value in the template, and attribute values cannot accept HTML, they can "
+                                + "only take Strings or stringifiable values.");
                     }
 
-                } else if (fieldType.isAssignableFrom(DataModel.class)) {
+                } else if (DataModel.class.isAssignableFrom(fieldType)) {
                     // Special case: Forms are bound to fields that are a subtype of DataModel, but not of TemplateModel
                     // (but this type was already checked).
 
-                } else if (fieldType.isAssignableFrom(Class.class)) {
+                } else if (Class.class.isAssignableFrom(fieldType)) {
                     // Special case: if a field type is a Class<? extends RouteHandler>, then insert the URL of the
                     // RestHandler's route as a string, so that routes can be inserted into href attributes.
 
@@ -868,10 +888,13 @@ class TemplateModelLoader {
                                 + templateClass.getName() + "." + fieldName + " -- should be Class<? extends "
                                 + RouteHandler.class.getSimpleName() + ">", e);
                     }
-                    if (!classType.isAssignableFrom(RouteHandler.class)) {
+                    if (!RouteHandler.class.isAssignableFrom(classType)) {
                         throw new RuntimeException("Type of " + templateClass.getName() + "." + fieldName
                                 + " should be Class<? extends " + RouteHandler.class.getSimpleName() + ">");
                     }
+
+                } else if (fieldType.isPrimitive()) {
+                    // Primitive-typed fields will be manually rendered into strings during template rendering
 
                 } else {
                     // For all other types, check if the class has its own toString() method. If not, we'll get an ugly
@@ -880,7 +903,8 @@ class TemplateModelLoader {
                         if (fieldType.getMethod("toString").getDeclaringClass() == Object.class) {
                             throw new RuntimeException("The class " + fieldType.getName() + " (used in field "
                                     + templateClass.getName() + "." + fieldName
-                                    + ") needs to override Object.toString()");
+                                    + ") needs to override Object.toString(), "
+                                    + "or it cannot be rendered into a template parameter");
                         }
                     } catch (NoSuchMethodException | SecurityException e) {
                         // Shouldn't happen, all classes have a public toString() method
@@ -927,6 +951,8 @@ class TemplateModelLoader {
             // so to support hot-swap of template string values, we override the introspection value with the value
             // obtained directly from the classfile by FastClasspathScanner.
             templateStr = templateStrOverride;
+            inlineTemplateStaticFieldNames.add(templateClass.getName() + "."
+                    + TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
 
         } else {
             // If the TemplateModel contains a "_template" field, use that value for the HTML template
@@ -991,10 +1017,11 @@ class TemplateModelLoader {
                 || (templateStr.length() >= 9 && templateStr.substring(firstTagIdx, firstTagIdx + 9).toLowerCase()
                         .equals("<!doctype")));
 
-        if (isWholeDocument && !templateClass.isAssignableFrom(HTMLPageResponse.class)) {
+        if (isWholeDocument && !HTMLPageTemplateModel.class.isAssignableFrom(templateClass)) {
             throw new RuntimeException("The HTML template corresponding to the TemplateModel "
-                    + templateClass.getName()
-                    + " is a complete HTML document, rather than an HTML fragment. For Complete HTML documents");
+                    + templateClass.getName() + " is a complete HTML document, rather than an HTML fragment. "
+                    + "The TemplateModel for complete HTML documents must subclass "
+                    + HTMLPageTemplateModel.class.getName());
         }
 
         // Parse the HTML -- whole-page templates need Jsoup.parse(), fragments need Jsoup.parseBodyFragment()
