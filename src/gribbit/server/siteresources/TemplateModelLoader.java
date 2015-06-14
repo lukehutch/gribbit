@@ -954,7 +954,7 @@ class TemplateModelLoader {
                 // Class does not have a "_template" field, try looking for a .html file in the classpath with the same
                 // path and name as the template class
 
-                String templatePath = "/" + templateClass.getName().replace('.', '/') + ".html";
+                String templatePath = templateClass.getName().replace('.', '/') + ".html";
                 InputStream templateStream = ClassLoader.getSystemResourceAsStream(templatePath);
                 if (templateStream == null) {
                     throw new RuntimeException("Template class " + templateClass.getName()
