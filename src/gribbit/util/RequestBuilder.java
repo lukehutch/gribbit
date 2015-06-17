@@ -27,11 +27,10 @@ package gribbit.util;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.StringWriter;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 
 import org.apache.commons.io.IOUtils;
@@ -39,37 +38,51 @@ import org.json.simple.JSONValue;
 
 public class RequestBuilder {
 
-    /** Make a connection to a given URL, and initiate a GET or POST request, returning the connection. */
-    private static HttpURLConnection makeConnection(String url, String[] keyValuePairs, boolean isGET)
-            throws MalformedURLException, IOException {
-        String reqURL = isGET ? url + "?" + WebUtils.buildQueryString(keyValuePairs) : url;
-        HttpURLConnection connection = (HttpURLConnection) new URL(reqURL).openConnection();
-        connection.setDoOutput(true);
-        connection.setDoInput(true);
-        connection.setInstanceFollowRedirects(false);
-        connection.setRequestMethod(isGET ? "GET" : "POST");
-        connection.setUseCaches(false);
-        if (!isGET) {
-            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            connection.setRequestProperty("charset", "utf-8");
-            String params = WebUtils.buildQueryString(keyValuePairs);
-            connection.setRequestProperty("Content-Length", Integer.toString(params.length()));
-            try (DataOutputStream w = new DataOutputStream(connection.getOutputStream())) {
-                w.writeBytes(params);
-                w.flush();
-            }
+    /**
+     * Make a GET or POST request, handling up to 6 redirects, and return the response. If isBinaryResponse is true,
+     * returns a byte[] array, otherwise returns the response as a String.
+     */
+    private static Object makeRequest(String url, String[] keyValuePairs, boolean isGET, boolean isBinaryResponse,
+            int redirDepth) {
+        if (redirDepth > 6) {
+            throw new IllegalArgumentException("Too many redirects");
         }
-        return connection;
-    }
-
-    private static String makeRequest(String url, String[] keyValuePairs, boolean isGET) {
         HttpURLConnection connection = null;
         try {
-            connection = makeConnection(url, keyValuePairs, isGET);
-            if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
-                StringWriter writer = new StringWriter();
-                IOUtils.copy(connection.getInputStream(), writer, "UTF-8");
-                return writer.toString();
+            // Add the URL query params if this is a GET request
+            String reqURL = isGET ? url + "?" + WebUtils.buildQueryString(keyValuePairs) : url;
+            connection = (HttpURLConnection) new URL(reqURL).openConnection();
+            connection.setDoOutput(true);
+            connection.setDoInput(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod(isGET ? "GET" : "POST");
+            connection.setUseCaches(false);
+            if (!isGET) {
+                // Send the body if this is a POST request
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                connection.setRequestProperty("charset", "utf-8");
+                String params = WebUtils.buildQueryString(keyValuePairs);
+                connection.setRequestProperty("Content-Length", Integer.toString(params.length()));
+                try (DataOutputStream w = new DataOutputStream(connection.getOutputStream())) {
+                    w.writeBytes(params);
+                    w.flush();
+                }
+            }
+            if (connection.getResponseCode() == HttpResponseStatus.FOUND.code()) {
+                // Follow a redirect.
+                return makeRequest(connection.getHeaderField("Location"), keyValuePairs, isGET, isBinaryResponse,
+                        redirDepth + 1);
+            } else if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
+                // For 200 OK, return the text of the response
+                if (isBinaryResponse) {
+                    ByteArrayOutputStream output = new ByteArrayOutputStream(32768);
+                    IOUtils.copy(connection.getInputStream(), output);
+                    return output.toByteArray();
+                } else {
+                    StringWriter writer = new StringWriter(1024);
+                    IOUtils.copy(connection.getInputStream(), writer, "UTF-8");
+                    return writer.toString();
+                }
             } else {
                 throw new IllegalArgumentException("Got non-OK HTTP response code: " + connection.getResponseCode());
             }
@@ -87,44 +100,24 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a GET request to a given URL with the given key-value URL parameters, expecting a 302 Found redirect
-     * response. Returns the destination URL for the redirect.
-     * 
-     * @throws IllegalArgumentException
-     *             if request could not be completed or the response code was not 302 Found.
+     * Make a GET or POST request, handling up to 6 redirects, and return the response. If isBinaryResponse is true,
+     * returns a byte[] array, otherwise returns the response as a String.
      */
-    public static String getRedirectDestination(String url, String... keyValuePairs) throws IllegalArgumentException {
-        HttpURLConnection connection = null;
-        try {
-            connection = makeConnection(url, keyValuePairs, /* isGET = */true);
-            if (connection.getResponseCode() == HttpResponseStatus.FOUND.code()) {
-                return connection.getHeaderField("Location");
-            } else {
-                throw new IllegalArgumentException("Got non-FOUND HTTP response code: " + connection.getResponseCode());
-            }
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Exception while trying to determine redirect destination: "
-                    + e.getMessage(), e);
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.disconnect();
-                } catch (Exception e) {
-                }
-            }
-        }
+    private static Object makeRequest(String url, String[] keyValuePairs, boolean isGET, boolean isBinaryResponse) {
+        return makeRequest(url, keyValuePairs, isGET, isBinaryResponse, 0);
     }
 
     /**
-     * Send a POST request to a given URL with the given key-value POST parameters, and parse the JSON result by mapping
-     * to a new object of the requested response type.
+     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices and
+     * values in the following odd indices), and parse the JSON result by mapping to a new object of the requested
+     * response type.
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be mapped to the response type.
      */
     public static <T> T postToURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
             throws IllegalArgumentException {
-        String jsonStr = makeRequest(url, keyValuePairs, /* isGET = */false);
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */false);
         try {
             return JSONJackson.jsonToObject(jsonStr, responseType);
         } catch (Exception e) {
@@ -133,31 +126,15 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a GET request to a given URL with the given key-value URL parameters, and parse the JSON result by mapping
-     * to a new object of the requested response type.
-     * 
-     * @throws IllegalArgumentException
-     *             if request could not be completed or JSON could not be mapped to the response type.
-     */
-    public static <T> T getFromURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
-            throws IllegalArgumentException {
-        String jsonStr = makeRequest(url, keyValuePairs, /* isGET = */true);
-        try {
-            return JSONJackson.jsonToObject(jsonStr, responseType);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Send a POST request to a given URL with the given key-value POST parameters. Result is a json-simple object, see
+     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices and
+     * values in the following odd indices). Result is a json-simple object, see
      * https://code.google.com/p/json-simple/wiki/DecodingExamples
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be parsed.
      */
     public static Object postToURLWithJSONResponse(String url, String... keyValuePairs) throws IllegalArgumentException {
-        String jsonStr = makeRequest(url, keyValuePairs, /* isGET = */false);
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */false);
         try {
             return JSONValue.parse(jsonStr);
         } catch (Exception e) {
@@ -166,7 +143,44 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a GET request to a given URL with the given key-value URL parameters. Result is a json-simple object, see
+     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices and
+     * values in the following odd indices). Returns the result as a string.
+     */
+    public static String postToURLWithStringResponse(String url, String... keyValuePairs)
+            throws IllegalArgumentException {
+        return (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */false);
+    }
+
+    /**
+     * Send a POST request to a given URL with the given key-value POST parameters. Returns the result as a byte[]
+     * array.
+     */
+    public static byte[] postToURLWithBinaryResponse(String url, String... keyValuePairs)
+            throws IllegalArgumentException {
+        return (byte[]) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */true);
+    }
+
+    /**
+     * Send a GET request to a given URL with the given key-value URL parameters (with keys in the even indices and
+     * values in the following odd indices), and parse the JSON result by mapping to a new object of the requested
+     * response type.
+     * 
+     * @throws IllegalArgumentException
+     *             if request could not be completed or JSON could not be mapped to the response type.
+     */
+    public static <T> T getFromURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
+            throws IllegalArgumentException {
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */false);
+        try {
+            return JSONJackson.jsonToObject(jsonStr, responseType);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send a GET request to a given URL with the given key-value URL parameters (with keys in the even indices and
+     * values in the following odd indices). Result is a json-simple object, see
      * https://code.google.com/p/json-simple/wiki/DecodingExamples
      * 
      * @throws IllegalArgumentException
@@ -174,7 +188,7 @@ public class RequestBuilder {
      */
     public static Object getFromURLWithJSONResponse(String url, String... keyValuePairs)
             throws IllegalArgumentException {
-        String jsonStr = makeRequest(url, keyValuePairs, /* isGET = */true);
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */false);
         try {
             return JSONValue.parse(jsonStr);
         } catch (Exception e) {
@@ -182,4 +196,21 @@ public class RequestBuilder {
         }
     }
 
+    /**
+     * Send a POST request to a given URL with the given key-value URL parameters (with keys in the even indices and
+     * values in the following odd indices). Returns the result as a string.
+     */
+    public static String getFromURLWithStringResponse(String url, String... keyValuePairs)
+            throws IllegalArgumentException {
+        return (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */false);
+    }
+
+    /**
+     * Send a GET request to a given URL with the given key-value URL parameters (with keys in the even indices and
+     * values in the following odd indices). Returns the result as a byte[] array.
+     */
+    public static byte[] getFromURLWithBinaryResponse(String url, String... keyValuePairs)
+            throws IllegalArgumentException {
+        return (byte[]) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */true);
+    }
 }
