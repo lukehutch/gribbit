@@ -65,7 +65,7 @@ public class RequestBuilder {
                 return JSONJackson.jsonToObject(jsonStr, responseType);
 
             } catch (Exception e) {
-                throw new IllegalArgumentException("Could not parse JSON response", e);
+                throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
             }
 
         } else {
@@ -128,16 +128,7 @@ public class RequestBuilder {
             throws BadRequestException {
         HttpURLConnection connection = null;
         try {
-            StringBuilder buf = new StringBuilder(url);
-            buf.append('?');
-            for (int i = 0; i < keyValuePairs.length; i += 2) {
-                if (buf.length() > 0) {
-                    buf.append("&");
-                }
-                WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1]
-                        : "", buf);
-            }
-            String urlWithParams = buf.toString();
+            String urlWithParams = url + "?" + buildParams(keyValuePairs);
 
             connection = (HttpURLConnection) new URL(urlWithParams).openConnection();
             connection.setDoOutput(true);
