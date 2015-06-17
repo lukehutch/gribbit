@@ -364,6 +364,22 @@ public class WebUtils {
     }
 
     /**
+     * Build a string of escaped URL query param key-value pairs. Keys are in even indices, values are in the following
+     * odd indices. The keys and values are URL-escaped and concatenated with '&' as a delimiter.
+     */
+    public static String buildQueryString(String... keyValuePairs) {
+        StringBuilder buf = new StringBuilder();
+        for (int i = 0; i < keyValuePairs.length; i += 2) {
+            if (buf.length() > 0) {
+                buf.append("&");
+            }
+            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "",
+                    buf);
+        }
+        return buf.toString();
+    }
+
+    /**
      * Split a URI into pieces and encode each piece appropriately to make it safe for use as an HTML attribute value.
      * See:
      * 
