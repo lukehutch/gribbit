@@ -35,41 +35,64 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 import org.apache.commons.io.IOUtils;
+import org.json.simple.JSONValue;
 
 public class RequestBuilder {
 
-    /** Build a string of escaped URL query param key-value pairs. */
-    private static String buildParams(String... keyValuePairs) {
-        StringBuilder buf = new StringBuilder();
-        for (int i = 0; i < keyValuePairs.length; i += 2) {
-            if (buf.length() > 0) {
-                buf.append("&");
-            }
-            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "",
-                    buf);
+    private static String getResponse(HttpURLConnection connection) throws IOException, IllegalArgumentException {
+        if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
+            StringWriter writer = new StringWriter();
+            IOUtils.copy(connection.getInputStream(), writer, "UTF-8");
+            return writer.toString();
+        } else {
+            throw new IllegalArgumentException("Got non-OK response code: " + connection.getResponseCode());
         }
-        return buf.toString();
     }
 
-    /**
-     * Get the response from an HttpURLConnection, parse it as JSON, and map it to the requested response type.
-     */
-    private static <T> T getJSONResponse(Class<T> responseType, HttpURLConnection connection) throws IOException,
-            IllegalArgumentException {
-        if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
-            try {
-                StringWriter writer = new StringWriter();
-                IOUtils.copy(connection.getInputStream(), writer, "UTF-8");
-                String jsonStr = writer.toString();
-
-                return JSONJackson.jsonToObject(jsonStr, responseType);
-
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
+    private static String makePOSTRequest(String url, String[] keyValuePairs) throws IllegalArgumentException {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setDoOutput(true);
+            connection.setDoInput(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            connection.setRequestProperty("charset", "utf-8");
+            connection.setUseCaches(false);
+            String params = WebUtils.buildQueryString(keyValuePairs);
+            connection.setRequestProperty("Content-Length", Integer.toString(params.length()));
+            try (DataOutputStream w = new DataOutputStream(connection.getOutputStream())) {
+                w.writeBytes(params);
+                w.flush();
             }
+            return getResponse(connection);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Exception during POST request: " + e.getMessage(), e);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
 
-        } else {
-            throw new IllegalArgumentException("Got response code " + connection.getResponseCode());
+    private static String makeGETRequest(String url, String[] keyValuePairs) throws IllegalArgumentException {
+        HttpURLConnection connection = null;
+        try {
+            String urlWithParams = url + "?" + WebUtils.buildQueryString(keyValuePairs);
+            connection = (HttpURLConnection) new URL(urlWithParams).openConnection();
+            connection.setDoOutput(true);
+            connection.setDoInput(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("GET");
+            connection.setUseCaches(false);
+            return getResponse(connection);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Exception during GET request: " + e.getMessage(), e);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
     }
 
@@ -79,39 +102,14 @@ public class RequestBuilder {
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be mapped to the response type.
-     * @throws BadRequestException
-     *             if response code is not OK (200).
      */
-    public static <T> T postToURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
-            throws BadRequestException {
-        HttpURLConnection connection = null;
+    public static <T> T postToURLAndBindJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
+            throws IllegalArgumentException {
         try {
-            String params = buildParams(keyValuePairs);
-
-            connection = (HttpURLConnection) new URL(url).openConnection();
-            connection.setDoOutput(true);
-            connection.setDoInput(true);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            connection.setRequestProperty("charset", "utf-8");
-            connection.setRequestProperty("Content-Length", Integer.toString(params.length()));
-            connection.setUseCaches(false);
-
-            try (DataOutputStream w = new DataOutputStream(connection.getOutputStream())) {
-                w.writeBytes(params);
-                w.flush();
-            }
-
-            return getJSONResponse(responseType, connection);
-
-        } catch (IOException e) {
-            throw new IllegalArgumentException("IOException during POST request", e);
-
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
+            String jsonStr = makePOSTRequest(url, keyValuePairs);
+            return JSONJackson.jsonToObject(jsonStr, responseType);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
         }
     }
 
@@ -121,31 +119,47 @@ public class RequestBuilder {
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be mapped to the response type.
-     * @throws BadRequestException
-     *             if response code is not OK (200).
      */
     public static <T> T getFromURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
-            throws BadRequestException {
-        HttpURLConnection connection = null;
+            throws IllegalArgumentException {
         try {
-            String urlWithParams = url + "?" + buildParams(keyValuePairs);
-
-            connection = (HttpURLConnection) new URL(urlWithParams).openConnection();
-            connection.setDoOutput(true);
-            connection.setDoInput(true);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestMethod("GET");
-            connection.setUseCaches(false);
-
-            return getJSONResponse(responseType, connection);
-
-        } catch (IOException e) {
-            throw new IllegalArgumentException("IOException during POST request", e);
-
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
+            String jsonStr = makeGETRequest(url, keyValuePairs);
+            return JSONJackson.jsonToObject(jsonStr, responseType);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
         }
     }
+
+    /**
+     * Send a POST request to a given URL with the given key-value POST parameters. Result is a json-simple object, see
+     * https://code.google.com/p/json-simple/wiki/DecodingExamples
+     * 
+     * @throws IllegalArgumentException
+     *             if request could not be completed or JSON could not be parsed.
+     */
+    public static Object postToURLWithJSONResponse(String url, String... keyValuePairs) throws BadRequestException {
+        try {
+            String jsonStr = makePOSTRequest(url, keyValuePairs);
+            return JSONValue.parse(jsonStr);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send a GET request to a given URL with the given key-value URL parameters. Result is a json-simple object, see
+     * https://code.google.com/p/json-simple/wiki/DecodingExamples
+     * 
+     * @throws IllegalArgumentException
+     *             if request could not be completed or JSON could not be parsed.
+     */
+    public static Object getFromURLWithJSONResponse(String url, String... keyValuePairs) throws BadRequestException {
+        try {
+            String jsonStr = makeGETRequest(url, keyValuePairs);
+            return JSONValue.parse(jsonStr);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse JSON response: " + e.getMessage(), e);
+        }
+    }
+
 }
