@@ -40,7 +40,7 @@ public class JSON {
     /**
      * Recursively render JSON, skipping fields marked with Private or PrivateGet annotations, and id fields of DBModel
      * objects. This produces a JSON rendering that may be served over a Web connection without exposing internal server
-     * state.
+     * state. It's lighter-weight and faster than other introspection-based JSON renderers.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void toJSONRec(Object obj, boolean prettyPrint, int depth, StringBuilder buf) {

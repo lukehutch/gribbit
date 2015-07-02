@@ -31,6 +31,7 @@ import gribbit.handler.route.annotation.RoutePath;
 import gribbit.request.Request;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.RedirectException;
 import gribbit.response.exception.RequestHandlingException;
 import gribbit.response.exception.UnauthorizedException;
@@ -54,14 +55,6 @@ import java.time.ZonedDateTime;
  */
 @RoutePath("/oauth/google")
 public class GoogleLogin extends RouteHandler {
-    static {
-        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
-                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
-            throw new RuntimeException("Google OAuth parameters not correctly specified in properties file");
-        }
-    }
-
     public static final String GOOGLE_ACCESS_TOKEN_EXPIRES_KEY = "auth_gX";
     public static final String GOOGLE_ACCESS_TOKEN_KEY = "auth_gT";
     public static final String GOOGLE_REFRESH_TOKEN_KEY = "auth_gRT";
@@ -163,6 +156,13 @@ public class GoogleLogin extends RouteHandler {
     // The route of this same handler is given to Google with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
     public Response get(String action) throws RequestHandlingException {
+        // Throw 404 if OAuth2 params are not configured 
+        if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null
+                || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
+            throw new NotFoundException(request);
+        }
+        
         User user = null;
         String error = request.getQueryParam("error");
         if (error != null) {
@@ -330,15 +330,10 @@ public class GoogleLogin extends RouteHandler {
         }
 
         // If got to here, OAuth login failed somehow
-        if (error != null) {
-            // Shouldn't happen
-            error = "Unknown";
-        }
         clearFlashMessages();
-        if (error.contains("Unauthorized")) {
-            addFlashMessage(new FlashMessage(FlashType.ERROR, "Error",
-                    "Could not log you in, please check your password or contact the site administrator."));
-        }
+        addFlashMessage(new FlashMessage(FlashType.ERROR, "Error",
+                "Could not log you in, please check your password or contact the site administrator."));
+
         // Generate Unauthorized response
         RequestHandlingException unauthorizedException;
         if ("callback".equals(action)) {

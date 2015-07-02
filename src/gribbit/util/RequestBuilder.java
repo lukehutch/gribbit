@@ -57,6 +57,9 @@ public class RequestBuilder {
             connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod(isGET ? "GET" : "POST");
             connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                            + "Chrome/43.0.2357.125 Safari/537.36");
             if (!isGET) {
                 // Send the body if this is a POST request
                 connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
@@ -69,9 +72,9 @@ public class RequestBuilder {
                 }
             }
             if (connection.getResponseCode() == HttpResponseStatus.FOUND.code()) {
-                // Follow a redirect.
-                return makeRequest(connection.getHeaderField("Location"), keyValuePairs, isGET, isBinaryResponse,
-                        redirDepth + 1);
+                // Follow a redirect. For safety, the params are not passed on, and the method is forced to GET.
+                return makeRequest(connection.getHeaderField("Location"), /* keyValuePairs = */null, /* isGET = */
+                        true, isBinaryResponse, redirDepth + 1);
             } else if (connection.getResponseCode() == HttpResponseStatus.OK.code()) {
                 // For 200 OK, return the text of the response
                 if (isBinaryResponse) {

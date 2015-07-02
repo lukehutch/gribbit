@@ -55,7 +55,6 @@ import java.net.URI;
 import java.util.concurrent.TimeUnit;
 
 public class GribbitServer {
-
     /** The URI the server is running on. */
     public static URI uri;
 

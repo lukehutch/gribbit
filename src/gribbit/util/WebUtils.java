@@ -368,6 +368,9 @@ public class WebUtils {
      * odd indices. The keys and values are URL-escaped and concatenated with '&' as a delimiter.
      */
     public static String buildQueryString(String... keyValuePairs) {
+        if (keyValuePairs == null || keyValuePairs.length == 0) {
+            return "";
+        }
         StringBuilder buf = new StringBuilder();
         for (int i = 0; i < keyValuePairs.length; i += 2) {
             if (buf.length() > 0) {

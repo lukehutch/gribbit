@@ -29,6 +29,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaderNames.DATE;
@@ -41,6 +42,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.SERVER;
 import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
 import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
+import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 import gribbit.auth.Cookie;
 import gribbit.request.Request;
 import gribbit.response.HTMLPageResponse;
@@ -448,6 +450,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     headers.add(CONNECTION, KEEP_ALIVE);
                 }
 
+                // FileRegions cannot be used with SSL, have to use chunked content
+                boolean isChunked = ctx.pipeline().get(SslHandler.class) != null;
+                if (isChunked) {
+                    headers.add(TRANSFER_ENCODING, CHUNKED);
+                }
+                
                 // Write HTTP headers to channel
                 ctx.write(httpRes);
 
@@ -465,21 +473,19 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // Write file content to channel.
                 // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
                 // progress (e.g. to update user's UI over a web socket to show download progress.)
-                ChannelFuture sendFileFuture;
                 ChannelFuture lastContentFuture;
-                if (ctx.pipeline().get(SslHandler.class) == null) {
+                if (!isChunked) {
                     // Use FileRegions if possible, which supports zero-copy / mmio
-                    sendFileFuture = ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
+                    ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
                             ctx.newProgressivePromise());
                     // Write the end marker
                     lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
                 } else {
                     // Can't use FileRegions / zero-copy with SSL
-                    sendFileFuture = ctx.write(new HttpChunkedInput(new ChunkedFile(fileToServe, 0, fileLength, 1)),
-                            ctx.newProgressivePromise());
                     // HttpChunkedInput will write the end marker (LastHttpContent) for us.
                     // See https://github.com/netty/netty/commit/4ba2ce3cbbc55391520cfc98a7d4227630fbf978
-                    lastContentFuture = sendFileFuture;
+                    lastContentFuture = ctx.write(new HttpChunkedInput(new ChunkedFile(fileToServe, 0, fileLength, 1)),
+                            ctx.newProgressivePromise());
                 }
 
                 //    sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
