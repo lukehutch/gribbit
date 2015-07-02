@@ -29,7 +29,6 @@ import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
-import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaderNames.DATE;
@@ -40,9 +39,10 @@ import static io.netty.handler.codec.http.HttpHeaderNames.LAST_MODIFIED;
 import static io.netty.handler.codec.http.HttpHeaderNames.PRAGMA;
 import static io.netty.handler.codec.http.HttpHeaderNames.SERVER;
 import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
+import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
-import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 import gribbit.auth.Cookie;
 import gribbit.request.Request;
 import gribbit.response.HTMLPageResponse;
@@ -63,6 +63,8 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelProgressiveFuture;
+import io.netty.channel.ChannelProgressiveFutureListener;
 import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -160,7 +162,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 }
                 return;
             }
-            
+
             // ------------------------------------------------------------------------------
             // Handle WebSocket frames
             // ------------------------------------------------------------------------------
@@ -455,7 +457,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 if (isChunked) {
                     headers.add(TRANSFER_ENCODING, CHUNKED);
                 }
-                
+
                 // Write HTTP headers to channel
                 ctx.write(httpRes);
 
@@ -471,58 +473,52 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // newer timestamp.
 
                 // Write file content to channel.
-                // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
-                // progress (e.g. to update user's UI over a web socket to show download progress.)
+                // Both methods will close fileToServe after sending the file, see:
+                // https://github.com/netty/netty/issues/2474#issuecomment-117905496
+                @SuppressWarnings("unused")
+                ChannelFuture sendFileFuture;
                 ChannelFuture lastContentFuture;
                 if (!isChunked) {
-                    // Use FileRegions if possible, which supports zero-copy / mmio
-                    ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
+                    // Use FileRegions if possible, which supports zero-copy / mmio.
+                    sendFileFuture = ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
                             ctx.newProgressivePromise());
                     // Write the end marker
                     lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
                 } else {
                     // Can't use FileRegions / zero-copy with SSL
-                    // HttpChunkedInput will write the end marker (LastHttpContent) for us.
-                    // See https://github.com/netty/netty/commit/4ba2ce3cbbc55391520cfc98a7d4227630fbf978
-                    lastContentFuture = ctx.write(new HttpChunkedInput(new ChunkedFile(fileToServe, 0, fileLength, 1)),
-                            ctx.newProgressivePromise());
+                    // HttpChunkedInput will write the end marker (LastHttpContent) for us, see:
+                    // https://github.com/netty/netty/commit/4ba2ce3cbbc55391520cfc98a7d4227630fbf978
+                    lastContentFuture = sendFileFuture = ctx.writeAndFlush(new HttpChunkedInput(new ChunkedFile(
+                            fileToServe, 0, fileLength, 1)), ctx.newProgressivePromise());
                 }
 
-                //    sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
-                //        @Override
-                //        public void operationProgressed(ChannelProgressiveFuture future,
-                //                long progress, long total) {
-                //            if (total < 0) { // Total unknown
-                //                System.err.println(future.channel() + " Progress: " + progress);
-                //            } else {
-                //                System.err.println(future.channel() + " Progress: " + progress
-                //                        + " / " + total);
-                //            }
-                //        }
-                //
-                //        @Override
-                //        public void operationComplete(ChannelProgressiveFuture future) {
-                //            System.err.println(future.channel() + " Transfer complete.");
-                //        }
-                //    });
-
-                // Close the file and possibly the connection after the last chunk has been sent.
-                // We can't close the file in a finally block, because the file writing is asynchronous, and
-                // the file shouldn't be closed until the last chunk has been written. 
-                final RandomAccessFile fileToClose = fileToServe;
+                // Possibly close the connection after the last chunk has been sent.
                 lastContentFuture.addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) {
-                        try {
-                            fileToClose.close();
-                        } catch (IOException e) {
-                        }
-                        future.channel().flush();
                         if (!request.isKeepAlive()) {
                             future.channel().close();
                         }
                     }
                 });
+
+                //    // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
+                //    // progress (e.g. to update user's UI over a web socket to show download progress.)
+                //    sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                //        @Override
+                //        public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
+                //            if (total < 0) { // Total unknown
+                //                System.err.println(future.channel() + " Progress: " + progress);
+                //            } else {
+                //                System.err.println(future.channel() + " Progress: " + progress + " / " + total);
+                //            }
+                //        }
+                //    
+                //        @Override
+                //        public void operationComplete(ChannelProgressiveFuture future) {
+                //            System.err.println(future.channel() + " Transfer complete.");
+                //        }
+                //    });
 
             } catch (Exception e) {
                 if (fileToServe != null) {
