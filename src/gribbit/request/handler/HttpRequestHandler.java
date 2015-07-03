@@ -63,8 +63,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelProgressiveFuture;
-import io.netty.channel.ChannelProgressiveFutureListener;
 import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -644,11 +642,19 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             } else if (request.isHashURL() && maxAgeSeconds > 0L) {
                 // Only URLs that include a hash key (and whose response has a non-zero maxAgeSeconds) can be cached.
-                cached = true;
+                // N.B. can set "Cache-Control: public", since the resource is hashed, so it can be served to other
+                // clients that request it (they would have to know the hash URL to request it in the first place).
                 headers.set(CACHE_CONTROL, "public, max-age=" + maxAgeSeconds);
                 headers.set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds).format(DateTimeFormatter.RFC_1123_DATE_TIME));
                 headers.set(ETAG, request.getURLHashKey());
+                cached = true;
             }
+        } else if (response.getStatus() == HttpResponseStatus.NOT_FOUND) {
+            // Cache 404 messages for 5 minutes to reduce server load
+            int cacheTime = 300;
+            headers.set(CACHE_CONTROL, "max-age=" + cacheTime);
+            headers.set(EXPIRES, timeNow.plusSeconds(cacheTime).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+            cached = true;
         }
         if (!cached) {
             // Disable caching for all URLs that do not contain a hash key. In particular, caching is
