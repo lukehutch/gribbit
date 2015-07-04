@@ -27,6 +27,7 @@ package gribbit.util;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.thirdparty.UTF8;
@@ -163,10 +164,13 @@ public class WebUtils {
             { "csv", "text/comma-separated-values" }, //
     });
 
+    private static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "eot", "otf", "ttf", "ttc", "woff" });
+
     public static void setContentTypeHeaders(HttpHeaders headers, String path) {
         String contentType = "application/octet-stream";
         int dotIdx = path.lastIndexOf('.'), slashIdx = path.lastIndexOf(File.separatorChar);
         if (dotIdx > 0 && slashIdx < dotIdx) {
+            String leaf = path.substring(slashIdx + 1).toLowerCase();
             String ext = path.substring(dotIdx + 1).toLowerCase();
             String mimeType = WebUtils.EXTENSION_TO_MIMETYPE.get(ext);
             if (mimeType != null) {
@@ -175,6 +179,11 @@ public class WebUtils {
             // .svgz files need an additional header -- see http://kaioa.com/node/45
             if (ext.equals("svgz")) {
                 headers.set(CONTENT_ENCODING, "gzip");
+            }
+            // Fonts need a CORS header if served across domains, to work in Firefox and IE (and according to spec)
+            // -- see http://davidwalsh.name/cdn-fonts
+            if (FONT_EXTENSION.contains(ext) || leaf.equals("font.css") || leaf.equals("fonts.css")) {
+                headers.set(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
             }
         }
         headers.set(CONTENT_TYPE, contentType);
