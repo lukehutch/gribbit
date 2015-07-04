@@ -148,12 +148,7 @@ public class WebUtils {
             { "jpg", "image/jpeg" }, //
             { "jpeg", "image/jpeg" }, //
             { "svg", "image/svg+xml" }, //
-            { "svgz", "image/svg+xml" }, //
-            { "woff", "application/font-woff" }, //
-            { "woff2", "application/font-woff2" }, //
-            { "ttf", "application/x-font-ttf" }, //
-            { "ttc", "application/x-font-ttf" }, //
-            { "otf", "font/opentype" }, //
+            { "svgz", "image/svg+xml" }, // Served as image/svg+xml with a "Content-Encoding: gzip" header
             { "gz", "application/x-gzip" }, //
             { "bz2", "application/x-bzip2" }, //
             { "zip", "application/zip" }, //
@@ -162,11 +157,22 @@ public class WebUtils {
             { "mp3", "audio/mpeg" }, //
             { "wav", "audio/x-wav" }, //
             { "csv", "text/comma-separated-values" }, //
+            
+            // Font types:
+            { "ttf", "application/x-font-ttf" }, //
+            { "ttc", "application/x-font-ttf" }, //
+            { "otf", "application/x-font-opentype" }, //
+            { "woff", "application/font-woff" }, //
+            { "woff2", "application/font-woff2" }, //
+            { "eot", "application/vnd.ms-fontobject" }, //
+            { "sfnt", "application/font-sfnt" }, //
     });
 
-    private static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "eot", "otf", "ttf", "ttc", "woff" });
+    private static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "ttf", "ttc", "otf", "woff", "woff2",
+            "eot", "sfnt" });
 
     public static void setContentTypeHeaders(HttpHeaders headers, String path) {
+        // Default, if unknown
         String contentType = "application/octet-stream";
         int dotIdx = path.lastIndexOf('.'), slashIdx = path.lastIndexOf(File.separatorChar);
         if (dotIdx > 0 && slashIdx < dotIdx) {
