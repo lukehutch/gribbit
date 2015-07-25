@@ -28,7 +28,7 @@
 		<dependency>
 			<groupId>io.github.lukehutch</groupId>
 			<artifactId>fast-classpath-scanner</artifactId>
-			<version>1.2.4</version>
+			<version>1.4.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.mongojack</groupId>
