@@ -101,24 +101,24 @@ class TemplateModelLoader {
 
     /**
      * Get the names of all the static fields containing inline templates that were discovered during classpath
-     * scanning, so that when there are changes on the classpath, we can dynamically reload the constant values in these
-     * static fields.
+     * scanning, so that when there are changes on the classpath, we can dynamically reload the constant values in
+     * these static fields.
      */
     public HashSet<String> getInlineTemplateStaticFieldNames() {
         return inlineTemplateStaticFieldNames;
     }
 
     /**
-     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for
-     * prettyprinting)
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements
+     * (for prettyprinting)
      */
     HashSet<String> getCustomInlineElements() {
         return customInlineElements;
     }
 
     /**
-     * Register a custom element (e.g. a Polymer or X-Tags element) as an inline element for prettyprinting (otherwise
-     * it will be prettyprinted as a block element, with newlines and indentation).
+     * Register a custom element (e.g. a Polymer or X-Tags element) as an inline element for prettyprinting
+     * (otherwise it will be prettyprinted as a block element, with newlines and indentation).
      */
     void registerCustomInlineElement(String elementName) {
         if (!elementName.contains("-")) {
@@ -128,7 +128,10 @@ class TemplateModelLoader {
         customInlineElements.add(elementName);
     }
 
-    /** Return the template corresponding to the given template class as a list of nodes, or null if it doesn't exist. */
+    /**
+     * Return the template corresponding to the given template class as a list of nodes, or null if it doesn't
+     * exist.
+     */
     List<Node> getTemplateNodes(Class<? extends TemplateModel> templateClass) {
         return templateClassToTemplateNodes.get(templateClass);
     }
@@ -210,8 +213,8 @@ class TemplateModelLoader {
                         Class<? extends DataModel> fieldTypeAsDataModel = (Class<? extends DataModel>) fieldType;
 
                         if (!FieldChecker.isFlatModel(fieldTypeAsDataModel)) {
-                            throw new RuntimeException("Field " + templateClassName + "." + fieldName + " has type "
-                                    + fieldType.getSimpleName() + ", which is a subclass of "
+                            throw new RuntimeException("Field " + templateClassName + "." + fieldName
+                                    + " has type " + fieldType.getSimpleName() + ", which is a subclass of "
                                     + DataModel.class.getName()
                                     + ", marking it as being bound to a form. However, the class has one or more "
                                     + "fields with a type that is not supported for binding from POST requests");
@@ -225,7 +228,8 @@ class TemplateModelLoader {
                         for (Field referencedTypeField : fieldType.getFields()) {
                             if (!FieldChecker.fieldIsPrivate(referencedTypeField, //
                                     /* checkGet = */true, /* checkSet = */true)) {
-                                formIdToReferencedDataModelTypeFieldNames.put(fieldName, referencedTypeField.getName());
+                                formIdToReferencedDataModelTypeFieldNames.put(fieldName,
+                                        referencedTypeField.getName());
                                 referencedTypePublicFields.add(referencedTypeField);
                             }
                         }
@@ -341,8 +345,8 @@ class TemplateModelLoader {
                             if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID : WebUtils.VALID_HTML_NAME_OR_ID)
                                     .matcher(attrValueWithoutParams).matches()) {
                                 throw new RuntimeException("The template for " + templateClassName
-                                        + " contains bad characters in id, name or class attribute value: " + attrName
-                                        + "=\"" + attrValue + "\"");
+                                        + " contains bad characters in id, name or class attribute value: "
+                                        + attrName + "=\"" + attrValue + "\"");
                             }
                             if (StringUtils.containsUppercaseChar(attrValueWithoutParams)) {
                                 throw new RuntimeException("The template for " + templateClassName
@@ -360,8 +364,8 @@ class TemplateModelLoader {
                             // but it allows us to do some static checking of URL-typed params.
                             if (!WebUtils.isValidURL(attrValueWithoutParams.toString())) {
                                 throw new RuntimeException("The template for " + templateClassName
-                                        + " contains an invalid string in a URL-typed attribute: " + attrName + "=\""
-                                        + attrValue + "\"");
+                                        + " contains an invalid string in a URL-typed attribute: " + attrName
+                                        + "=\"" + attrValue + "\"");
                             }
                         }
                     }
@@ -379,13 +383,15 @@ class TemplateModelLoader {
                             // refer to any element on the page. Mitigate the effect by requiring
                             // that the attr value have a non-parameterized prefix.
                             if (firstMatchStart == 0) {
-                                throw new RuntimeException("The template for " + templateClassName
-                                        + " contains a template parameter in the value of the XSS-unsafe attribute \""
-                                        + attrName
-                                        + "\". To mitigate XSS attacks, the parameter must be prefixed with "
-                                        + "some non-parameter characters, e.g. <div id=\"widget${widgetNum}\"> and "
-                                        + "<a href=\"/img/${imgurl}\"> are OK, but <div id=\"${widgetName}\"> and "
-                                        + "<a href=\"${imgurl}\"> are not.");
+                                throw new RuntimeException(
+                                        "The template for "
+                                                + templateClassName
+                                                + " contains a template parameter in the value of the XSS-unsafe attribute \""
+                                                + attrName
+                                                + "\". To mitigate XSS attacks, the parameter must be prefixed with "
+                                                + "some non-parameter characters, e.g. <div id=\"widget${widgetNum}\"> and "
+                                                + "<a href=\"/img/${imgurl}\"> are OK, but <div id=\"${widgetName}\"> and "
+                                                + "<a href=\"${imgurl}\"> are not.");
                             }
                         } else if (!WebUtils.XSS_SAFE_ATTRS.contains(attrName)) {
                             // Disable XSS safety check for the attributes of custom elements (these contain a
@@ -398,9 +404,11 @@ class TemplateModelLoader {
                             // anywhere into the shadow DOM, so we can't contextually escape these values.
                             if (!tagName.contains("-")) {
                                 // Throw exception for non-whitelisted attrs.
-                                throw new RuntimeException("The template for " + templateClassName
-                                        + " contains a template parameter in the value of an XSS-unsafe attribute \""
-                                        + attrName + "\"");
+                                throw new RuntimeException(
+                                        "The template for "
+                                                + templateClassName
+                                                + " contains a template parameter in the value of an XSS-unsafe attribute \""
+                                                + attrName + "\"");
                             }
                         }
                         // OWASP Rule #3:
@@ -689,10 +697,10 @@ class TemplateModelLoader {
                             // TODO: (This doesn't seem to work currently.)
                             // TODO: add date picker popup.
 
-                        } else if (fieldType == Integer.class || fieldType == Integer.TYPE || fieldType == Long.class
-                                || fieldType == Long.TYPE || fieldType == Short.class || fieldType == Short.TYPE
-                                || fieldType == Float.class || fieldType == Float.TYPE || fieldType == Double.class
-                                || fieldType == Double.TYPE) {
+                        } else if (fieldType == Integer.class || fieldType == Integer.TYPE
+                                || fieldType == Long.class || fieldType == Long.TYPE || fieldType == Short.class
+                                || fieldType == Short.TYPE || fieldType == Float.class || fieldType == Float.TYPE
+                                || fieldType == Double.class || fieldType == Double.TYPE) {
                             // TODO: does "type='number'" work for float/double?
                             namedInput.attr("type", "number");
 
@@ -789,7 +797,8 @@ class TemplateModelLoader {
 
                         } else {
                             throw new RuntimeException("Illegal type " + fieldType.getName() + " for field \""
-                                    + fieldName + "\" in form \"" + formId + "\" of template for " + templateClassName);
+                                    + fieldName + "\" in form \"" + formId + "\" of template for "
+                                    + templateClassName);
                         }
                     }
                 }
@@ -821,8 +830,9 @@ class TemplateModelLoader {
                     // TemplateModel-typed template parameters into attribute values.
                     if (paramsInAttrVals.contains(fieldName)) {
                         // Nested template parameters can be rendered into text, but not attribute vals
-                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName + " has type "
-                                + fieldType.getSimpleName() + ", which is a " + TemplateModel.class.getSimpleName()
+                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName
+                                + " has type " + fieldType.getSimpleName() + ", which is a "
+                                + TemplateModel.class.getSimpleName()
                                 + ", and therefore will be rendered into HTML. "
                                 + "However, the corresponding template parameter is used in an attribute value in "
                                 + "the template, and attribute values cannot accept HTML.");
@@ -850,10 +860,14 @@ class TemplateModelLoader {
                     }
                     if (paramsInAttrVals.contains(fieldName)) {
                         // Nested lists of template parameters can be rendered into text, but not attribute vals
-                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName
-                                + " will be rendered as HTML, but the corresponding template parameter is used in an "
-                                + "attribute value in the template, and attribute values cannot accept HTML, they can "
-                                + "only take Strings or stringifiable values.");
+                        throw new RuntimeException(
+                                "Field "
+                                        + templateClass.getName()
+                                        + "."
+                                        + fieldName
+                                        + " will be rendered as HTML, but the corresponding template parameter is used in an "
+                                        + "attribute value in the template, and attribute values cannot accept HTML, they can "
+                                        + "only take Strings or stringifiable values.");
                     }
 
                 } else if (fieldType.isArray()) {
@@ -865,10 +879,14 @@ class TemplateModelLoader {
                     }
                     if (paramsInAttrVals.contains(fieldName)) {
                         // Nested arrays of template parameters can be rendered into text, but not attribute vals
-                        throw new RuntimeException("Field " + templateClass.getName() + "." + fieldName
-                                + " will be rendered as HTML, but the corresponding template parameter is used in an "
-                                + "attribute value in the template, and attribute values cannot accept HTML, they can "
-                                + "only take Strings or stringifiable values.");
+                        throw new RuntimeException(
+                                "Field "
+                                        + templateClass.getName()
+                                        + "."
+                                        + fieldName
+                                        + " will be rendered as HTML, but the corresponding template parameter is used in an "
+                                        + "attribute value in the template, and attribute values cannot accept HTML, they can "
+                                        + "only take Strings or stringifiable values.");
                     }
 
                 } else if (DataModel.class.isAssignableFrom(fieldType)) {
@@ -917,19 +935,14 @@ class TemplateModelLoader {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /** Load header or footer HTML content from the classpath */
-    public void loadHeadTailContent(String absolutePath, InputStream inputStream) {
-        String html;
-        try {
-            html = StringUtils.readWholeFile(inputStream);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        if (absolutePath.endsWith("/head-content.html") || absolutePath.equals("head-content.html")) {
-            headContent.append(html);
-        } else if (absolutePath.endsWith("/tail-content.html") || absolutePath.equals("tail-content.html")) {
-            tailContent.append(html);
-        }
+    /** Load header HTML content from the classpath */
+    public void loadHeadContent(String absolutePath, String fileContents) {
+        headContent.append(fileContents);
+    }
+
+    /** Load footer HTML content from the classpath */
+    public void loadTailContent(String absolutePath, String fileContents) {
+        tailContent.append(fileContents);
     }
 
     /**

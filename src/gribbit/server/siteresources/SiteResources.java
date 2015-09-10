@@ -38,13 +38,14 @@ import gribbit.server.config.GribbitProperties;
 import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
+import gribbit.util.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8.UTF8Exception;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
-import io.github.lukehutch.fastclasspathscanner.matchprocessor.FileMatchProcessor;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.FileMatchContentsProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
 
 import java.io.File;
-import java.io.InputStream;
 import java.lang.reflect.ParameterizedType;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -131,16 +132,16 @@ public class SiteResources {
     }
 
     /**
-     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements (for
-     * prettyprinting)
+     * Return custom Polymer element tagnames whose templates consist of only inline elements, not block elements
+     * (for prettyprinting)
      */
     public HashSet<String> getCustomInlineElements() {
         return templateModelLoader.getCustomInlineElements();
     }
 
     /**
-     * Register a custom element (e.g. a Polymer or X-Tags element) as an inline element for prettyprinting (otherwise
-     * it will be prettyprinted as a block element, with newlines and indentation).
+     * Register a custom element (e.g. a Polymer or X-Tags element) as an inline element for prettyprinting
+     * (otherwise it will be prettyprinted as a block element, with newlines and indentation).
      */
     public void registerCustomInlineElement(String elementName) {
         templateModelLoader.registerCustomInlineElement(elementName);
@@ -164,8 +165,8 @@ public class SiteResources {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Returns a File reference to a static resource, if it exists within the static resource root. Returns null if the
-     * file with this URI does not exist under the static resource root.
+     * Returns a File reference to a static resource, if it exists within the static resource root. Returns null if
+     * the file with this URI does not exist under the static resource root.
      */
     public File getStaticResource(String reqURI) {
         // Request URI must start with "/"
@@ -231,12 +232,14 @@ public class SiteResources {
         if (GribbitProperties.STATIC_RESOURCE_ROOT != null) {
             staticResourceRootDir = new File(GribbitProperties.STATIC_RESOURCE_ROOT);
             if (!staticResourceRootDir.exists()) {
-                throw new RuntimeException("Static resource root dir specified in gribbit.properties does not exist: "
-                        + GribbitProperties.STATIC_RESOURCE_ROOT);
+                throw new RuntimeException(
+                        "Static resource root dir specified in gribbit.properties does not exist: "
+                                + GribbitProperties.STATIC_RESOURCE_ROOT);
             }
             if (!staticResourceRootDir.isDirectory()) {
-                throw new RuntimeException("Static resource root specified in gribbit.properties is not a directory: "
-                        + GribbitProperties.STATIC_RESOURCE_ROOT);
+                throw new RuntimeException(
+                        "Static resource root specified in gribbit.properties is not a directory: "
+                                + GribbitProperties.STATIC_RESOURCE_ROOT);
             }
             Log.info("Static resource root: " + staticResourceRootDir);
         }
@@ -247,7 +250,7 @@ public class SiteResources {
         // Full hot code swap / dynamic class reloading is problematic, see 
         // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
         HashSet<String> prevTemplateStaticFieldNames = GribbitServer.siteResources == null ? new HashSet<>()
-                : GribbitServer.siteResources.templateModelLoader.getInlineTemplateStaticFieldNames(); 
+                : GribbitServer.siteResources.templateModelLoader.getInlineTemplateStaticFieldNames();
         final HashMap<String, String> classAndFieldNameToLatestValue = new HashMap<>();
 
         // Hack to get the generic parameterized class type for DBModel, see Fast Classpath Scanner documentation 
@@ -272,8 +275,8 @@ public class SiteResources {
                     @Override
                     public void processMatch(String className, String fieldName, Object currFieldConstantValue) {
                         // Read (possibly-updated) static field value directly from classfile
-                        classAndFieldNameToLatestValue
-                                .put(className + "." + fieldName, (String) currFieldConstantValue);
+                        classAndFieldNameToLatestValue.put(className + "." + fieldName,
+                                (String) currFieldConstantValue);
                     }
                 })
                 //
@@ -306,7 +309,7 @@ public class SiteResources {
                         // have been read, so by the time this code is called, classAndFieldNameToLatestValue has
                         // been populated with the latest values of all static template fields of all classes.
                         String latestStaticFieldTemplateStr = classAndFieldNameToLatestValue.get(matchingClass
-                                .getName() + "." + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME); 
+                                .getName() + "." + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
 
                         // Load and parse template corresponding to each TemplateModel class
                         Class<? extends TemplateModel> templateClass = (Class<? extends TemplateModel>) matchingClass;
@@ -319,11 +322,27 @@ public class SiteResources {
                     }
                 })
                 //
-                .matchFilenamePattern("(.*/|)(head|tail)_content\\.html", new FileMatchProcessor() {
+                .matchFilenamePathLeaf("head_content.html", new FileMatchContentsProcessor() {
                     @Override
-                    public void processMatch(String absolutePath, String relativePath, InputStream inputStream) {
-                        // Load files named "head_content.html" and "tail_content.html" from anywhere in the classpath
-                        templateModelLoader.loadHeadTailContent(absolutePath, inputStream);
+                    public void processMatch(String relativePath, byte[] fileContents) {
+                        // Load header files named "head_content.html" from anywhere in the classpath
+                        try {
+                            templateModelLoader.loadHeadContent(relativePath, UTF8.utf8ToString(fileContents));
+                        } catch (UTF8Exception e) {
+                            throw new RuntimeException("File " + relativePath + " is not in UTF8 format");
+                        }
+                    }
+                })
+                //
+                .matchFilenamePathLeaf("tail_content.html", new FileMatchContentsProcessor() {
+                    @Override
+                    public void processMatch(String relativePath, byte[] fileContents) {
+                        // Load footer files named "tail_content.html" from anywhere in the classpath
+                        try {
+                            templateModelLoader.loadTailContent(relativePath, UTF8.utf8ToString(fileContents));
+                        } catch (UTF8Exception e) {
+                            throw new RuntimeException("File " + relativePath + " is not in UTF8 format");
+                        }
                     }
                 });
 
