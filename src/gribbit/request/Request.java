@@ -51,13 +51,12 @@ import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.HttpHeaderUtil;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.handler.codec.http.ServerCookieDecoder;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.io.File;
@@ -155,23 +154,7 @@ public class Request {
         HttpHeaders headers = httpReq.headers();
 
         // Parse and decode/decrypt cookies
-        for (CharSequence cookieHeader : headers.getAll(COOKIE)) {
-            for (io.netty.handler.codec.http.Cookie nettyCookie : ServerCookieDecoder.decode(cookieHeader.toString())) {
-                // Log.fine("Cookie in request: " + nettyCookie);
-                if (this.cookieNameToCookies == null) {
-                    this.cookieNameToCookies = new HashMap<>();
-                }
-                String cookieName = nettyCookie.name();
-                Cookie cookie = new Cookie(nettyCookie);
-
-                // Multiple cookies may be present in the request with the same name but with different paths
-                ArrayList<Cookie> cookiesWithThisName = this.cookieNameToCookies.get(cookieName);
-                if (cookiesWithThisName == null) {
-                    this.cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
-                }
-                cookiesWithThisName.add(cookie);
-            }
-        }
+        this.cookieNameToCookies = Cookie.decodeCookieHeaders(headers.getAll(COOKIE));
 
         this.method = httpReq.method();
 

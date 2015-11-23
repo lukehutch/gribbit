@@ -29,7 +29,11 @@ import gribbit.server.config.GribbitProperties;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+
+import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * Cookies!
@@ -202,4 +206,30 @@ public class Cookie {
     public boolean hasExpired() {
         return maxAgeSeconds <= 0 && maxAgeSeconds != Long.MIN_VALUE;
     }
+    
+    // -----------------------------------------------------------------------------------------------------
+    
+    /** Parse and decode/decrypt cookies from HTTP headers. */
+    public static HashMap<String, ArrayList<Cookie>> decodeCookieHeaders(Iterable<CharSequence> cookieHeaders) {
+    	HashMap<String, ArrayList<Cookie>> cookieNameToCookies = null;
+        for (CharSequence cookieHeader : cookieHeaders) {
+            for (io.netty.handler.codec.http.cookie.Cookie nettyCookie : ServerCookieDecoder.STRICT.decode(cookieHeader.toString())) {
+                // Log.fine("Cookie in request: " + nettyCookie);
+                if (cookieNameToCookies == null) {
+                    cookieNameToCookies = new HashMap<>();
+                }
+                String cookieName = nettyCookie.name();
+                Cookie cookie = new Cookie(nettyCookie);
+
+                // Multiple cookies may be present in the request with the same name but with different paths
+                ArrayList<Cookie> cookiesWithThisName = cookieNameToCookies.get(cookieName);
+                if (cookiesWithThisName == null) {
+                    cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
+                }
+                cookiesWithThisName.add(cookie);
+            }
+        }
+        return cookieNameToCookies;
+    }
+    
 }
