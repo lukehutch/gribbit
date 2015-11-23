@@ -197,10 +197,14 @@ public class Database {
 
                 try {
                     // Get database collection based on collection name, and wrap it with a Jackson mapper to/from
-                    // the DBModel class, indexed using the id field type
-                    coll = (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(
+                    // the DBModel class, indexed using the id field type.
+                	// N.B. MongoJack has not yet been updated from getDB to getDatabase and related methods
+                	// in the Mongo 3.x driver, so we still need to use the deprecated methods here.
+                    @SuppressWarnings("deprecation")
+					JacksonDBCollection<T, K> collDeprecated = (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(
                             mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass,
                             idType);
+                    coll = collDeprecated;
                 } catch (Exception e) {
                     throw new RuntimeException(
                             "Failure during JacksonDBCollection.wrap(), this can be caused by having methods "
@@ -231,7 +235,7 @@ public class Database {
                     // Ensure that an index exists for fields annotated with DBIndex
                     if (field.getAnnotation(DBIndex.class) != null) {
                         if (!indexedFields.contains(fieldName)) {
-                            coll.ensureIndex(fieldName);
+                            coll.createIndex(new BasicDBObject(fieldName, 1));
                             indexedFields.add(fieldName);
                         }
                     }
