@@ -322,10 +322,10 @@ public class SiteResources {
                     }
                 })
                 //
-                .matchFilenamePathLeaf("head_content.html", new FileMatchContentsProcessor() {
+                .matchFilenamePathLeaf("head-content.html", new FileMatchContentsProcessor() {
                     @Override
                     public void processMatch(String relativePath, byte[] fileContents) {
-                        // Load header files named "head_content.html" from anywhere in the classpath
+                        // Load header files named "head-content.html" from anywhere in the classpath
                         try {
                             templateModelLoader.loadHeadContent(relativePath, UTF8.utf8ToString(fileContents));
                         } catch (UTF8Exception e) {
@@ -334,10 +334,10 @@ public class SiteResources {
                     }
                 })
                 //
-                .matchFilenamePathLeaf("tail_content.html", new FileMatchContentsProcessor() {
+                .matchFilenamePathLeaf("tail-content.html", new FileMatchContentsProcessor() {
                     @Override
                     public void processMatch(String relativePath, byte[] fileContents) {
-                        // Load footer files named "tail_content.html" from anywhere in the classpath
+                        // Load footer files named "tail-content.html" from anywhere in the classpath
                         try {
                             templateModelLoader.loadTailContent(relativePath, UTF8.utf8ToString(fileContents));
                         } catch (UTF8Exception e) {
