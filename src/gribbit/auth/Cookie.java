@@ -28,8 +28,8 @@ package gribbit.auth;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.WebUtils;
-import io.netty.handler.codec.http.DefaultCookie;
-import io.netty.handler.codec.http.ServerCookieEncoder;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 /**
  * Cookies!
@@ -44,8 +44,6 @@ public class Cookie {
     private String value;
 
     private long maxAgeSeconds;
-
-    private boolean discardAtEndOfBrowserSession;
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -100,9 +98,9 @@ public class Cookie {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie.
+     * Create a cookie. if maxAgeSeconds == Long.MIN_VALUE, cookie expires at end of session. Otherwise, if maxAgeSeconds <= 0, cookieValue is ignored and replaced with "" (cookie has already expired). 
      */
-    public Cookie(String name, String path, String cookieValue, long maxAgeSeconds, boolean discardAtEndOfBrowserSession) {
+    public Cookie(String name, String path, String cookieValue, long maxAgeSeconds) {
         this.name = name;
         checkValidCookieFieldStr(name);
         this.path = path;
@@ -111,36 +109,20 @@ public class Cookie {
         }
         this.value = cookieValue;
         this.maxAgeSeconds = maxAgeSeconds;
-        this.discardAtEndOfBrowserSession = discardAtEndOfBrowserSession;
 
         if (this.maxAgeSeconds <= 0 && this.maxAgeSeconds != Long.MIN_VALUE) {
             // If maxAge <= 0, cookie is expired immediately (so there is nothing to encode)
             this.value = "";
             this.maxAgeSeconds = 0;
-        } else {
-            // if maxAge == Long.MIN_VALUE or discardAtEndOfBrowserSession is true, cookie expires at end of session
-            if (maxAgeSeconds == Long.MIN_VALUE) {
-                this.discardAtEndOfBrowserSession = true;
-            } else if (this.discardAtEndOfBrowserSession) {
-                this.maxAgeSeconds = Long.MIN_VALUE;
-            }
         }
     }
 
     /**
-     * Create a cookie with the discard flag set to false (cookie is not discarded when browser session closes).
-     */
-    public Cookie(String name, String path, String cookieValue, long maxAgeInSeconds) {
-        this(name, path, cookieValue, maxAgeInSeconds, false);
-    }
-
-    /**
      * Create a cookie with path unset (meaning, according to the HTTP spec, it will default to the path of the object
-     * currently being requested), and the discard flag set to false (cookie is not discarded when browser session
-     * closes).
+     * currently being requested).
      */
     public Cookie(String name, String cookieValue, long maxAgeInSeconds) {
-        this(name, null, cookieValue, maxAgeInSeconds, false);
+        this(name, null, cookieValue, maxAgeInSeconds);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -149,22 +131,20 @@ public class Cookie {
      * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in this
      * case, ignore the cookie).
      */
-    public Cookie(io.netty.handler.codec.http.Cookie nettyCookie) {
+    public Cookie(io.netty.handler.codec.http.cookie.Cookie nettyCookie) {
         this.name = nettyCookie.name();
         this.path = nettyCookie.path();
         this.value = WebUtils.unescapeCookieValue(nettyCookie.value());
         this.maxAgeSeconds = nettyCookie.maxAge();
-        this.discardAtEndOfBrowserSession = nettyCookie.isDiscard();
     }
 
     /** Create a Netty cookie from this Cookie object. */
-    public io.netty.handler.codec.http.Cookie toNettyCookie() {
-        io.netty.handler.codec.http.Cookie nettyCookie = new DefaultCookie(name, WebUtils.escapeCookieValue(value));
+    private io.netty.handler.codec.http.cookie.Cookie toNettyCookie() {
+        io.netty.handler.codec.http.cookie.Cookie nettyCookie = new DefaultCookie(name, WebUtils.escapeCookieValue(value));
         if (path != null && !path.isEmpty()) {
             nettyCookie.setPath(path);
         }
         nettyCookie.setMaxAge(maxAgeSeconds);
-        nettyCookie.setDiscard(discardAtEndOfBrowserSession);
         nettyCookie.setHttpOnly(true); // TODO
         if (GribbitProperties.SSL) {
             // If SSL is enabled, force cookies to only be delivered over SSL, to prevent cookie hijacking
@@ -182,7 +162,7 @@ public class Cookie {
      * this will only delete the cookie with the matching path.
      */
     public static Cookie deleteCookie(String name, String path) {
-        return new Cookie(name, path, "", 0, false);
+        return new Cookie(name, path, "", 0);
     }
 
     /**
@@ -190,7 +170,7 @@ public class Cookie {
      * setting maxAgeSeconds to zero).
      */
     public static Cookie deleteCookie(Cookie cookie) {
-        return new Cookie(cookie.getName(), cookie.getPath(), "", 0, false);
+        return new Cookie(cookie.getName(), cookie.getPath(), "", 0);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -200,7 +180,7 @@ public class Cookie {
      */
     @Override
     public String toString() {
-        return ServerCookieEncoder.encode(toNettyCookie());
+        return ServerCookieEncoder.STRICT.encode(toNettyCookie());
     }
 
     /** Get the name of the cookie. */
