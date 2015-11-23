@@ -560,7 +560,6 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
         // Get the content of the response as a byte buffer.
         ByteBuf content = response.getContent(request);
-        byte[] contentBytes = content.array();
         String contentType = response.getContentType(request);
 
         // If the response needs hashing, and the response does not have an error status, then schedule the
@@ -585,10 +584,12 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 && content.readableBytes() > 1024 //
                 && WebUtils.isCompressibleContentType(contentType)) {
             // TODO: compare speed to using JZlib.GZIPOutputStream
-            ByteBuf gzippedContent = Unpooled.buffer(/* initialCapacity = */content.readableBytes());
+            byte[] contentBytes = content.array();
+            int contentLen = content.readableBytes();
+            ByteBuf gzippedContent = Unpooled.buffer(contentLen);
             try {
                 GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
-                gzipStream.write(contentBytes);
+                gzipStream.write(contentBytes, 0, contentLen);
                 gzipStream.close();
             } catch (IOException e) {
                 // Should not happen
