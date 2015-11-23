@@ -205,7 +205,7 @@ public class FieldChecker {
                                 throw new RuntimeException("Value of field " + klass.getName() + "." + fieldName
                                         + " must have minimum length " + (needToTrim ? "(after trimming) " : "")
                                         + "of " + minLength);
-                            } else if (checkMaxLength && (strValue == null || strValue.length() < maxLength)) {
+                            } else if (checkMaxLength && (strValue == null || strValue.length() > maxLength)) {
                                 throw new RuntimeException("Value of field " + klass.getName() + "." + fieldName
                                         + " must have maximum length " + (needToTrim ? "(after trimming) " : "")
                                         + "of " + maxLength + (strValue == null ? ", but the value is null" : ""));
