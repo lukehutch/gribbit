@@ -255,8 +255,9 @@ public class RouteMapping {
             // Make sure route is unique
             Route existing = routeForRoutePath.put(routeInfo.getRoutePath(), routeInfo);
             if (existing != null) {
-                throw new RuntimeException("Two handlers have the same route: " + existing.getRoutePath() + " , "
-                        + routeInfo.getRoutePath());
+                throw new RuntimeException("Two handlers have the same route: " + existing.getRoutePath()
+                        + " is handled by " + existing.getHandler().getName() + " and "
+                        + routeInfo.getHandler().getName());
             }
             if (routeForHandler.put(handler, routeInfo) != null) {
                 // Should not happen, objects on classpath should only be scanned once
