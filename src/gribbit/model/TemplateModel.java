@@ -116,7 +116,7 @@ public abstract class TemplateModel {
     }
 
     /** Wrap a list of TemplateModel objects into a single template that renders each of the arguments in sequence. */
-    public static TemplateModel wrap(List<? extends TemplateModel> contentList) {
+    public static TemplateModel templateSequence(List<? extends TemplateModel> contentList) {
         return new ContentList(contentList);
     }
 

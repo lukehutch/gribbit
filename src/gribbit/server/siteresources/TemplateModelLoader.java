@@ -937,11 +937,13 @@ class TemplateModelLoader {
 
     /** Load header HTML content from the classpath */
     public void loadHeadContent(String absolutePath, String fileContents) {
+        Log.info("Loading head content from: " + absolutePath);
         headContent.append(fileContents);
     }
 
     /** Load footer HTML content from the classpath */
     public void loadTailContent(String absolutePath, String fileContents) {
+        Log.info("Loading tail content from: " + absolutePath);
         tailContent.append(fileContents);
     }
 

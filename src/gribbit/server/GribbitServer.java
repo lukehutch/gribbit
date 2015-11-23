@@ -155,6 +155,7 @@ public class GribbitServer {
         GribbitServer.appPackageName = appPackageName;
 
         // Make sure we can connect to database server
+        Log.info("Setting up database connection");
         Database.checkDatabaseIsConnected();
 
         // Task group for handling background tasks
@@ -216,6 +217,7 @@ public class GribbitServer {
                 if (OpenSsl.isAvailable()) {
                     try {
                         // Use OpenSSL if the netty-tcnative Maven artifact is available (it is 30% faster than JDK)
+                        // TODO: Replaced by SslContextBuilder
                         sslCtx = SslContext.newServerContext(SslProvider.OPENSSL, ssc.certificate(),
                                 ssc.privateKey());
 
@@ -228,6 +230,7 @@ public class GribbitServer {
                     Log.warning("OpenSSL libraries are not available; falling back to the slower SslProvider.JDK. "
                             + "Please add the appropriate netty-tcnative maven artifact for your platform. "
                             + "See also: http://netty.io/wiki/forked-tomcat-native.html");
+                    // TODO: Replaced by SslContextBuilder
                     sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
                 }
             } else {

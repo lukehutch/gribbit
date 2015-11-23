@@ -76,21 +76,21 @@ public class WebSocketHandler {
     //    if (!window.WebSocket) {
     //      window.WebSocket = window.MozWebSocket;
     //    }
-    //    if (window.WebSocket && typeof wsOpen !== 'undefined' && typeof wsMsg !== 'undefined'
-    //        && typeof wsClose !== 'undefined') {
+    //    if (window.WebSocket && typeof wsOpen !== "undefined" && typeof wsMsg !== "undefined"
+    //        && typeof wsClose !== "undefined") {
     //      var wsURL = null;
     //      if (document.forms !== null) {
     //        for (var i = 0; i < document.forms.length; i++) {
     //          var form = document.forms[i];
     //          console.log(form);
-    //          if (typeof form.csrf !== 'undefined') {
-    //            wsURL = document.URL.replace(/^http/, 'ws').replace(/\?.*/, '') + "?_ws=1&_csrf=" + form.csrf.value;
+    //          if (typeof form.csrf !== "undefined") {
+    //            wsURL = document.URL.replace(/^http/, "ws").replace(/\?.*/, "") + "?_ws=1&_csrf=" + form.csrf.value;
     //            break;
     //          }
     //        }
     //      }
     //      if (wsURL == null) {
-    //        console.log('Could not generate web socket URL (could not locate CSRF token in a form on the page)');
+    //        console.log("Could not generate web socket URL (could not locate CSRF token in a form on the page)");
     //      } else {
     //        var trySocket = new WebSocket(wsURL);
     //        trySocket.onopen = function(event) {
@@ -110,7 +110,8 @@ public class WebSocketHandler {
     //    }
     //
     //    function send(message) {
-    //      if (socket === null) {
+    //      if (socket === null || typeof socket === "undefined") {
+    //        console.log("Socket not open");
     //        return;
     //      }
     //      if (socket.readyState == WebSocket.OPEN) {

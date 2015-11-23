@@ -49,7 +49,7 @@ public class HTMLResponse extends Response {
 
     public HTMLResponse(HttpResponseStatus status, List<? extends TemplateModel> contentList) {
         super(status);
-        this.content = TemplateModel.wrap(contentList);
+        this.content = TemplateModel.templateSequence(contentList);
     }
 
     public HTMLResponse(HttpResponseStatus status, TemplateModel... contentList) {
