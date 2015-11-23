@@ -70,14 +70,13 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpChunkedInput;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.codec.http.HttpHeaderUtil;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.handler.codec.http.ServerCookieEncoder;
 import io.netty.handler.codec.http.multipart.Attribute;
 import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
 import io.netty.handler.codec.http.multipart.DiskAttribute;
@@ -677,9 +676,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     for (Cookie cookie : allCookiesWithName) {
                         // Delete all cookies with the requested name (there may be multiple cookies
                         // with this name but with different paths)
-                        String deleteCookieStr = ServerCookieEncoder
-                                .encode(Cookie.deleteCookie(cookie).toNettyCookie());
-                        headers.add(SET_COOKIE, deleteCookieStr);
+                        headers.add(SET_COOKIE, Cookie.deleteCookie(cookie).toString());
                     }
                 }
             }
@@ -693,8 +690,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     Log.warning("Tried to delete and set the cookie \"" + cookie.getName()
                             + "\" in the same response -- ignoring the set request");
                 } else {
-                    String setCookieStr = ServerCookieEncoder.encode(cookie.toNettyCookie());
-                    headers.add(SET_COOKIE, setCookieStr);
+                    headers.add(SET_COOKIE, cookie.toString());
                 }
             }
         }
@@ -783,7 +779,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 res.content().writeBytes("Internal Server Error".getBytes("UTF-8"));
                 HttpHeaders headers = res.headers();
                 headers.set(CONTENT_TYPE, "text/plain;charset=utf-8");
-                HttpHeaderUtil.setContentLength(res, res.content().readableBytes());
+                HttpUtil.setContentLength(res, res.content().readableBytes());
 
                 // Disable caching
                 headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1

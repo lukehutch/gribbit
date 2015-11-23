@@ -33,8 +33,6 @@ import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.util.WebUtils;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
@@ -213,11 +211,7 @@ public class WebSocketHandler {
             WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
         } else {
             // Attempt websocket handshake, and if it succeeds, upgrade connection to websocket
-            // TODO: filed bug report, handshaker.handshake should take HttpRequest, not FullHttpRequest
-            DefaultFullHttpRequest fullReq = new DefaultFullHttpRequest(httpReq.protocolVersion(), httpReq.method(),
-                    httpReq.uri());
-            fullReq.headers().add(httpReq.headers());
-            handshaker.handshake(ctx.channel(), (FullHttpRequest) fullReq);
+            handshaker.handshake(ctx.channel(), httpReq);
         }
     }
 }
