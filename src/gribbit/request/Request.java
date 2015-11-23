@@ -54,9 +54,9 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.io.File;
@@ -164,7 +164,7 @@ public class Request {
             this.method = HttpMethod.GET;
         }
 
-        this.isKeepAlive = HttpHeaderUtil.isKeepAlive(httpReq)
+        this.isKeepAlive = HttpUtil.isKeepAlive(httpReq)
                 && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
 
         CharSequence host = headers.get(HOST);
