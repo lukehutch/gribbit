@@ -31,8 +31,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Used on fields of DataModel objects, where the field is substituted (via a template parameter with the same name as
- * the field) into an attribute of a custom elements, where the attribute expects a URL as a value.
+ * Used on fields of DataModel objects, where the field is substituted (via a template parameter with the same name
+ * as the field) into an attribute of a custom elements, where the attribute expects a URL as a value.
  * 
  * For example, this attribute should be used in the following example:
  * 
@@ -52,13 +52,13 @@ import java.lang.annotation.Target;
  * Using this annotation on fields that are bound to URL-typepd parameter templates that are substituted into the
  * attributes of custom elements is useful for two reasons:
  * 
- * (1) Safety against XSS: Gribbit follows the OWASP recommendations to protect against XSS attacks by checking that all
- * URLs are correctly formatted before submitting into URL-typed attributes.
+ * (1) Safety against XSS: Gribbit follows the OWASP recommendations to protect against XSS attacks by checking that
+ * all URLs are correctly formatted before submitting into URL-typed attributes.
  * 
- * (2) Hash-caching: attributes that accept local URLs can be infinitely cached by hashing the contents of the resource
- * served at that URL. For custom elements, there is no way to know which values substituted into the custom elements
- * correspond to URLs, so this hash-caching cannot happen transparently, and the browser is left to request the resource
- * (or at least check its modification time) every time it is linked.
+ * (2) Hash-caching: attributes that accept local URLs can be infinitely cached by hashing the contents of the
+ * resource served at that URL. For custom elements, there is no way to know which values substituted into the
+ * custom elements correspond to URLs, so this hash-caching cannot happen transparently, and the browser is left to
+ * request the resource (or at least check its modification time) every time it is linked.
  * 
  * Note that this attribute is not used to check that the value of the annotated field is a valid URL during binding
  * from a POST request or before writing an object to the database, i.e. it is not a constraint annotation.

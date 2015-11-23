@@ -149,8 +149,8 @@ public class Database {
 
     /**
      * Register a subclass of DBModel with MongoJack. Not threadsafe (and cannot be run while readers are calling
-     * collectionForDBModel()), so should be called on all DBModel classes in a single pass on startup, before any other
-     * threads start running database queries.
+     * collectionForDBModel()), so should be called on all DBModel classes in a single pass on startup, before any
+     * other threads start running database queries.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static <T extends DBModel<K>, U extends DBModel, K> void registerDBModel(Class<U> dbModelClass) {
@@ -167,8 +167,8 @@ public class Database {
                 try {
                     Reflection.instantiateWithDefaultConstructor(dbModelClass);
                 } catch (Exception e) {
-                    throw new RuntimeException("Could not instantiate " + DBModel.class.getSimpleName() + " subclass "
-                            + dbModelClass.getName()
+                    throw new RuntimeException("Could not instantiate " + DBModel.class.getSimpleName()
+                            + " subclass " + dbModelClass.getName()
                             + " -- it needs to be public, it needs a zero-argument constructor if there "
                             + "are any other non-default constructors defined, and the class must be "
                             + "static if it is an inner class");
@@ -198,17 +198,18 @@ public class Database {
                 try {
                     // Get database collection based on collection name, and wrap it with a Jackson mapper to/from
                     // the DBModel class, indexed using the id field type.
-                	// N.B. MongoJack has not yet been updated from getDB to getDatabase and related methods
-                	// in the Mongo 3.x driver, so we still need to use the deprecated methods here.
+                    // N.B. MongoJack has not yet been updated from getDB to getDatabase and related methods
+                    // in the Mongo 3.x driver, so we still need to use the deprecated methods here.
                     @SuppressWarnings("deprecation")
-					JacksonDBCollection<T, K> collDeprecated = (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(
-                            mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName), dbModelClass,
-                            idType);
+                    JacksonDBCollection<T, K> collDeprecated = (JacksonDBCollection<T, K>) JacksonDBCollection
+                            .wrap(mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName),
+                                    dbModelClass, idType);
                     coll = collDeprecated;
                 } catch (Exception e) {
                     throw new RuntimeException(
                             "Failure during JacksonDBCollection.wrap(), this can be caused by having methods "
-                                    + "with the prefix \"get\" or \"set\". " + "Fields of " + DBModel.class.getName()
+                                    + "with the prefix \"get\" or \"set\". " + "Fields of "
+                                    + DBModel.class.getName()
                                     + " subclasses must be public, and getters/setters are not allowed.", e);
                 }
 
@@ -290,7 +291,8 @@ public class Database {
             // (We don't actually do anything with the field, we just try getting it to ensure it exists)
             dbModelClass.getField(fieldName);
         } catch (NoSuchFieldException e) {
-            throw new RuntimeException("Field \"" + fieldName + "\" is not a field of class " + dbModelClass.getName());
+            throw new RuntimeException("Field \"" + fieldName + "\" is not a field of class "
+                    + dbModelClass.getName());
         } catch (SecurityException e) {
             throw new RuntimeException("Field \"" + fieldName + "\" of class " + dbModelClass.getName()
                     + " is not accessible", e);
@@ -372,8 +374,8 @@ public class Database {
 
     /**
      * Find all objects in the database of the given type. NOTE: the entire result set is stored in an ArrayList and
-     * returned -- only when you know the result set is guaranteed to be small, otherwise you expose the server to an
-     * OOM attack.
+     * returned -- only when you know the result set is guaranteed to be small, otherwise you expose the server to
+     * an OOM attack.
      */
     public static <T extends DBModel<K>, K> ArrayList<T> findAll(Class<T> dbModelClass) {
         ArrayList<T> results = new ArrayList<>();

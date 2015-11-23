@@ -46,8 +46,8 @@ import org.jsoup.nodes.TextNode;
  * 
  * Can also be used to render custom dynamic HTML directly into a template if needed, although:
  * 
- * (1) Using sanitized HTML is slower than template rendering, because the HTML has to be parsed by Jsoup, cleaned of
- * illegal tags and escaped before it can be rendered into the template in string format.
+ * (1) Using sanitized HTML is slower than template rendering, because the HTML has to be parsed by Jsoup, cleaned
+ * of illegal tags and escaped before it can be rendered into the template in string format.
  * 
  * (2) Custom-generating dynamic HTML rather than creating a template is akin to the failure to separate content and
  * presentation (in this case, the failure to separate model and view). It is almost always better to create a new
@@ -65,10 +65,10 @@ public class SanitizedHTML {
      *            The unsafe HTML to sanitize.
      * @param tagAttrWhitelist
      *            A list of whitelisted elements that are allowed to take no attributes ("elt") and/or whitelisted
-     *            elements with whitelisted attributes ("a.href"). If null, the default of { "a.href", "br", "b", "i" }
-     *            is used. Note that the default intentionally does not include "img.src" because image sources can be
-     *            used to track the viewer, so if this HTML is user-supplied, users could track other users on the site
-     *            that view their content.
+     *            elements with whitelisted attributes ("a.href"). If null, the default of { "a.href", "br", "b",
+     *            "i" } is used. Note that the default intentionally does not include "img.src" because image
+     *            sources can be used to track the viewer, so if this HTML is user-supplied, users could track other
+     *            users on the site that view their content.
      */
     public SanitizedHTML(String unsafeHTML, String[] tagAttrWhitelist) {
         HashMap<String, HashSet<String>> whitelist = tagAttrWhitelist == null ? defaultWhitelist

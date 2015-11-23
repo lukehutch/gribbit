@@ -71,8 +71,8 @@ public class FlashMessage extends TemplateModel {
             + "</div>";
 
     /**
-     * Create a list of flash messages from a cookie string, or returns null if the cookie string is null or contains no
-     * valid flash messages.
+     * Create a list of flash messages from a cookie string, or returns null if the cookie string is null or
+     * contains no valid flash messages.
      */
     public static ArrayList<FlashMessage> fromCookieString(String flashMessagesCookieStr) {
         if (flashMessagesCookieStr == null || flashMessagesCookieStr.isEmpty()) {
@@ -109,7 +109,9 @@ public class FlashMessage extends TemplateModel {
         return flashMessages;
     }
 
-    /** Create the cookie string encoding for a list of flash messages, or returns null if the list is null or empty. */
+    /**
+     * Create the cookie string encoding for a list of flash messages, or returns null if the list is null or empty.
+     */
     public static String toCookieString(ArrayList<FlashMessage> flashMessages) {
         if (flashMessages == null || flashMessages.isEmpty()) {
             return null;
@@ -123,7 +125,8 @@ public class FlashMessage extends TemplateModel {
                     + "\t" //
                     + (flashMessage.strongText == null ? "" : StringUtils.normalizeSpacing(flashMessage.strongText) // 
                             + "\t" //
-                            + (flashMessage.message == null ? "" : StringUtils.normalizeSpacing(flashMessage.message))));
+                            + (flashMessage.message == null ? "" : StringUtils
+                                    .normalizeSpacing(flashMessage.message))));
         }
         return buf.toString();
     }

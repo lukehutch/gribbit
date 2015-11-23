@@ -50,9 +50,9 @@ import java.net.URI;
  * Note that WebSocket upgrade requests can only be made on routes that require authentication, and the user has to
  * first be logged in.
  * 
- * To initiate the WebSocket connection, append the following parameters to a route's URL: "?_ws=1&_csrf=..." (with the
- * CSRF token for the user in place of "...", which can be obtained from any form served by the template engine to an
- * authenticated user).
+ * To initiate the WebSocket connection, append the following parameters to a route's URL: "?_ws=1&_csrf=..." (with
+ * the CSRF token for the user in place of "...", which can be obtained from any form served by the template engine
+ * to an authenticated user).
  */
 public class WebSocketHandler {
 
@@ -157,8 +157,8 @@ public class WebSocketHandler {
         ctx.writeAndFlush(new TextWebSocketFrame(responseText));
     }
 
-    public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin, String csrfQueryParam,
-            User user, Route authorizedRoute) throws RequestHandlingException {
+    public WebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin,
+            String csrfQueryParam, User user, Route authorizedRoute) throws RequestHandlingException {
 
         if (user == null) {
             // Require users to be logged in before initiating WebSocket requests to mitigate DoS attacks

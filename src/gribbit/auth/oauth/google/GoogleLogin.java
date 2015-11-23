@@ -47,9 +47,9 @@ import gribbit.util.RequestBuilder;
 import java.time.ZonedDateTime;
 
 /**
- * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login. (i.e. The
- * route for this handler is "/oauth/google", but the additional URI param "login" should be provided after the route,
- * giving "/oauth/google/login".)
+ * Google OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/google/login. (i.e.
+ * The route for this handler is "/oauth/google", but the additional URI param "login" should be provided after the
+ * route, giving "/oauth/google/login".)
  * 
  * This route is also used for handling the OAuth2 callback, at /oauth/google/callback .
  */
@@ -69,8 +69,8 @@ public class GoogleLogin extends RouteHandler {
     }
 
     /**
-     * Check if a user's access token has expired or is about to expire, and if so, generate a new access token using
-     * the user's refresh token. Can be used by a web socket connection to keep a user's login alive.
+     * Check if a user's access token has expired or is about to expire, and if so, generate a new access token
+     * using the user's refresh token. Can be used by a web socket connection to keep a user's login alive.
      */
     public static void refreshAccessTokenIfNeeded(Request request, User user) throws RequestHandlingException {
         if (user == null) {
@@ -162,7 +162,7 @@ public class GoogleLogin extends RouteHandler {
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET.isEmpty()) {
             throw new NotFoundException(request);
         }
-        
+
         User user = null;
         String error = request.getQueryParam("error");
         if (error != null) {
@@ -196,7 +196,8 @@ public class GoogleLogin extends RouteHandler {
 
                     // The access token obtained from the authorization code
                     String accessToken = auth.access_token;
-                    long accessTokenExpiresInSeconds = auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in);
+                    long accessTokenExpiresInSeconds = auth.expires_in == null ? 0L : Long
+                            .parseLong(auth.expires_in);
                     if (accessToken == null || accessTokenExpiresInSeconds <= 0) {
                         // Should not happen, should always get an access token.
                         // On any result code other than 200 OK (e.g. 400 Bad Request / 401 Not Authorized),
@@ -260,12 +261,14 @@ public class GoogleLogin extends RouteHandler {
                             } else {
                                 // Redirect to wherever the user was trying to get before, and clear the redirect cookie
                                 redirException = new RedirectException(redirectOrigin);
-                                redirException.getErrorResponse().deleteCookie(Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
+                                redirException.getErrorResponse().deleteCookie(
+                                        Cookie.REDIRECT_AFTER_LOGIN_COOKIE_NAME);
                             }
 
                             if (user == null) {
                                 // There was no user with this email address -- create a new user
-                                user = User.createFederatedLoginUser(request, email, redirException.getErrorResponse());
+                                user = User.createFederatedLoginUser(request, email,
+                                        redirException.getErrorResponse());
 
                                 user.putData("name", userInfo.name);
                                 user.putData("givenName", userInfo.given_name);

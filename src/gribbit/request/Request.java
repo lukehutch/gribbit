@@ -103,9 +103,9 @@ public class Request {
     private Map<String, List<String>> queryParamToVals;
 
     /**
-     * The logged-in user, if the user is logged in (has a valid session cookie) and this request is for a route that
-     * requires authentication. Note that even if this field is set, the user still may be denied access to one or more
-     * routes, depending on route authentication requirements.
+     * The logged-in user, if the user is logged in (has a valid session cookie) and this request is for a route
+     * that requires authentication. Note that even if this field is set, the user still may be denied access to one
+     * or more routes, depending on route authentication requirements.
      */
     private User user;
 
@@ -128,8 +128,8 @@ public class Request {
     private CharSequence xRequestedWith;
 
     /**
-     * If set to true by appending "?_getmodel=1" to the URL, then return the data model backing an HTML page, not the
-     * rendered page itself.
+     * If set to true by appending "?_getmodel=1" to the URL, then return the data model backing an HTML page, not
+     * the rendered page itself.
      */
     private boolean isGetModelRequest;
 
@@ -164,8 +164,7 @@ public class Request {
             this.method = HttpMethod.GET;
         }
 
-        this.isKeepAlive = HttpUtil.isKeepAlive(httpReq)
-                && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
+        this.isKeepAlive = HttpUtil.isKeepAlive(httpReq) && httpReq.protocolVersion().equals(HttpVersion.HTTP_1_0);
 
         CharSequence host = headers.get(HOST);
         this.host = host == null ? null : host.toString();
@@ -187,12 +186,13 @@ public class Request {
         }
 
         CharSequence acceptEncoding = headers.get(ACCEPT_ENCODING);
-        this.acceptEncodingGzip = acceptEncoding != null && acceptEncoding.toString().toLowerCase().contains("gzip");
+        this.acceptEncodingGzip = acceptEncoding != null
+                && acceptEncoding.toString().toLowerCase().contains("gzip");
 
         CharSequence cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
         if (cacheDateHeader != null && cacheDateHeader.length() > 0) {
-            this.ifModifiedSinceEpochSecond = ZonedDateTime
-                    .parse(cacheDateHeader, DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
+            this.ifModifiedSinceEpochSecond = ZonedDateTime.parse(cacheDateHeader,
+                    DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
         }
 
         // If this is a hash URL, look up original URL whose served resource was hashed to give this hash URL.
@@ -211,9 +211,9 @@ public class Request {
      * Looks up the route for the request, and ensures the user is authorized to access the route, otherwise a
      * RequestHandlingException is thrown.
      * 
-     * This is performed in a separate step from the constructor so that a non-null Request object can still exist if
-     * any of the checks here fail and a RequestHandlingException is thrown, so that the constructor to the exception
-     * can accept a non-null Request object with the details of the request.
+     * This is performed in a separate step from the constructor so that a non-null Request object can still exist
+     * if any of the checks here fail and a RequestHandlingException is thrown, so that the constructor to the
+     * exception can accept a non-null Request object with the details of the request.
      */
     public void matchRoute() throws RequestHandlingException {
 
@@ -419,10 +419,10 @@ public class Request {
     };
 
     /**
-     * Get a collection of lists of cookies -- each list in the collection consists of one or more cookies, where all
-     * cookies in a list have the same name but different paths. (It is possible to receive multiple cookies with the
-     * same name in a request.) Cookie lists are ordered into decreasing order of path length to conform to a "SHOULD"
-     * clause in the HTTP header spec.
+     * Get a collection of lists of cookies -- each list in the collection consists of one or more cookies, where
+     * all cookies in a list have the same name but different paths. (It is possible to receive multiple cookies
+     * with the same name in a request.) Cookie lists are ordered into decreasing order of path length to conform to
+     * a "SHOULD" clause in the HTTP header spec.
      * 
      * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
      */
@@ -440,8 +440,8 @@ public class Request {
 
     /**
      * Get all cookies with the given name, or null if there are no cookies with this name. (There may be multiple
-     * cookies with the same name but with different paths.) The returned list is ordered into decreasing order of path
-     * length to conform to a "SHOULD" clause in the HTTP header spec.
+     * cookies with the same name but with different paths.) The returned list is ordered into decreasing order of
+     * path length to conform to a "SHOULD" clause in the HTTP header spec.
      * 
      * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
      */
@@ -458,8 +458,8 @@ public class Request {
     }
 
     /**
-     * Get a cookie by name, or null if there are no cookies with this name. If there is more than one cookie with the
-     * same name, return the cookie with the longest path.
+     * Get a cookie by name, or null if there are no cookies with this name. If there is more than one cookie with
+     * the same name, return the cookie with the longest path.
      * 
      * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
      */
@@ -473,8 +473,8 @@ public class Request {
     }
 
     /**
-     * Get the string value of a named cookie, or null if there are no cookies with this name. If there is more than one
-     * cookie with the same name, return the value of the one with the longest path.
+     * Get the string value of a named cookie, or null if there are no cookies with this name. If there is more than
+     * one cookie with the same name, return the value of the one with the longest path.
      * 
      * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
      */
@@ -490,8 +490,8 @@ public class Request {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see if
-     * the resource is newer than any cached version, returning true if so.
+     * Compare timestamp in the If-Modified-Since request header, if present, to the given resource timestamp to see
+     * if the resource is newer than any cached version, returning true if so.
      * 
      * If the If-Modified-Since header is not set, or the provided timestamp is zero, this method will return true,
      * indicating that the cached version is out of date and should be served (or served again).
@@ -513,7 +513,9 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
+    /**
+     * Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served.
+     */
     public void addFlashMessage(FlashMessage flashMessage) {
         if (flashMessages == null) {
             flashMessages = new ArrayList<>();
@@ -613,8 +615,8 @@ public class Request {
     }
 
     /**
-     * True if the request URL contained the query parameter "?_getmodel=1", in which case return the DataModel backing
-     * an HTML page, and not the rendered page itself.
+     * True if the request URL contained the query parameter "?_getmodel=1", in which case return the DataModel
+     * backing an HTML page, and not the rendered page itself.
      */
     public boolean isGetModelRequest() {
         return GribbitProperties.ALLOW_GET_MODEL && isGetModelRequest;
@@ -625,9 +627,10 @@ public class Request {
     }
 
     /**
-     * Set the user field based on the session cookie in the request. Performs a database lookup, so this is deferred so
-     * that routes that do not require authorization do not perform this lookup. Returns the User object for the user,
-     * if they are logged in. Caches the result across calls, so only performs the database lookup on the first call.
+     * Set the user field based on the session cookie in the request. Performs a database lookup, so this is
+     * deferred so that routes that do not require authorization do not perform this lookup. Returns the User object
+     * for the user, if they are logged in. Caches the result across calls, so only performs the database lookup on
+     * the first call.
      */
     public User lookupUser() {
         if (this.user == null) {

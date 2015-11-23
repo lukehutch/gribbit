@@ -33,14 +33,14 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 /**
  * This exception is thrown to redirect a user to another URL. This RequestHandlingException is special in that the
  * constructor does not optionally take an exception message, instead it takes the URI to redirect to, or a route
- * handler to redirect to, in the from of a Class<? extends RouteHandler> or RouteInfo object, optionally (in the static
- * factory methods) with parameters to append to the get() method's URI.
+ * handler to redirect to, in the from of a Class<? extends RouteHandler> or RouteInfo object, optionally (in the
+ * static factory methods) with parameters to append to the get() method's URI.
  */
 public class RedirectException extends RequestHandlingException {
 
     /**
-     * Redirect to a raw URL. Not recommended for site-local URLs; it's better to use one of the other constructors that
-     * takes a Route as a parameter.
+     * Redirect to a raw URL. Not recommended for site-local URLs; it's better to use one of the other constructors
+     * that takes a Route as a parameter.
      */
     public RedirectException(String redirectToURI) {
         super(new ErrorResponse(HttpResponseStatus.FOUND, "") //
@@ -62,8 +62,8 @@ public class RedirectException extends RequestHandlingException {
     }
 
     /**
-     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting URL
-     * params into the URL for the handler. Can call with zero urlParams if the handler takes no URI params.
+     * Redirect to the URL that the given RestHandler is annotated with (using the GET HTTP method), substituting
+     * URL params into the URL for the handler. Can call with zero urlParams if the handler takes no URI params.
      */
     public static void throwRedirectWithParams(Class<? extends RouteHandler> redirectToHandler, Object... urlParams)
             throws RedirectException {
@@ -71,8 +71,8 @@ public class RedirectException extends RequestHandlingException {
     }
 
     /**
-     * Redirect to a given route, substituting URL params into the URL for the handler. Can call with zero urlParams if
-     * the handler takes no URI params.
+     * Redirect to a given route, substituting URL params into the URL for the handler. Can call with zero urlParams
+     * if the handler takes no URI params.
      */
     public static void throwRedirectWithParams(Route redirectToRoute, Object... urlParams) throws RedirectException {
         throw new RedirectException(Route.forGet(redirectToRoute.getHandler(), (Object[]) urlParams));

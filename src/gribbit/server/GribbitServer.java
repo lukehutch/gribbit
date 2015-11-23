@@ -87,8 +87,8 @@ public class GribbitServer {
     public static LoginWhitelistChecker loginWhitelistChecker = null;
 
     /**
-     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise, they are able
-     * to log in if they can be authorized with OAuth2 or any other enabled login method.
+     * If checker is non-null, check that users are whitelisted before allowing them to log in. Otherwise, they are
+     * able to log in if they can be authorized with OAuth2 or any other enabled login method.
      */
     public static void setLoginWhitelistChecker(LoginWhitelistChecker checker) {
         loginWhitelistChecker = checker;
@@ -107,7 +107,8 @@ public class GribbitServer {
             // Failed to load site resources
             if (GribbitServer.siteResources == null) {
                 // This is the first time site resources have tried to load, can't start up web server
-                Log.exception("Exception during initial attempt to load site resources -- cannot start web server", e);
+                Log.exception("Exception during initial attempt to load site resources -- cannot start web server",
+                        e);
                 Log.error("EXITING");
                 System.exit(1);
             } else {
@@ -183,7 +184,8 @@ public class GribbitServer {
                             loadSiteResources(appPackageName);
                         }
                         GribbitServer.backgroundTaskGroup.schedule(this,
-                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+                                GribbitProperties.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS,
+                                TimeUnit.MILLISECONDS);
                     }
                 };
                 GribbitServer.backgroundTaskGroup.schedule(classpathChangeDetector,
@@ -214,7 +216,8 @@ public class GribbitServer {
                 if (OpenSsl.isAvailable()) {
                     try {
                         // Use OpenSSL if the netty-tcnative Maven artifact is available (it is 30% faster than JDK)
-                        sslCtx = SslContext.newServerContext(SslProvider.OPENSSL, ssc.certificate(), ssc.privateKey());
+                        sslCtx = SslContext.newServerContext(SslProvider.OPENSSL, ssc.certificate(),
+                                ssc.privateKey());
 
                         //                        certChainFile an X.509 certificate chain file in PEM format
                         //                        keyFile a PKCS#8 private key file in PEM format

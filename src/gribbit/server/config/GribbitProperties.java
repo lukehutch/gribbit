@@ -56,7 +56,7 @@ public class GribbitProperties {
 
     public static String OAUTH_GOOGLE_CLIENT_ID = properties.getProperty("oauth.google.client.id");
     public static String OAUTH_GOOGLE_CLIENT_SECRET = properties.getProperty("oauth.google.client.secret");
-    
+
     public static String OAUTH_FACEBOOK_CLIENT_ID = properties.getProperty("oauth.facebook.client.id");
     public static String OAUTH_FACEBOOK_CLIENT_SECRET = properties.getProperty("oauth.facebook.client.secret");
     // See https://developers.facebook.com/docs/facebook-login/permissions/v2.3
@@ -69,8 +69,10 @@ public class GribbitProperties {
     public static boolean ALLOW_WEBSOCKETS = PropertyUtils.getPropertyBoolean(properties, "websockets.allow", true);
 
     public static boolean CONTENT_GZIP = PropertyUtils.getPropertyBoolean(properties, "content.gzip", true);
-    public static boolean PRETTY_PRINT_HTML = PropertyUtils.getPropertyBoolean(properties, "prettyprint.html", true);
-    public static boolean PRETTY_PRINT_JSON = PropertyUtils.getPropertyBoolean(properties, "prettyprint.json", true);
+    public static boolean PRETTY_PRINT_HTML = PropertyUtils
+            .getPropertyBoolean(properties, "prettyprint.html", true);
+    public static boolean PRETTY_PRINT_JSON = PropertyUtils
+            .getPropertyBoolean(properties, "prettyprint.json", true);
 
     public static boolean ALLOW_GET_MODEL = PropertyUtils.getPropertyBoolean(properties, "_getmodel.allow", true);
 

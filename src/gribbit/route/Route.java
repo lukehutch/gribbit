@@ -70,10 +70,10 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * The default route authorizer. Routes must explicitly use a NoAuth annotation or set their own Authorizer using
-     * the Auth annotation if they want to override this. All other routes require the user to be logged in -- if the
-     * user is not logged in, an UnauthorizedException is thrown before this handler is even called. If the user is
-     * logged in, this default handler only throws a RegistrationNotYetCompletedException if
+     * The default route authorizer. Routes must explicitly use a NoAuth annotation or set their own Authorizer
+     * using the Auth annotation if they want to override this. All other routes require the user to be logged in --
+     * if the user is not logged in, an UnauthorizedException is thrown before this handler is even called. If the
+     * user is logged in, this default handler only throws a RegistrationNotYetCompletedException if
      * user.registrationIsComplete() is false.
      */
     private static class LoggedInAuthorizer implements Authorizer {
@@ -88,9 +88,9 @@ public class Route {
     }
 
     /**
-     * Call the Authorizer for this route, if any. Returns with no effect if the route does not require authorization,
-     * or if the authorization test passes. Throws a RequestHandlingException if the route requires authorization and
-     * the user is not logged in or is not authorized for the route.
+     * Call the Authorizer for this route, if any. Returns with no effect if the route does not require
+     * authorization, or if the authorization test passes. Throws a RequestHandlingException if the route requires
+     * authorization and the user is not logged in or is not authorized for the route.
      */
     public void throwExceptionIfNotAuthorized(Request request) throws RequestHandlingException {
         if (authorizer != null) {
@@ -152,7 +152,9 @@ public class Route {
                 // If handlers return HTML content, their response cannot be indefinitely cached, otherwise the
                 // hash URIs of their linked resources cannot be updated when their linked resources change.
                 if (maxAgeSeconds > 0 && response instanceof HTMLResponse) {
-                    Log.warning(handlerClass.getName() + " has annotation " + Cached.class.getName()
+                    Log.warning(handlerClass.getName()
+                            + " has annotation "
+                            + Cached.class.getName()
                             + " but returns HTML content, which cannot be indefinitely cached -- ignoring annotation");
                 } else {
                     if (maxAgeSeconds > 0) {
@@ -220,10 +222,10 @@ public class Route {
         // Check for a Cached annotation on the handler subinterface
         Cached cachedAnnotation = handlerClass.getAnnotation(Cached.class);
         if (cachedAnnotation != null) {
-            this.maxAgeSeconds = Math
-                    .min(cachedAnnotation.maxAgeSeconds() < 0L ? Long.MAX_VALUE : cachedAnnotation.maxAgeSeconds(),
-                            // Negative maxAgeSeconds => 1 year (effectively cached indefinitely)
-                            31536000);
+            this.maxAgeSeconds = Math.min(
+                    cachedAnnotation.maxAgeSeconds() < 0L ? Long.MAX_VALUE : cachedAnnotation.maxAgeSeconds(),
+                    // Negative maxAgeSeconds => 1 year (effectively cached indefinitely)
+                    31536000);
         }
 
         // Check for methods get() and post() in the handler subinterface
@@ -241,8 +243,8 @@ public class Route {
             // Check return type
             if ((isGet || isPost) && !Response.class.isAssignableFrom(method.getReturnType())) {
                 throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                        + " should have a return type of " + Response.class.getName() + " or a subclass, instead of "
-                        + method.getReturnType().getName());
+                        + " should have a return type of " + Response.class.getName()
+                        + " or a subclass, instead of " + method.getReturnType().getName());
             }
 
             // Get method parameter types
@@ -400,7 +402,8 @@ public class Route {
     /**
      * Call the get() or post() method for the Route corresponding to the request URI.
      * 
-     * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed etc.
+     * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed
+     * etc.
      */
     public Response callHandler(Request request) throws RequestHandlingException {
         Response response;
@@ -466,8 +469,8 @@ public class Route {
      * into the params in the URL template.
      * 
      * Can call this method with no urlParams if the handler takes no params for this httpMethod, otherwise list URL
-     * params in the varargs. URL params can be any type, and their toString() method will be called. Param values will
-     * be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not safe).
+     * params in the varargs. URL params can be any type, and their toString() method will be called. Param values
+     * will be URL-escaped (turned into UTF-8, then byte-escaped if the bytes are not safe).
      */
     private static String forMethod(HttpMethod httpMethod, Class<? extends RouteHandler> handlerClass,
             Object... urlParams) {
@@ -484,7 +487,8 @@ public class Route {
                 }
             }
             if (urlParams.length != handler.getParamTypes.length) {
-                throw new RuntimeException("Wrong number of URL params for method " + handlerClass.getName() + ".get()");
+                throw new RuntimeException("Wrong number of URL params for method " + handlerClass.getName()
+                        + ".get()");
             }
             // Build new fully-specified route from route stem and URL params 
             StringBuilder buf = new StringBuilder(handler.routePath);
@@ -551,8 +555,8 @@ public class Route {
     }
 
     /**
-     * Returns the post() method DataModel param object type. Returns null if this route handler does not have a post()
-     * method, or if the handler does have a post() method but the method doesn't take any parameters.
+     * Returns the post() method DataModel param object type. Returns null if this route handler does not have a
+     * post() method, or if the handler does have a post() method but the method doesn't take any parameters.
      */
     public Class<? extends DataModel> getPostParamType() {
         return postParamType;
@@ -574,8 +578,8 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Check if the passed URI matches this route, i.e. returns true if the handler corresponding to this route should
-     * handle the request.
+     * Check if the passed URI matches this route, i.e. returns true if the handler corresponding to this route
+     * should handle the request.
      */
     public boolean matches(String reqURI) {
         // Check if reqURI.equals(routePath) || reqURI.startsWith(routePath + "/"), without creating an intermediate

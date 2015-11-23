@@ -58,8 +58,8 @@ public class FieldChecker {
 
     private static abstract class FieldValueConstraintChecker {
         /**
-         * Check the field values of the DataModel against the constraint annotations for its class, possibly modifying
-         * the value of the field so that constraints are satisfied (e.g. normalizing spacing).
+         * Check the field values of the DataModel against the constraint annotations for its class, possibly
+         * modifying the value of the field so that constraints are satisfied (e.g. normalizing spacing).
          */
         public abstract void checkFieldsAgainstConstraints(Object object);
     }
@@ -68,9 +68,9 @@ public class FieldChecker {
 
     /**
      * Statically check types of the class' public fields against their data constraint annotations to make sure the
-     * annotations make sense given the types. Called during resource loading on all DataModel and TemplateModel objects
-     * found on the classpath. Also sets up constraint checkers for fast runtime checking of field values against
-     * constraints.
+     * annotations make sense given the types. Called during resource loading on all DataModel and TemplateModel
+     * objects found on the classpath. Also sets up constraint checkers for fast runtime checking of field values
+     * against constraints.
      * 
      * @throws RuntimeException
      *             if constraints don't match field types.
@@ -137,8 +137,8 @@ public class FieldChecker {
                     try {
                         regex = Pattern.compile(((Regex) field.getAnnotation(Regex.class)).regex());
                     } catch (PatternSyntaxException e) {
-                        throw new RuntimeException(Regex.class.getName() + " annotation on field " + klass.getName()
-                                + "." + fieldName + " is not a valid regular expression");
+                        throw new RuntimeException(Regex.class.getName() + " annotation on field "
+                                + klass.getName() + "." + fieldName + " is not a valid regular expression");
                     }
                 } else {
                     regex = null;
@@ -188,8 +188,8 @@ public class FieldChecker {
                                 if (strValue == null
                                 // Validate email addresses
                                         || !WebUtils.isValidEmailAddr(strValue)) {
-                                    throw new RuntimeException("Value of field " + klass.getName() + "." + fieldName
-                                            + " is not a valid email address"
+                                    throw new RuntimeException("Value of field " + klass.getName() + "."
+                                            + fieldName + " is not a valid email address"
                                             + (strValue == null ? ", its value is null" : ""));
                                 }
                             }
@@ -244,8 +244,8 @@ public class FieldChecker {
                                 }
                                 // All of @Required, @MinIntegerValue and @MaxIntegerValue require non-null values
                                 if (fieldValue == null) {
-                                    throw new RuntimeException("Required field " + klass.getName() + "." + fieldName
-                                            + " is null");
+                                    throw new RuntimeException("Required field " + klass.getName() + "."
+                                            + fieldName + " is null");
                                 }
                                 intValue = (Integer) fieldValue;
                             }
@@ -289,12 +289,14 @@ public class FieldChecker {
 
     /**
      * Returns true if the class declaring the field is not itself public, or if the field is not public, or if the
-     * field: (1) is abstract, static or final; (2) is the id field of a DBModel; (3) has the Private annotation, or (if
-     * checkPrivateSet is true) the PrivateSet annotation, or (if checkPrivateGet is true) the PrivateGet annotation.
+     * field: (1) is abstract, static or final; (2) is the id field of a DBModel; (3) has the Private annotation, or
+     * (if checkPrivateSet is true) the PrivateSet annotation, or (if checkPrivateGet is true) the PrivateGet
+     * annotation.
      * 
      * Fields annotated with Private in a DataModel instance, or id fields of a DBModel instance, cannot be rendered
-     * into a template, served as JSON or bound from a POST request, to ensure the value is never sent to the user if it
-     * shouldn't be, and/or cannot be set in a DBModel subclass by the user when they submit data in a POST request.
+     * into a template, served as JSON or bound from a POST request, to ensure the value is never sent to the user
+     * if it shouldn't be, and/or cannot be set in a DBModel subclass by the user when they submit data in a POST
+     * request.
      */
     public static boolean fieldIsPrivate(Field field, boolean checkPrivateGet, boolean checkPrivateSet) {
         if (field == null) {
@@ -352,8 +354,8 @@ public class FieldChecker {
     }
 
     /**
-     * Returns true if the Class's public fields consist only of basic types (builtins or their wrapper classes, String,
-     * LocalDate, enum, or FileUpload).
+     * Returns true if the Class's public fields consist only of basic types (builtins or their wrapper classes,
+     * String, LocalDate, enum, or FileUpload).
      */
     public static boolean isFlatModel(Class<?> klass) {
         for (Field formField : klass.getFields()) {

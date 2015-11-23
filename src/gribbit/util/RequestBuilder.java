@@ -111,16 +111,17 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices and
-     * values in the following odd indices), and parse the JSON result by mapping to a new object of the requested
-     * response type.
+     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices
+     * and values in the following odd indices), and parse the JSON result by mapping to a new object of the
+     * requested response type.
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be mapped to the response type.
      */
     public static <T> T postToURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
             throws IllegalArgumentException {
-        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */false);
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */
+                false);
         try {
             return JSONJackson.jsonToObject(jsonStr, responseType);
         } catch (Exception e) {
@@ -129,15 +130,17 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices and
-     * values in the following odd indices). Result is a json-simple object, see
+     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices
+     * and values in the following odd indices). Result is a json-simple object, see
      * https://code.google.com/p/json-simple/wiki/DecodingExamples
      * 
      * @throws IllegalArgumentException
      *             if request could not be completed or JSON could not be parsed.
      */
-    public static Object postToURLWithJSONResponse(String url, String... keyValuePairs) throws IllegalArgumentException {
-        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */false);
+    public static Object postToURLWithJSONResponse(String url, String... keyValuePairs)
+            throws IllegalArgumentException {
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */false, /* isBinaryResponse = */
+                false);
         try {
             return JSONValue.parse(jsonStr);
         } catch (Exception e) {
@@ -146,8 +149,8 @@ public class RequestBuilder {
     }
 
     /**
-     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices and
-     * values in the following odd indices). Returns the result as a string.
+     * Send a POST request to a given URL with the given key-value POST parameters (with keys in the even indices
+     * and values in the following odd indices). Returns the result as a string.
      */
     public static String postToURLWithStringResponse(String url, String... keyValuePairs)
             throws IllegalArgumentException {
@@ -173,7 +176,8 @@ public class RequestBuilder {
      */
     public static <T> T getFromURLWithJSONResponse(Class<T> responseType, String url, String... keyValuePairs)
             throws IllegalArgumentException {
-        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */false);
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */
+                false);
         try {
             return JSONJackson.jsonToObject(jsonStr, responseType);
         } catch (Exception e) {
@@ -191,7 +195,8 @@ public class RequestBuilder {
      */
     public static Object getFromURLWithJSONResponse(String url, String... keyValuePairs)
             throws IllegalArgumentException {
-        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */false);
+        String jsonStr = (String) makeRequest(url, keyValuePairs, /* isGET = */true, /* isBinaryResponse = */
+                false);
         try {
             return JSONValue.parse(jsonStr);
         } catch (Exception e) {

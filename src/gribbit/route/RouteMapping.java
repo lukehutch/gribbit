@@ -143,7 +143,8 @@ public class RouteMapping {
         }
         String path;
         if (buf.length() > 2
-                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(GribbitServer.appPackageName)) {
+                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(
+                        GribbitServer.appPackageName)) {
             path = buf.substring(GribbitServer.appPackageName.length() + 1);
         } else {
             path = buf.toString();
@@ -177,8 +178,8 @@ public class RouteMapping {
             String routeOverride = routeOverrideAnnotation == null ? null : routeOverrideAnnotation.value();
             if (routeOverride != null) {
                 if (!VALID_ROUTE_OVERRIDE.matcher(routeOverride).matches()) {
-                    throw new RuntimeException(RoutePath.class.getName() + " annotation on class " + handler.getName()
-                            + " has value \"" + routeOverride + "\" which is not a valid route");
+                    throw new RuntimeException(RoutePath.class.getName() + " annotation on class "
+                            + handler.getName() + " has value \"" + routeOverride + "\" which is not a valid route");
                 }
             }
 

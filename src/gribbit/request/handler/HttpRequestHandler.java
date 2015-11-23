@@ -441,7 +441,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     // get the newest content, just cached against the old hash URL.
                     int indefinitely = 31536000; // 1 year (max according to spec)
                     headers.set(CACHE_CONTROL, "public, max-age=" + indefinitely);
-                    headers.set(EXPIRES, timeNow.plusSeconds(indefinitely).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                    headers.set(EXPIRES,
+                            timeNow.plusSeconds(indefinitely).format(DateTimeFormatter.RFC_1123_DATE_TIME));
                     headers.set(ETAG, hashKey);
                 }
 
@@ -552,8 +553,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             // cookie lasts for, so that the messages should show up on the next full-page response.
             ArrayList<FlashMessage> flashMessages = request.getFlashMessages();
             if (flashMessages != null) {
-                response.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, "/",
-                        FlashMessage.toCookieString(flashMessages), 60));
+                response.setCookie(new Cookie(Cookie.FLASH_COOKIE_NAME, "/", FlashMessage
+                        .toCookieString(flashMessages), 60));
             }
         }
 
@@ -644,7 +645,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 // N.B. can set "Cache-Control: public", since the resource is hashed, so it can be served to other
                 // clients that request it (they would have to know the hash URL to request it in the first place).
                 headers.set(CACHE_CONTROL, "public, max-age=" + maxAgeSeconds);
-                headers.set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                headers.set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds)
+                        .format(DateTimeFormatter.RFC_1123_DATE_TIME));
                 headers.set(ETAG, request.getURLHashKey());
                 cached = true;
             }
@@ -744,8 +746,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         //                || status == HttpResponseStatus.FOUND //
         //                || (status == HttpResponseStatus.NOT_FOUND && !isFavicoReq)) {
         Log.fine(request.getRequestor() + "\t" + request.getMethod() + "\t" + request.getURLPathUnhashed() + "\t"
-                + response.getStatus() + "\t" + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis())
-                + " msec");
+                + response.getStatus() + "\t"
+                + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
         //        }
     }
 
@@ -753,8 +755,8 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
     /**
      * Basic plaintext Internal Server Error page. This is sent if an exception is thrown in the catch clause of the
-     * messageReceived method, i.e. if there was an exception while a response was being sent. This is the fallback if
-     * sendResponse() is failing for some reason.
+     * messageReceived method, i.e. if there was an exception while a response was being sent. This is the fallback
+     * if sendResponse() is failing for some reason.
      */
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

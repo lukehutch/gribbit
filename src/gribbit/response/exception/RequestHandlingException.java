@@ -130,8 +130,8 @@ public abstract class RequestHandlingException extends Exception {
     }
 
     /**
-     * Return the exception name without the "Exception" suffix, if present, and insert spaces at lowercase-uppercase
-     * transitions, i.e. "InternalServerErrorException" -> "Internal Server Error".
+     * Return the exception name without the "Exception" suffix, if present, and insert spaces at
+     * lowercase-uppercase transitions, i.e. "InternalServerErrorException" -> "Internal Server Error".
      */
     public String getResponseType() {
         String name = getClass().getSimpleName();

@@ -35,9 +35,9 @@ import java.security.NoSuchAlgorithmException;
 
 /**
  * Perform base 64 encoding that is compatible with URL and cookie encoding: replaces '+' with '-' and '/' with '_',
- * removes trailing '=' padding characters and prefixes the base 64 encoding with a single digit that gives the number
- * of padding characters removed. N.B. for "data:" URIs, regular Base64 encoding can be used unmodified, this class is
- * not needed.
+ * removes trailing '=' padding characters and prefixes the base 64 encoding with a single digit that gives the
+ * number of padding characters removed. N.B. for "data:" URIs, regular Base64 encoding can be used unmodified, this
+ * class is not needed.
  */
 public class Base64Safe {
 
@@ -103,8 +103,8 @@ public class Base64Safe {
     }
 
     /**
-     * Convert a URL/cookie-compatible base 64 encoded UTF8 string into a UTF8 byte array, then back into a Java UTF16
-     * String.
+     * Convert a URL/cookie-compatible base 64 encoded UTF8 string into a UTF8 byte array, then back into a Java
+     * UTF16 String.
      */
     public static String base64DecodeToString(String base64Safe) throws IllegalArgumentException {
         try {

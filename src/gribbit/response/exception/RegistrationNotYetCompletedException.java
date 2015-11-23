@@ -35,16 +35,17 @@ import gribbit.server.GribbitServer;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs their
- * email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the user does
- * later successfully log in, they'll end up where they were originally trying to go when they were denied access.
+ * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs
+ * their email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the
+ * user does later successfully log in, they'll end up where they were originally trying to go when they were denied
+ * access.
  */
 public class RegistrationNotYetCompletedException extends RequestHandlingException {
     /**
-     * This exception is thrown when a user tries to access a resource they are authorized to access, but which needs
-     * their email address to be validated before they are allowed to log in. Sets the redirect cookie so that if the
-     * user does later successfully log in, they'll end up where they were originally trying to go when they were denied
-     * access.
+     * This exception is thrown when a user tries to access a resource they are authorized to access, but which
+     * needs their email address to be validated before they are allowed to log in. Sets the redirect cookie so that
+     * if the user does later successfully log in, they'll end up where they were originally trying to go when they
+     * were denied access.
      */
     public RegistrationNotYetCompletedException(Request request) throws RequestHandlingException {
         Route customHandlerRoute = GribbitServer.siteResources.getUnauthorizedEmailNotValidatedRoute();

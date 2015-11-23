@@ -33,7 +33,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  */
 public class ForbiddenException extends RequestHandlingException {
     /**
-     * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
+     * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden
+     * method.
      */
     public ForbiddenException() {
         super(new ErrorResponse(HttpResponseStatus.FORBIDDEN, "Forbidden"));

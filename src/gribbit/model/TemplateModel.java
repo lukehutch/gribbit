@@ -94,8 +94,8 @@ public abstract class TemplateModel {
     }
 
     /**
-     * Wrapper for a vararg list or an array of content objects. This is needed so that individual TemplateModel objects
-     * and arrays of TemplateModel objects can both be supported in a typesafe way.
+     * Wrapper for a vararg list or an array of content objects. This is needed so that individual TemplateModel
+     * objects and arrays of TemplateModel objects can both be supported in a typesafe way.
      */
     public static class ContentArray extends TemplateModel {
         public TemplateModel[] contentList;
@@ -108,8 +108,8 @@ public abstract class TemplateModel {
     }
 
     /**
-     * Wrap a vararg list or array of TemplateModel objects into a single template that renders each of the arguments in
-     * sequence.
+     * Wrap a vararg list or array of TemplateModel objects into a single template that renders each of the
+     * arguments in sequence.
      */
     public static TemplateModel wrap(TemplateModel... contentArgs) {
         return new ContentArray(contentArgs);
@@ -148,9 +148,9 @@ public abstract class TemplateModel {
     }
 
     /**
-     * Append a text part to the buffer. If prettyPrint is true, and the buffer already ends in a space, and the text
-     * part starts in a space, skip initial spaces in the text part so as not to create a run of spaces, which can throw
-     * off indenting if the text is at the beginning of an indented line.
+     * Append a text part to the buffer. If prettyPrint is true, and the buffer already ends in a space, and the
+     * text part starts in a space, skip initial spaces in the text part so as not to create a run of spaces, which
+     * can throw off indenting if the text is at the beginning of an indented line.
      */
     private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint, StringBuilder buf) {
         CharSequence suffixAfterInitialSpaces = textPart;
@@ -269,8 +269,8 @@ public abstract class TemplateModel {
                     }
 
                     // Recursively render nested template
-                    wasIndented |= ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel, prettyPrint,
-                            buf);
+                    wasIndented |= ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel,
+                            prettyPrint, buf);
 
                 } else if (fieldType.isArray() || List.class.isAssignableFrom(fieldType)) {
                     if (isAttrVal) {
@@ -281,7 +281,8 @@ public abstract class TemplateModel {
                     // loaded, so we can assume the type of each element is TemplateModel.
                     boolean isArray = fieldType.isArray();
                     @SuppressWarnings("unchecked")
-                    List<? extends TemplateModel> list = isArray ? null : (List<? extends TemplateModel>) fieldValue;
+                    List<? extends TemplateModel> list = isArray ? null
+                            : (List<? extends TemplateModel>) fieldValue;
                     int n = isArray ? Array.getLength(fieldValue) : list.size();
                     // Render each item in the list or array
                     for (int i = 0; i < n; i++) {
@@ -308,7 +309,8 @@ public abstract class TemplateModel {
                     // (The concrete type parameter of all Class<?> fields were checked on template loading.)
                     @SuppressWarnings("unchecked")
                     Class<? extends RouteHandler> routeHandlerClass = (Class<? extends RouteHandler>) fieldValue;
-                    String uriForClass = GribbitServer.siteResources.routeForClass(routeHandlerClass).getRoutePath();
+                    String uriForClass = GribbitServer.siteResources.routeForClass(routeHandlerClass)
+                            .getRoutePath();
                     buf.append(uriForClass);
 
                 } else {
@@ -441,8 +443,8 @@ public abstract class TemplateModel {
     /**
      * Append a string representation of the attributes of an element to the buffer.
      * 
-     * Sets initial values of inputs in a form to the corresponding values in the passed DataModel, if the DataModel and
-     * its field with the same name as the "name" attribute of a form input are both non-null.
+     * Sets initial values of inputs in a form to the corresponding values in the passed DataModel, if the DataModel
+     * and its field with the same name as the "name" attribute of a form input are both non-null.
      */
     private void renderAttrs(Element e, Element enclosingForm, DataModel formModel, String selectName,
             String reqURLPath, int indentLevel, boolean prettyPrint, StringBuilder buf) {
@@ -606,8 +608,8 @@ public abstract class TemplateModel {
     }
 
     /**
-     * Recursively traverse the DOM of a template, rendering each node into HTML. Returns true if the node was indented
-     * (which happens when prettyPrint == true and the node or one of its children is a block element).
+     * Recursively traverse the DOM of a template, rendering each node into HTML. Returns true if the node was
+     * indented (which happens when prettyPrint == true and the node or one of its children is a block element).
      */
     private boolean renderDOMNode(Node node, Element enclosingForm, DataModel formModel, String selectName,
             String reqURLPath, boolean normalizeTextSpacing, int indentLevel, boolean prettyPrint, StringBuilder buf) {

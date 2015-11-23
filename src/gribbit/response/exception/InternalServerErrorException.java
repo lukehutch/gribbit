@@ -82,7 +82,8 @@ public class InternalServerErrorException extends RequestHandlingException {
             // Set status code in case custom handler forgets to set it
             this.errorResponse.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
         } else {
-            this.errorResponse = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error");
+            this.errorResponse = new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                    "Internal Server Error");
         }
     }
 }

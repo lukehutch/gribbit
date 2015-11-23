@@ -48,9 +48,9 @@ import java.time.ZonedDateTime;
 import org.json.simple.JSONObject;
 
 /**
- * Facebook OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/facebook/login. (i.e.
- * the route for this handler is "/oauth/facebook", but the additional URI param "login" should be provided after the
- * route, giving "/oauth/facebook/login".)
+ * Facebook OAuth2 provider. To use this, your Login button should send the user to the URL /oauth/facebook/login.
+ * (i.e. the route for this handler is "/oauth/facebook", but the additional URI param "login" should be provided
+ * after the route, giving "/oauth/facebook/login".)
  * 
  * This route is also used for handling the OAuth2 callback, at /oauth/facebook/callback .
  */
@@ -204,10 +204,12 @@ public class FacebookLogin extends RouteHandler {
     // handle the OAuth2 callback after successful authentication.
     public Response get(String action) throws RequestHandlingException {
         // Throw 404 if OAuth2 params are not configured 
-        if (GribbitProperties.OAUTH_FACEBOOK_CLIENT_ID == null || GribbitProperties.OAUTH_FACEBOOK_CLIENT_ID.isEmpty()
+        if (GribbitProperties.OAUTH_FACEBOOK_CLIENT_ID == null
+                || GribbitProperties.OAUTH_FACEBOOK_CLIENT_ID.isEmpty()
                 || GribbitProperties.OAUTH_FACEBOOK_CLIENT_SECRET == null
                 || GribbitProperties.OAUTH_FACEBOOK_CLIENT_SECRET.isEmpty()
-                || GribbitProperties.OAUTH_FACEBOOK_SCOPE == null || GribbitProperties.OAUTH_FACEBOOK_SCOPE.isEmpty()) {
+                || GribbitProperties.OAUTH_FACEBOOK_SCOPE == null
+                || GribbitProperties.OAUTH_FACEBOOK_SCOPE.isEmpty()) {
             throw new NotFoundException(request);
         }
 
@@ -259,7 +261,8 @@ public class FacebookLogin extends RouteHandler {
                     }
 
                     String accessToken = auth.access_token;
-                    long accessTokenExpiresInSeconds = auth.expires_in == null ? 0L : Long.parseLong(auth.expires_in);
+                    long accessTokenExpiresInSeconds = auth.expires_in == null ? 0L : Long
+                            .parseLong(auth.expires_in);
                     if (accessToken == null || accessTokenExpiresInSeconds <= 0) {
                         // Should not happen, should always get an access token.
                         // On any result code other than 200 OK (e.g. 400 Bad Request / 401 Not Authorized),

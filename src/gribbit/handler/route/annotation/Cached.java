@@ -36,33 +36,33 @@ import java.lang.annotation.Target;
  * minutes.
  * 
  * In practical terms, if this header is present, the response will be served on a hashURI to all clients, and the
- * MD5-hashcode will be re-computed in the background when some client requests this resource at a minimum interval of
- * maxAgeSeconds.
+ * MD5-hashcode will be re-computed in the background when some client requests this resource at a minimum interval
+ * of maxAgeSeconds.
  * 
  * This annotation will cause the following behavior:
  * 
- * (1) The Last-Modified header will be set to the current server time on the current response, and that will be checked
- * against
+ * (1) The Last-Modified header will be set to the current server time on the current response, and that will be
+ * checked against
  * 
- * The server will subsequently return "Not Modified" to the same client for this resource until the specified duration
- * is complete, if the resource is fetched directly (not by a hash URI)
+ * The server will subsequently return "Not Modified" to the same client for this resource until the specified
+ * duration is complete, if the resource is fetched directly (not by a hash URI)
  * 
  * (2) will schedule the response object for this resource for subsequent hashing, generating a hash URI;
  * 
- * (3) once the hashing is complete, will cause the server to start to substitute the hash URI for the resource in place
- * of the resource's original URI in href/src fields of all served HTML content, with indefinite (i.e. 1 year) cache
- * expiry;
+ * (3) once the hashing is complete, will cause the server to start to substitute the hash URI for the resource in
+ * place of the resource's original URI in href/src fields of all served HTML content, with indefinite (i.e. 1 year)
+ * cache expiry;
  * 
  * (4) after the maxAgeSeconds time period is up, will cause the server to re-hash the resource.
  * 
  * Important notes:
  * 
- * (i) This header should only be added to route handlers whose content does not depend upon the identity of the user,
- * because URI hashing is not user-dependent.
+ * (i) This header should only be added to route handlers whose content does not depend upon the identity of the
+ * user, because URI hashing is not user-dependent.
  * 
- * (ii) If this annotation is added to a route handlers that returns an HTMLResponse, the annotation is ignored, because
- * HTML responses cannot be indefinitely cached, otherwise the hash URIs of their linked resources would not be able to
- * be updated when the linked resources change.
+ * (ii) If this annotation is added to a route handlers that returns an HTMLResponse, the annotation is ignored,
+ * because HTML responses cannot be indefinitely cached, otherwise the hash URIs of their linked resources would not
+ * be able to be updated when the linked resources change.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

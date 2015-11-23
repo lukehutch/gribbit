@@ -51,12 +51,12 @@ import java.util.HashSet;
 public abstract class DataModel {
 
     /**
-     * Bind formModelInstance data object from an HTTP request. The name of each field in formModelInstance object is
-     * looked up in the POST parameters. If the named value is found, it is trimmed (unless annotated with NoTrim), and
-     * integers etc. are parsed as needed before the value is stored in the field. Fields marked with Required
-     * constraint have to not only not be null, but also not be empty after trimming. Note that any constraint such as
-     * MinLength also implies Required. (NormalizeSpacing is a data transformation annotation, not a constraint, so it
-     * will only be applied if a value is provided.)
+     * Bind formModelInstance data object from an HTTP request. The name of each field in formModelInstance object
+     * is looked up in the POST parameters. If the named value is found, it is trimmed (unless annotated with
+     * NoTrim), and integers etc. are parsed as needed before the value is stored in the field. Fields marked with
+     * Required constraint have to not only not be null, but also not be empty after trimming. Note that any
+     * constraint such as MinLength also implies Required. (NormalizeSpacing is a data transformation annotation,
+     * not a constraint, so it will only be applied if a value is provided.)
      * 
      * @param request
      *            The HTTP request
@@ -209,8 +209,8 @@ public abstract class DataModel {
                             + fieldName + " from the request");
 
                 } catch (IllegalArgumentException | IllegalAccessException e) {
-                    throw new InternalServerErrorException(request, "Could not set field " + getClass().getName() + "."
-                            + fieldName + " to the value passed in the request", e);
+                    throw new InternalServerErrorException(request, "Could not set field " + getClass().getName()
+                            + "." + fieldName + " to the value passed in the request", e);
                 }
             }
         }
@@ -234,8 +234,8 @@ public abstract class DataModel {
 
     /**
      * Render this DataModel as JSON, skipping fields marked with @Private or @OnlyReceive, and id fields of DBModel
-     * objects. This produces a JSON rendering that may be served over a Web connection without exposing internal server
-     * state.
+     * objects. This produces a JSON rendering that may be served over a Web connection without exposing internal
+     * server state.
      */
     public String toJSON() {
         return JSON.toJSON(this);

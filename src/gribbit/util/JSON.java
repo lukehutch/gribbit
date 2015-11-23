@@ -38,9 +38,9 @@ import java.util.Map.Entry;
 
 public class JSON {
     /**
-     * Recursively render JSON, skipping fields marked with Private or PrivateGet annotations, and id fields of DBModel
-     * objects. This produces a JSON rendering that may be served over a Web connection without exposing internal server
-     * state. It's lighter-weight and faster than other introspection-based JSON renderers.
+     * Recursively render JSON, skipping fields marked with Private or PrivateGet annotations, and id fields of
+     * DBModel objects. This produces a JSON rendering that may be served over a Web connection without exposing
+     * internal server state. It's lighter-weight and faster than other introspection-based JSON renderers.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void toJSONRec(Object obj, boolean prettyPrint, int depth, StringBuilder buf) {
@@ -255,8 +255,8 @@ public class JSON {
 
     /**
      * Recursively render an Object (or array, list, map or set of objects) as JSON, skipping fields marked with the
-     * annotations Private or PrivateGet, and id fields of DBModel objects. This produces a JSON rendering that may be
-     * served over a Web connection without exposing internal server state.
+     * annotations Private or PrivateGet, and id fields of DBModel objects. This produces a JSON rendering that may
+     * be served over a Web connection without exposing internal server state.
      */
     public static String toJSON(Object obj, boolean prettyPrint) {
         StringBuilder buf = new StringBuilder(8192);
@@ -266,8 +266,8 @@ public class JSON {
 
     /**
      * Recursively render an Object (or array, list, map or set of objects) as JSON, skipping fields marked with the
-     * annotations Private or PrivateGet, and id fields of DBModel objects. This produces a JSON rendering that may be
-     * served over a Web connection without exposing internal server state.
+     * annotations Private or PrivateGet, and id fields of DBModel objects. This produces a JSON rendering that may
+     * be served over a Web connection without exposing internal server state.
      */
     public static String toJSON(Object obj) {
         return toJSON(obj, GribbitProperties.PRETTY_PRINT_JSON);

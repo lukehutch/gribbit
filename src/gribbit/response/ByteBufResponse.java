@@ -29,7 +29,10 @@ import gribbit.request.Request;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-/** Cached ByteBuf response. This is for internal use only, it is XSS-unsafe because the content is in no way escaped. */
+/**
+ * Cached ByteBuf response. This is for internal use only, it is XSS-unsafe because the content is in no way
+ * escaped.
+ */
 public class ByteBufResponse extends Response {
 
     private String contentType;

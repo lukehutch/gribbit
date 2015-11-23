@@ -102,7 +102,8 @@ public class Cookie {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie. if maxAgeSeconds == Long.MIN_VALUE, cookie expires at end of session. Otherwise, if maxAgeSeconds <= 0, cookieValue is ignored and replaced with "" (cookie has already expired). 
+     * Create a cookie. if maxAgeSeconds == Long.MIN_VALUE, cookie expires at end of session. Otherwise, if
+     * maxAgeSeconds <= 0, cookieValue is ignored and replaced with "" (cookie has already expired).
      */
     public Cookie(String name, String path, String cookieValue, long maxAgeSeconds) {
         this.name = name;
@@ -122,8 +123,8 @@ public class Cookie {
     }
 
     /**
-     * Create a cookie with path unset (meaning, according to the HTTP spec, it will default to the path of the object
-     * currently being requested).
+     * Create a cookie with path unset (meaning, according to the HTTP spec, it will default to the path of the
+     * object currently being requested).
      */
     public Cookie(String name, String cookieValue, long maxAgeInSeconds) {
         this(name, null, cookieValue, maxAgeInSeconds);
@@ -132,8 +133,8 @@ public class Cookie {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in this
-     * case, ignore the cookie).
+     * Parse a cookie from a Netty Cookie. Will throw an exception if cookie decoding failed for some reason (in
+     * this case, ignore the cookie).
      */
     public Cookie(io.netty.handler.codec.http.cookie.Cookie nettyCookie) {
         this.name = nettyCookie.name();
@@ -144,7 +145,8 @@ public class Cookie {
 
     /** Create a Netty cookie from this Cookie object. */
     private io.netty.handler.codec.http.cookie.Cookie toNettyCookie() {
-        io.netty.handler.codec.http.cookie.Cookie nettyCookie = new DefaultCookie(name, WebUtils.escapeCookieValue(value));
+        io.netty.handler.codec.http.cookie.Cookie nettyCookie = new DefaultCookie(name,
+                WebUtils.escapeCookieValue(value));
         if (path != null && !path.isEmpty()) {
             nettyCookie.setPath(path);
         }
@@ -161,9 +163,9 @@ public class Cookie {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Create a cookie that, if set in response, overwrites and deletes the named cookie (by setting maxAgeSeconds to
-     * zero). Have to specify the path since there can be multiple cookies with the same name but with different paths;
-     * this will only delete the cookie with the matching path.
+     * Create a cookie that, if set in response, overwrites and deletes the named cookie (by setting maxAgeSeconds
+     * to zero). Have to specify the path since there can be multiple cookies with the same name but with different
+     * paths; this will only delete the cookie with the matching path.
      */
     public static Cookie deleteCookie(String name, String path) {
         return new Cookie(name, path, "", 0);
@@ -180,7 +182,8 @@ public class Cookie {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Get the cookie as an HTTP header string, including all cookie headers, with the value escaped or base64-encoded.
+     * Get the cookie as an HTTP header string, including all cookie headers, with the value escaped or
+     * base64-encoded.
      */
     @Override
     public String toString() {
@@ -206,14 +209,15 @@ public class Cookie {
     public boolean hasExpired() {
         return maxAgeSeconds <= 0 && maxAgeSeconds != Long.MIN_VALUE;
     }
-    
+
     // -----------------------------------------------------------------------------------------------------
-    
+
     /** Parse and decode/decrypt cookies from HTTP headers. */
     public static HashMap<String, ArrayList<Cookie>> decodeCookieHeaders(Iterable<CharSequence> cookieHeaders) {
-    	HashMap<String, ArrayList<Cookie>> cookieNameToCookies = null;
+        HashMap<String, ArrayList<Cookie>> cookieNameToCookies = null;
         for (CharSequence cookieHeader : cookieHeaders) {
-            for (io.netty.handler.codec.http.cookie.Cookie nettyCookie : ServerCookieDecoder.STRICT.decode(cookieHeader.toString())) {
+            for (io.netty.handler.codec.http.cookie.Cookie nettyCookie : ServerCookieDecoder.STRICT
+                    .decode(cookieHeader.toString())) {
                 // Log.fine("Cookie in request: " + nettyCookie);
                 if (cookieNameToCookies == null) {
                     cookieNameToCookies = new HashMap<>();
@@ -231,5 +235,5 @@ public class Cookie {
         }
         return cookieNameToCookies;
     }
-    
+
 }

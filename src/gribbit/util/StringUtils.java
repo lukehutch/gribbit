@@ -140,8 +140,8 @@ public class StringUtils {
     }
 
     /**
-     * Turn runs of one or more Unicode whitespace characters into a single space, with the exception of non-breaking
-     * spaces, which are left alone (i.e. they are not absorbed into runs of whitespace).
+     * Turn runs of one or more Unicode whitespace characters into a single space, with the exception of
+     * non-breaking spaces, which are left alone (i.e. they are not absorbed into runs of whitespace).
      */
     public static final String normalizeSpacing(String val) {
         boolean prevWasWS = false, needToNormalize = false;
@@ -182,9 +182,9 @@ public class StringUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * String splitter, this fixes the problem that String.split() has of losing the last token if it's empty. It also
-     * uses CharSequences rather than allocating new String objects. Also faster than String.split() because it doesn't
-     * support regular expressions.
+     * String splitter, this fixes the problem that String.split() has of losing the last token if it's empty. It
+     * also uses CharSequences rather than allocating new String objects. Also faster than String.split() because it
+     * doesn't support regular expressions.
      */
     public static ArrayList<CharSequence> splitAsList(String str, String sep) {
         int strLen = str.length();
@@ -249,8 +249,8 @@ public class StringUtils {
     }
 
     /**
-     * Stringify elements of an Iterable, inserting a delimiter between adjacent elements after first applying a given
-     * map function to each element.
+     * Stringify elements of an Iterable, inserting a delimiter between adjacent elements after first applying a
+     * given map function to each element.
      */
     public static <T> String join(Iterable<T> iterable, String delim, StringToStringMapper mapper) {
         if (iterable == null) {
@@ -299,8 +299,8 @@ public class StringUtils {
     }
 
     /**
-     * Stringify elements of an Iterable, inserting ", " as a delimiter between adjacent elements after first sorting
-     * the elements into lexicographic order.
+     * Stringify elements of an Iterable, inserting ", " as a delimiter between adjacent elements after first
+     * sorting the elements into lexicographic order.
      */
     public static <T extends Comparable<T>> String joinCommaSeparatedSorted(Iterable<T> iterable) {
         if (iterable == null) {

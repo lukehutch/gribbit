@@ -33,7 +33,8 @@ public class PropertyUtils {
             opt = opt.toLowerCase().trim();
             if (opt.equals("1") || opt.equals("true") || opt.equals("t") || opt.equals("yes") || opt.equals("y")) {
                 return true;
-            } else if (opt.equals("0") || opt.equals("false") || opt.equals("f") || opt.equals("no") || opt.equals("n")) {
+            } else if (opt.equals("0") || opt.equals("false") || opt.equals("f") || opt.equals("no")
+                    || opt.equals("n")) {
                 return false;
             } else {
                 Log.warning("Unrecognized property value: " + propName + "="

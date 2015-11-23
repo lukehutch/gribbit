@@ -25,9 +25,9 @@
  */
 package gribbit.util;
 
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
-import static io.netty.handler.codec.http.HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.thirdparty.UTF8;
@@ -46,9 +46,9 @@ import java.util.regex.Pattern;
 public class WebUtils {
 
     /**
-     * Pattern for valid id or name attribute values. NB '.' and ':' are also technically allowed in the standard, but
-     * they cause problems with jQuery, so they are disallowed here. Also note that both character cases are allowed,
-     * but browsers may not handle case sensitivity correctly in all related contexts. See
+     * Pattern for valid id or name attribute values. NB '.' and ':' are also technically allowed in the standard,
+     * but they cause problems with jQuery, so they are disallowed here. Also note that both character cases are
+     * allowed, but browsers may not handle case sensitivity correctly in all related contexts. See
      * http://stackoverflow.com/questions/70579/what-are-valid-values-for-the-id-attribute-in-html .
      */
     public static final Pattern VALID_HTML_NAME_OR_ID = Pattern.compile("[a-zA-Z][\\w\\-]*");
@@ -56,8 +56,8 @@ public class WebUtils {
     /**
      * Pattern for CSS class name (includes ' ', because class attributes can list multiple classes).
      * 
-     * NB CSS class names can start with '-' or '_', but this is technically reserved for vendor-specific extensions, so
-     * we don't allow that here.
+     * NB CSS class names can start with '-' or '_', but this is technically reserved for vendor-specific
+     * extensions, so we don't allow that here.
      */
     public static final Pattern VALID_CSS_ID = Pattern
             .compile("\\s*[a-zA-Z][_a-zA-Z0-9\\-]*(\\s+[a-zA-Z][_a-zA-Z0-9\\-]*)*\\s*");
@@ -65,9 +65,9 @@ public class WebUtils {
     /**
      * Pattern for valid email address: from http://www.regular-expressions.info/email.html .
      * 
-     * N.B. this is different than the validation performed by Chrome's type="email" form field validation (it pretty
-     * much only requires an '@' character somewhere), so it's possible to submit form data like "x@y" that passes
-     * Chrome's validation but fails serverside validation.
+     * N.B. this is different than the validation performed by Chrome's type="email" form field validation (it
+     * pretty much only requires an '@' character somewhere), so it's possible to submit form data like "x@y" that
+     * passes Chrome's validation but fails serverside validation.
      */
     public static final Pattern VALID_EMAIL_ADDRESS = Pattern
             .compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
@@ -76,14 +76,15 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /** HTML tags that should not be closed. http://www.w3.org/TR/html-markup/syntax.html#void-element */
-    public static final HashSet<String> VOID_ELEMENTS = toSet(new String[] { "area", "base", "br", "col", "command",
-            "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr", "!doctype",
-            "!DOCTYPE" });
+    public static final HashSet<String> VOID_ELEMENTS = toSet(new String[] { "area", "base", "br", "col",
+            "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr",
+            "!doctype", "!DOCTYPE" });
 
     /** HTML inline elements. https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente */
     public static final HashSet<String> INLINE_ELEMENTS = toSet(new String[] { "a", "abbr", "acronym", "b", "bdo",
-            "big", "br", "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd", "label", "map", "object",
-            "q", "samp", "select", "small", "span", "strong", "sub", "sup", "textarea", "title", "tt", "var" });
+            "big", "br", "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd", "label", "map",
+            "object", "q", "samp", "select", "small", "span", "strong", "sub", "sup", "textarea", "title", "tt",
+            "var" });
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -91,15 +92,15 @@ public class WebUtils {
      * HTML5 attributes that can take a URL: http://stackoverflow.com/questions/2725156/complete-list-of-html
      * -tag-attributes-which-have-a-url-value
      * 
-     * (Applet and object tags are rejected during template loading, so those tags' attributes are not listed here, but
-     * they also take URL params.)
+     * (Applet and object tags are rejected during template loading, so those tags' attributes are not listed here,
+     * but they also take URL params.)
      */
-    private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = toMap(new String[] { "a.href", "area.href",
-            "base.href", "blockquote.cite", "body.background", "del.cite", "form.action", "frame.longdesc",
-            "frame.src", "head.profile", "iframe.longdesc", "iframe.src", "img.longdesc", "img.src", "img.usemap",
-            "input.src", "input.usemap", "ins.cite", "link.href", "q.cite", "script.src", "audio.src",
-            "button.formaction", "command.icon", "embed.src", "html.manifest", "input.formaction", "source.src",
-            "video.poster", "video.src" }, ".");
+    private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = toMap(new String[] { "a.href",
+            "area.href", "base.href", "blockquote.cite", "body.background", "del.cite", "form.action",
+            "frame.longdesc", "frame.src", "head.profile", "iframe.longdesc", "iframe.src", "img.longdesc",
+            "img.src", "img.usemap", "input.src", "input.usemap", "ins.cite", "link.href", "q.cite", "script.src",
+            "audio.src", "button.formaction", "command.icon", "embed.src", "html.manifest", "input.formaction",
+            "source.src", "video.poster", "video.src" }, ".");
 
     /** Return true if the given HTML attribute takes a URL as a value */
     public static boolean isURLAttr(String tagName, String attrName) {
@@ -108,8 +109,8 @@ public class WebUtils {
     }
 
     /**
-     * Add a URL-typed attribute (used for adding attributes from custom elements or Polymer elements that take a URL
-     * parameter, and therefore should be checked for URI validity).
+     * Add a URL-typed attribute (used for adding attributes from custom elements or Polymer elements that take a
+     * URL parameter, and therefore should be checked for URI validity).
      */
     public static void addCustomURLAttr(String customElementName, String attrName) {
         HashSet<String> set = URL_ELT_ATTRS.get(customElementName);
@@ -157,7 +158,7 @@ public class WebUtils {
             { "mp3", "audio/mpeg" }, //
             { "wav", "audio/x-wav" }, //
             { "csv", "text/comma-separated-values" }, //
-            
+
             // Font types:
             { "ttf", "application/x-font-ttf" }, //
             { "ttc", "application/x-font-ttf" }, //
@@ -168,8 +169,8 @@ public class WebUtils {
             { "sfnt", "application/font-sfnt" }, //
     });
 
-    private static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "ttf", "ttc", "otf", "woff", "woff2",
-            "eot", "sfnt" });
+    private static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "ttf", "ttc", "otf", "woff",
+            "woff2", "eot", "sfnt" });
 
     public static void setContentTypeHeaders(HttpHeaders headers, String path) {
         // Default, if unknown
@@ -200,7 +201,8 @@ public class WebUtils {
                 && !contentType.isEmpty()
                 && (contentType.startsWith("text/") || contentType.startsWith("application/javascript")
                         || contentType.startsWith("application/json") || contentType.startsWith("application/xml")
-                        || contentType.startsWith("image/svg+xml") || contentType.startsWith("application/x-font-ttf"));
+                        || contentType.startsWith("image/svg+xml") || contentType
+                            .startsWith("application/x-font-ttf"));
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -209,9 +211,9 @@ public class WebUtils {
     private static final Pattern EXTERNAL_URI = Pattern.compile("^((data:)|(http[s]?:))?\\/\\/.*");
 
     /**
-     * Returns true if the URL is not null, empty or "#", but starts with "data:" or "http[s]:", and does not contain an
-     * unexpanded template parameter "${...}" (which could lead to vulnerabilities given a carefully-crafted URL
-     * parameter).
+     * Returns true if the URL is not null, empty or "#", but starts with "data:" or "http[s]:", and does not
+     * contain an unexpanded template parameter "${...}" (which could lead to vulnerabilities given a
+     * carefully-crafted URL parameter).
      */
     public static boolean isLocalURL(String hrefURI) {
         return
@@ -379,8 +381,8 @@ public class WebUtils {
     }
 
     /**
-     * Build a string of escaped URL query param key-value pairs. Keys are in even indices, values are in the following
-     * odd indices. The keys and values are URL-escaped and concatenated with '&' as a delimiter.
+     * Build a string of escaped URL query param key-value pairs. Keys are in even indices, values are in the
+     * following odd indices. The keys and values are URL-escaped and concatenated with '&' as a delimiter.
      */
     public static String buildQueryString(String... keyValuePairs) {
         if (keyValuePairs == null || keyValuePairs.length == 0) {
@@ -391,15 +393,15 @@ public class WebUtils {
             if (buf.length() > 0) {
                 buf.append("&");
             }
-            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "",
-                    buf);
+            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1]
+                    : "", buf);
         }
         return buf.toString();
     }
 
     /**
-     * Split a URI into pieces and encode each piece appropriately to make it safe for use as an HTML attribute value.
-     * See:
+     * Split a URI into pieces and encode each piece appropriately to make it safe for use as an HTML attribute
+     * value. See:
      * 
      * https://www.owasp.org/index.php/XSS_(Cross_Site_Scripting)_Prevention_Cheat_Sheet#RULE_
      * .235_-_URL_Escape_Before_Inserting_Untrusted_Data_into_HTML_URL_Parameter_Values
@@ -486,8 +488,8 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Encode (percent-escape) any illegal characters (or UTF-8 bytes of non-ASCII characters) in a PLAIN-type cookie
-     * value.
+     * Encode (percent-escape) any illegal characters (or UTF-8 bytes of non-ASCII characters) in a PLAIN-type
+     * cookie value.
      * 
      * See: http://stackoverflow.com/questions/1969232/allowed-characters-in-cookies
      * 
@@ -534,10 +536,10 @@ public class WebUtils {
      *            The string to escape to make HTML-safe.
      * 
      * @param escapeAmpersand
-     *            If ALWAYS, turn '&' into "&amp;". If IF_NOT_VALID_ENTITY, leave ampersands in place (i.e. assume they
-     *            are already valid entity references of the form "&lt;", but if they don't validate as valid entity
-     *            references, e.g. "H&M", then escape them (=> "H&amp;M"). If NEVER, leave '&' as it is -- this could be
-     *            used to force ampersands to be left alone, e.g. in URL attribute values.
+     *            If ALWAYS, turn '&' into "&amp;". If IF_NOT_VALID_ENTITY, leave ampersands in place (i.e. assume
+     *            they are already valid entity references of the form "&lt;", but if they don't validate as valid
+     *            entity references, e.g. "H&M", then escape them (=> "H&amp;M"). If NEVER, leave '&' as it is --
+     *            this could be used to force ampersands to be left alone, e.g. in URL attribute values.
      * 
      *            However, there is some ambiguity in the case of URL attributes containing '&', see:
      * 
@@ -696,15 +698,15 @@ public class WebUtils {
     public static void encodeForHTMLAttribute(CharSequence unsafeStr, StringBuilder buf) {
         /**
          * From OWASP XSS prevention Rule #2: "Except for alphanumeric characters, escape all characters with ASCII
-         * values less than 256 with the &#xHH; format (or a named entity if available) to prevent switching out of the
-         * attribute. The reason this rule is so broad is that developers frequently leave attributes unquoted. Properly
-         * quoted attributes can only be escaped with the corresponding quote. Unquoted attributes can be broken out of
-         * with many characters, including [space] % * + , - / ; < = > ^ and |."
+         * values less than 256 with the &#xHH; format (or a named entity if available) to prevent switching out of
+         * the attribute. The reason this rule is so broad is that developers frequently leave attributes unquoted.
+         * Properly quoted attributes can only be escaped with the corresponding quote. Unquoted attributes can be
+         * broken out of with many characters, including [space] % * + , - / ; < = > ^ and |."
          * 
-         * However, if we escape as aggressively as this, then we get URLs like href="&#x2F;action&#x2F;log&#x2D;out".
-         * In Gribbit, attributes are all being quoted (with double quotes), and URL attrs are handled specially, so
-         * just perform regular HTML escaping inside HTML attribute values, although we'll escape the apostrophe just to
-         * be safe.
+         * However, if we escape as aggressively as this, then we get URLs like
+         * href="&#x2F;action&#x2F;log&#x2D;out". In Gribbit, attributes are all being quoted (with double quotes),
+         * and URL attrs are handled specially, so just perform regular HTML escaping inside HTML attribute values,
+         * although we'll escape the apostrophe just to be safe.
          */
         encodeForHTML(unsafeStr, /* escapeAmpersand = */EscapeAmpersand.ALWAYS, //
                 /* preserveWhitespaceRuns = */false, //
@@ -780,8 +782,8 @@ public class WebUtils {
     }
 
     /**
-     * Trim whitespace from an email address, make it lowercase, and make sure it is valid. If it is not valid, return
-     * null.
+     * Trim whitespace from an email address, make it lowercase, and make sure it is valid. If it is not valid,
+     * return null.
      */
     public static String validateAndNormalizeEmailAddr(String email) {
         if (email == null)
@@ -795,8 +797,8 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Return true if the scheme, host and port match between the two URIs. Also returns null if one or both URIs are
-     * null.
+     * Return true if the scheme, host and port match between the two URIs. Also returns null if one or both URIs
+     * are null.
      */
     public static boolean sameOrigin(URI uri1, URI uri2) {
         if (uri1 == null || uri2 == null) {

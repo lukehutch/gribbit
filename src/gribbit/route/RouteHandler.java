@@ -38,7 +38,9 @@ public abstract class RouteHandler {
 
     public Request request;
 
-    /** Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served. */
+    /**
+     * Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served.
+     */
     public void addFlashMessage(FlashMessage flashMessage) {
         request.addFlashMessage(flashMessage);
     }
@@ -49,8 +51,8 @@ public abstract class RouteHandler {
     }
 
     /**
-     * Convenience method to get the value of a named cookie from the request. If there are multiple cookies with this
-     * name, returns the value of the cookie with the longest path, as per the HTTP spec.
+     * Convenience method to get the value of a named cookie from the request. If there are multiple cookies with
+     * this name, returns the value of the cookie with the longest path, as per the HTTP spec.
      */
     public String getCookieValue(String cookieName) {
         return request.getCookieValue(cookieName);

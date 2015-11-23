@@ -31,8 +31,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Makes a field in a data model required during data binding from an HTTP request (i.e. the field cannot be null, or
- * empty after being trimmed of whitespace)
+ * Makes a field in a data model required during data binding from an HTTP request (i.e. the field cannot be null,
+ * or empty after being trimmed of whitespace)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

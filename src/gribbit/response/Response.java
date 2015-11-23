@@ -36,8 +36,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 /**
- * The superclass of all response types, containing fields that go into the header of the HTTP response regardless of
- * the response type.
+ * The superclass of all response types, containing fields that go into the header of the HTTP response regardless
+ * of the response type.
  */
 public abstract class Response {
 
@@ -69,8 +69,8 @@ public abstract class Response {
     }
 
     /**
-     * Schedule the content of this response to be hashed for caching purposes, or -1 to cache for a year (the maximum),
-     * or 0 for no caching.
+     * Schedule the content of this response to be hashed for caching purposes, or -1 to cache for a year (the
+     * maximum), or 0 for no caching.
      */
     public Response setMaxAgeSeconds(long maxAgeSeconds) {
         // The caching spec only allows for resources to be cached for one year, or 31536000 seconds
@@ -117,8 +117,8 @@ public abstract class Response {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Set a cookie in the response. Note that cookies with a shorter path will be masked by cookies with a longer path
-     * on routes with the longer path as a prefix.
+     * Set a cookie in the response. Note that cookies with a shorter path will be masked by cookies with a longer
+     * path on routes with the longer path as a prefix.
      * 
      * @return this
      */
@@ -163,8 +163,8 @@ public abstract class Response {
     }
 
     /**
-     * Log out the currently logged-in user, if the request contains cookies that indicate a valid user is logged in:
-     * delete login cookies in the user's browser, and invalidate the user's login tokens in the database.
+     * Log out the currently logged-in user, if the request contains cookies that indicate a valid user is logged
+     * in: delete login cookies in the user's browser, and invalidate the user's login tokens in the database.
      */
     public Response logOutUser(Request request) {
         if (request == null) {
@@ -176,8 +176,8 @@ public abstract class Response {
     }
 
     /**
-     * Log out the currently logged-in user: delete login cookies in the user's browser, and invalidate the user's login
-     * tokens in the database.
+     * Log out the currently logged-in user: delete login cookies in the user's browser, and invalidate the user's
+     * login tokens in the database.
      */
     public Response logOutUser(User user) {
         if (user == null) {

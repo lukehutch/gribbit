@@ -131,8 +131,8 @@ public class User extends DBModelStringKey {
 
     /**
      * Take an encrypted token, decrypt it, extract the username and token, look up the user, and make sure that the
-     * copy of the auth token in the user matches the copy in the encrypted token, and that the token has not expired.
-     * Throws an exception if any of this fails. Returns the user if it all succeeds.
+     * copy of the auth token in the user matches the copy in the encrypted token, and that the token has not
+     * expired. Throws an exception if any of this fails. Returns the user if it all succeeds.
      * 
      * @param request
      */
@@ -155,7 +155,8 @@ public class User extends DBModelStringKey {
         switch (tokType) {
 
         case SESSION:
-            if (user.sessionTok == null || user.sessionTok.hasExpired() || !user.sessionTok.token.equals(suppliedToken)) {
+            if (user.sessionTok == null || user.sessionTok.hasExpired()
+                    || !user.sessionTok.token.equals(suppliedToken)) {
                 // Clear token if there is a mismatch, this will prevent users that manage to crack the cookie
                 // encryption key from doing much, because they would also have to guess the token to log in.
                 // Each attempt to guess the auth token will log them out and require them to log in successfully
@@ -201,8 +202,8 @@ public class User extends DBModelStringKey {
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Puts a key-value pair into the user data HashMap. N.B. does not save user, you need to do that manually once all
-     * key-value pairs have been put.
+     * Puts a key-value pair into the user data HashMap. N.B. does not save user, you need to do that manually once
+     * all key-value pairs have been put.
      */
     public void putData(String key, String val) {
         if (this.data == null) {
@@ -224,7 +225,8 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Create a new email validation token, store it in the user's account, and return the token. Expires after 1 day.
+     * Create a new email validation token, store it in the user's account, and return the token. Expires after 1
+     * day.
      */
     public String generateNewEmailValidationTok() {
         emailValidationTok = new Token(TokenType.EMAIL_VERIF, 1);
@@ -281,7 +283,8 @@ public class User extends DBModelStringKey {
      * @throws UnauthorizedException
      *             if user is not whitelisted for login
      */
-    public void changePassword(Request request, String newPassword, Response response) throws RequestHandlingException {
+    public void changePassword(Request request, String newPassword, Response response)
+            throws RequestHandlingException {
         if (sessionTokHasExpired()) {
             throw new UnauthorizedException(request);
         }
@@ -335,9 +338,9 @@ public class User extends DBModelStringKey {
     }
 
     /**
-     * Decrypt the session cookie in the HttpRequest, look up the user in the database, and set the user field in the
-     * request if the user's auth token is valid (i.e. if their session has not expired or been revoked). Otherwise sets
-     * the user field to null.
+     * Decrypt the session cookie in the HttpRequest, look up the user in the database, and set the user field in
+     * the request if the user's auth token is valid (i.e. if their session has not expired or been revoked).
+     * Otherwise sets the user field to null.
      */
     public static User getLoggedInUser(Request request) {
         // Get email address from cookie
@@ -445,7 +448,8 @@ public class User extends DBModelStringKey {
     private static User create(Request request, String email, String passwordHash, boolean registrationComplete,
             Response response) throws RequestHandlingException {
         // Check user against login whitelist, if it exists
-        if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
+        if (GribbitServer.loginWhitelistChecker == null
+                || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
 
             // Check if a user of this name already exists, and if not, create user record in database.
             // Should probably be a transaction, although if the record is created twice within a
@@ -479,8 +483,8 @@ public class User extends DBModelStringKey {
 
     /**
      * Create a user from email and password hash, and log them in. Marks the registration as incomplete, since the
-     * email address has to be validated, so the default Authenticator will throw an exception until the registration is
-     * complete.
+     * email address has to be validated, so the default Authenticator will throw an exception until the
+     * registration is complete.
      * 
      * @throws UnauthorizedException
      *             if a user with this email addr already exists.

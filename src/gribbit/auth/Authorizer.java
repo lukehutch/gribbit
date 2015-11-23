@@ -30,13 +30,14 @@ import gribbit.response.exception.RequestHandlingException;
 import gribbit.route.Route;
 
 /**
- * Used with with Auth annotation to determine if a user is allowed to access a given route. This method will always be
- * called with a non-null value for request.getUser(). Throws a RequestHandlingException if the user is not logged in,
- * or is logged in but is not authorized for this route.
+ * Used with with Auth annotation to determine if a user is allowed to access a given route. This method will always
+ * be called with a non-null value for request.getUser(). Throws a RequestHandlingException if the user is not
+ * logged in, or is logged in but is not authorized for this route.
  */
 public interface Authorizer {
     /**
-     * Check if the user is authorized for this route. Throws a RequestHandlingException if the user is not authorized.
+     * Check if the user is authorized for this route. Throws a RequestHandlingException if the user is not
+     * authorized.
      * 
      * @param request
      *            The request. Note that request.getUser() will always return a non-null User object, because an
