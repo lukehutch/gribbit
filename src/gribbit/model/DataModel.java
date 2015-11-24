@@ -26,8 +26,8 @@
 package gribbit.model;
 
 import gribbit.auth.CSRF;
+import gribbit.http.request.Request;
 import gribbit.model.util.FieldChecker;
-import gribbit.request.Request;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.RequestHandlingException;

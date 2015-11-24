@@ -23,35 +23,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response;
+package gribbit.http.response;
 
-import gribbit.request.Request;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-/**
- * Cached ByteBuf response. This is for internal use only, it is XSS-unsafe because the content is in no way
- * escaped.
- */
-public class ByteBufResponse extends Response {
-
-    private String contentType;
-    ByteBuf content;
-
-    public ByteBufResponse(HttpResponseStatus status, String contentType, ByteBuf content) {
-        super(status);
-        this.contentType = contentType;
-        this.content = content;
+public class TextResponse extends ByteBufResponse {
+    public TextResponse(HttpResponseStatus status, String content) {
+        super(status, "text/plain;charset=utf-8", toUTF8Bytes(content));
     }
-
-    @Override
-    public String getContentType(Request request) {
-        return contentType;
+    
+    private static ByteBuf toUTF8Bytes(String str) {
+        ByteBuf contentBytes = Unpooled.buffer(str.length() * 3 / 2);
+        ByteBufUtil.writeUtf8(contentBytes, str);
+        return contentBytes;
     }
-
-    @Override
-    public ByteBuf getContent(Request request) {
-        return content;
-    }
-
 }

@@ -27,7 +27,7 @@ package gribbit.auth.all;
 
 import gribbit.handler.route.annotation.NoAuth;
 import gribbit.handler.route.annotation.RoutePath;
-import gribbit.response.Response;
+import gribbit.http.response.Response;
 import gribbit.response.exception.RedirectException;
 import gribbit.route.RouteHandler;
 

@@ -25,7 +25,8 @@
  */
 package gribbit.response;
 
-import gribbit.request.Request;
+import gribbit.http.request.Request;
+import gribbit.http.response.Response;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.JSON;
 import io.netty.buffer.ByteBuf;

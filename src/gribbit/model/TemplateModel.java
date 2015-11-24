@@ -111,7 +111,7 @@ public abstract class TemplateModel {
      * Wrap a vararg list or array of TemplateModel objects into a single template that renders each of the
      * arguments in sequence.
      */
-    public static TemplateModel wrap(TemplateModel... contentArgs) {
+    public static TemplateModel templateSequence(TemplateModel... contentArgs) {
         return new ContentArray(contentArgs);
     }
 

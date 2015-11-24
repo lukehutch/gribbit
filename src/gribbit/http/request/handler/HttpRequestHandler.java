@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler;
+package gribbit.http.request.handler;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
 import static io.netty.handler.codec.http.HttpHeaderNames.CACHE_CONTROL;
@@ -44,9 +44,9 @@ import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.auth.Cookie;
-import gribbit.request.Request;
+import gribbit.http.request.Request;
+import gribbit.http.response.Response;
 import gribbit.response.HTMLPageResponse;
-import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.NotModifiedException;

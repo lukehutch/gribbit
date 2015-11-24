@@ -26,8 +26,9 @@
 package gribbit.response;
 
 import gribbit.auth.CSRF;
+import gribbit.http.request.Request;
+import gribbit.http.response.Response;
 import gribbit.model.TemplateModel;
-import gribbit.request.Request;
 import gribbit.util.JSON;
 import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
@@ -54,7 +55,7 @@ public class HTMLResponse extends Response {
 
     public HTMLResponse(HttpResponseStatus status, TemplateModel... contentList) {
         super(status);
-        this.content = TemplateModel.wrap(contentList);
+        this.content = TemplateModel.templateSequence(contentList);
     }
 
     /**

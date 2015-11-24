@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request.handler;
+package gribbit.http.request.handler;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;

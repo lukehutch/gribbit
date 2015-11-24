@@ -27,7 +27,7 @@ package gribbit.auth.facebook;
 
 import gribbit.auth.User;
 import gribbit.handler.route.annotation.RoutePath;
-import gribbit.response.Response;
+import gribbit.http.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.RedirectException;

@@ -25,7 +25,7 @@
  */
 package gribbit.server;
 
-import gribbit.request.handler.HttpRequestHandler;
+import gribbit.http.request.handler.HttpRequestHandler;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.SiteResources;

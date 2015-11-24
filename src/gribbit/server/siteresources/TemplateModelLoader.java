@@ -159,33 +159,6 @@ class TemplateModelLoader {
             Document templateDoc = ent.getValue();
 
             // ---------------------------------------------------------------------------------------------------------
-            // Add head and tail content to any whole-page HTML templates
-            // ---------------------------------------------------------------------------------------------------------
-
-            List<Node> templateNodes;
-            if (wholePageTemplateDocs.contains(templateDoc)) {
-                // For whole-page templates, add head-content.html to the end of the head element and tail-content.html
-                // to the end of the body element
-                templateDoc.head().append(headContent.toString());
-                templateDoc.body().append(tailContent.toString());
-
-                // For a complete HTML doc, use the entire HTML doc
-                templateNodes = templateDoc.childNodes();
-            } else {
-                // For an HTML fragment, use only the child nodes of the body element
-                templateNodes = templateDoc.body().childNodes();
-            }
-            templateClassToTemplateNodes.put(templateClass, templateNodes);
-
-            // Render the template nodes into a string, for use with clientside template rendering.
-            // TODO: This is not used yet.
-            StringBuilder buf = new StringBuilder(16384);
-            for (Node n : templateNodes) {
-                buf.append(n.toString());
-            }
-            templateClassNameToTemplateStr.put(templateClass.getName(), buf.toString());
-
-            // ---------------------------------------------------------------------------------------------------------
             // Find DataModel-typed public fields within TemplateModels that are bound to a form
             // ---------------------------------------------------------------------------------------------------------
 
@@ -248,9 +221,19 @@ class TemplateModelLoader {
             MultiMapKeyToSet<String, String> formIdToInputNames = new MultiMapKeyToSet<>();
             HashMap<String, Element> formIdToElement = new HashMap<>();
             for (Element formElt : templateDoc.getElementsByTag("form")) {
-                String formId = formElt.attr("id");
-
+                // Remove any CSRF input elements that are already in the form (shouldn't be there)
+                for (Element csrfElt : formElt.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME)) {
+                    csrfElt.remove();
+                }
+                // Add CSRF input to form with placeholder value that will be overwritten with the real CSRF token
+                // when the page is served
+                Element csrfElt = formElt.appendElement("input");
+                csrfElt.attr("name", CSRF.CSRF_PARAM_NAME);
+                csrfElt.attr("type", "hidden");
+                csrfElt.attr("value", CSRF.CSRF_TOKEN_PLACEHOLDER);
+                
                 // Ignore forms that don't have an id
+                String formId = formElt.attr("id");
                 if (!formId.isEmpty()) {
                     // Ignore forms that post to a different domain (although cross-domain posting is pretty
                     // useless these days, because CSRF protection is needed)
@@ -568,10 +551,6 @@ class TemplateModelLoader {
                 Class<? extends DataModel> formModel = formFieldNameToReferencedDataModelType.get(formId);
                 Element formElt = formIdToElement.get(formId);
 
-                // Remove any CSRF input elements that are already in the form (shouldn't be there)
-                for (Element csrfElt : formElt.getElementsByAttributeValue("name", CSRF.CSRF_PARAM_NAME)) {
-                    csrfElt.remove();
-                }
                 inputNames.remove(CSRF.CSRF_PARAM_NAME);
 
                 // Check there is a 1:1 mapping between the names of the from inputs in the template HTML
@@ -595,13 +574,6 @@ class TemplateModelLoader {
                 // -----------------------------------------------------------------------------------------------------
                 // Add constraints to the form given the constraint annotations on the fields of the DataModel object
                 // -----------------------------------------------------------------------------------------------------
-
-                // Add CSRF input to form with placeholder value that will be overwritten with the real CSRF token
-                // when the page is served
-                Element csrfElt = formElt.appendElement("input");
-                csrfElt.attr("name", CSRF.CSRF_PARAM_NAME);
-                csrfElt.attr("type", "hidden");
-                csrfElt.attr("value", CSRF.CSRF_TOKEN_PLACEHOLDER);
 
                 // Get all input elements in this form, grouped by matching name (radio buttons have
                 // multiple input fields with the same value in the "name" attribute)
@@ -930,6 +902,33 @@ class TemplateModelLoader {
                     }
                 }
             }
+
+            // ---------------------------------------------------------------------------------------------------------
+            // Add head and tail content to any whole-page HTML templates, and extract DOM nodes from template
+            // ---------------------------------------------------------------------------------------------------------
+
+            List<Node> templateNodes;
+            if (wholePageTemplateDocs.contains(templateDoc)) {
+                // For whole-page templates, add head-content.html to the end of the head element and tail-content.html
+                // to the end of the body element
+                templateDoc.head().append(headContent.toString());
+                templateDoc.body().append(tailContent.toString());
+
+                // For a complete HTML doc, use the entire HTML doc
+                templateNodes = templateDoc.childNodes();
+            } else {
+                // For an HTML fragment, use only the child nodes of the body element
+                templateNodes = templateDoc.body().childNodes();
+            }
+            templateClassToTemplateNodes.put(templateClass, templateNodes);
+
+            // Render the template nodes into a string, for use with clientside template rendering.
+            // TODO: This is not used yet.
+            StringBuilder buf = new StringBuilder(16384);
+            for (Node n : templateNodes) {
+                buf.append(n.toString());
+            }
+            templateClassNameToTemplateStr.put(templateClass.getName(), buf.toString());
         }
     }
 

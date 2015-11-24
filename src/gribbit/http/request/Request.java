@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.request;
+package gribbit.http.request;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT;
 import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_CHARSET;
@@ -37,8 +37,8 @@ import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
-import gribbit.request.handler.WebSocketHandler;
-import gribbit.response.Response;
+import gribbit.http.request.handler.WebSocketHandler;
+import gribbit.http.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.MethodNotAllowedException;

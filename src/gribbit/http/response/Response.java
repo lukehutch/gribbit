@@ -23,11 +23,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response;
+package gribbit.http.response;
 
 import gribbit.auth.Cookie;
 import gribbit.auth.User;
-import gribbit.request.Request;
+import gribbit.http.request.Request;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 

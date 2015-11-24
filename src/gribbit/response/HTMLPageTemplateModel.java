@@ -57,7 +57,7 @@ public class HTMLPageTemplateModel extends TemplateModel {
 
     public HTMLPageTemplateModel(String title, TemplateModel... content) {
         this.title = title;
-        this.body = TemplateModel.wrap(body);
+        this.body = TemplateModel.templateSequence(body);
     }
 
     // -----------------------------------------------------------------------------------------------------------------

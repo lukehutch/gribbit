@@ -25,8 +25,8 @@
  */
 package gribbit.response.exception;
 
-import gribbit.request.Request;
-import gribbit.response.ErrorResponse;
+import gribbit.http.request.Request;
+import gribbit.http.response.ErrorResponse;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.util.Log;

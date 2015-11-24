@@ -25,8 +25,8 @@
  */
 package gribbit.response.exception;
 
-import gribbit.response.ErrorResponse;
-import gribbit.response.Response;
+import gribbit.http.response.ErrorResponse;
+import gribbit.http.response.Response;
 import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
 

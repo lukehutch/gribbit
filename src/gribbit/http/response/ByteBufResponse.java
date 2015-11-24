@@ -23,33 +23,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response;
+package gribbit.http.response;
 
-import gribbit.request.Request;
+import gribbit.http.request.Request;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-public class TextResponse extends Response {
-
-    private String content;
-
-    public TextResponse(HttpResponseStatus status, String content) {
+/**
+ * Raw ByteBuf response.
+ */
+public class ByteBufResponse extends Response {
+    private String contentType;
+    ByteBuf content;
+    
+    public ByteBufResponse(HttpResponseStatus status) {
         super(status);
+    }
+
+    public ByteBufResponse(HttpResponseStatus status, String contentType, ByteBuf content) {
+        super(status);
+        this.contentType = contentType;
         this.content = content;
     }
 
     @Override
-    public ByteBuf getContent(Request request) {
-        ByteBuf contentBytes = Unpooled.buffer(content.length() * 3 / 2);
-        ByteBufUtil.writeUtf8(contentBytes, content);
-        return contentBytes;
+    public String getContentType(Request request) {
+        return contentType;
     }
 
     @Override
-    public String getContentType(Request request) {
-        return "text/plain;charset=utf-8";
+    public ByteBuf getContent(Request request) {
+        return content;
     }
-
 }

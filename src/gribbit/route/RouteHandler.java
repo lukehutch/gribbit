@@ -25,7 +25,7 @@
  */
 package gribbit.route;
 
-import gribbit.request.Request;
+import gribbit.http.request.Request;
 import gribbit.response.flashmsg.FlashMessage;
 
 /**

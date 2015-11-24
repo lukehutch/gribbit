@@ -25,7 +25,7 @@
  */
 package gribbit.auth;
 
-import gribbit.request.Request;
+import gribbit.http.request.Request;
 import gribbit.response.exception.RequestHandlingException;
 import gribbit.route.Route;
 
