@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.auth;
+package gribbit.http.cookie;
 
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.RandomTokenGenerator;
@@ -48,6 +48,8 @@ public class Cookie {
     private String value;
 
     private long maxAgeSeconds;
+
+    private boolean httpOnly;
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -105,7 +107,7 @@ public class Cookie {
      * Create a cookie. if maxAgeSeconds == Long.MIN_VALUE, cookie expires at end of session. Otherwise, if
      * maxAgeSeconds <= 0, cookieValue is ignored and replaced with "" (cookie has already expired).
      */
-    public Cookie(String name, String path, String cookieValue, long maxAgeSeconds) {
+    public Cookie(String name, String path, String cookieValue, long maxAgeSeconds, boolean httpOnly) {
         this.name = name;
         checkValidCookieFieldStr(name);
         this.path = path;
@@ -114,17 +116,25 @@ public class Cookie {
         }
         this.value = cookieValue;
         this.maxAgeSeconds = maxAgeSeconds;
-
         if (this.maxAgeSeconds <= 0 && this.maxAgeSeconds != Long.MIN_VALUE) {
             // If maxAge <= 0, cookie is expired immediately (so there is nothing to encode)
             this.value = "";
             this.maxAgeSeconds = 0;
         }
+        this.httpOnly = httpOnly;
     }
 
     /**
-     * Create a cookie with path unset (meaning, according to the HTTP spec, it will default to the path of the
-     * object currently being requested).
+     * Create an HTTP-only cookie. if maxAgeSeconds == Long.MIN_VALUE, cookie expires at end of session. Otherwise,
+     * if maxAgeSeconds <= 0, cookieValue is ignored and replaced with "" (cookie has already expired).
+     */
+    public Cookie(String name, String path, String cookieValue, long maxAgeSeconds) {
+        this(name, path, cookieValue, maxAgeSeconds, true);
+    }
+
+    /**
+     * Create an HTTP-only cookie with path unset (meaning, according to the HTTP spec, it will default to the path
+     * of the object currently being requested).
      */
     public Cookie(String name, String cookieValue, long maxAgeInSeconds) {
         this(name, null, cookieValue, maxAgeInSeconds);
@@ -141,6 +151,7 @@ public class Cookie {
         this.path = nettyCookie.path();
         this.value = WebUtils.unescapeCookieValue(nettyCookie.value());
         this.maxAgeSeconds = nettyCookie.maxAge();
+        this.httpOnly = nettyCookie.isHttpOnly();
     }
 
     /** Create a Netty cookie from this Cookie object. */
@@ -152,7 +163,7 @@ public class Cookie {
         }
         nettyCookie.setMaxAge(maxAgeSeconds);
         nettyCookie.setHttpOnly(true); // TODO
-        if (GribbitProperties.SSL) {
+        if (GribbitProperties.useTLS) {
             // If SSL is enabled, force cookies to only be delivered over SSL, to prevent cookie hijacking
             // on public wifi networks
             nettyCookie.setSecure(true);
@@ -210,30 +221,12 @@ public class Cookie {
         return maxAgeSeconds <= 0 && maxAgeSeconds != Long.MIN_VALUE;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    public boolean getHttpOnly() {
+        return httpOnly;
+    }
 
-    /** Parse and decode/decrypt cookies from HTTP headers. */
-    public static HashMap<String, ArrayList<Cookie>> decodeCookieHeaders(Iterable<CharSequence> cookieHeaders) {
-        HashMap<String, ArrayList<Cookie>> cookieNameToCookies = null;
-        for (CharSequence cookieHeader : cookieHeaders) {
-            for (io.netty.handler.codec.http.cookie.Cookie nettyCookie : ServerCookieDecoder.STRICT
-                    .decode(cookieHeader.toString())) {
-                // Log.fine("Cookie in request: " + nettyCookie);
-                if (cookieNameToCookies == null) {
-                    cookieNameToCookies = new HashMap<>();
-                }
-                String cookieName = nettyCookie.name();
-                Cookie cookie = new Cookie(nettyCookie);
-
-                // Multiple cookies may be present in the request with the same name but with different paths
-                ArrayList<Cookie> cookiesWithThisName = cookieNameToCookies.get(cookieName);
-                if (cookiesWithThisName == null) {
-                    cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
-                }
-                cookiesWithThisName.add(cookie);
-            }
-        }
-        return cookieNameToCookies;
+    public void setHttpOnly(boolean httpOnly) {
+        this.httpOnly = httpOnly;
     }
 
 }

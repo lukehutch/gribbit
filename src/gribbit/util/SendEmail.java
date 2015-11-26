@@ -25,6 +25,7 @@
  */
 package gribbit.util;
 
+import gribbit.http.logging.Log;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;

@@ -23,7 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.util;
+package gribbit.http.logging;
 
 import gribbit.server.config.GribbitProperties;
 import io.netty.util.internal.logging.InternalLoggerFactory;

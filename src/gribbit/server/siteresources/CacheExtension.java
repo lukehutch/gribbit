@@ -25,9 +25,9 @@
  */
 package gribbit.server.siteresources;
 
+import gribbit.http.logging.Log;
 import gribbit.server.GribbitServer;
 import gribbit.util.Base64Safe;
-import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 

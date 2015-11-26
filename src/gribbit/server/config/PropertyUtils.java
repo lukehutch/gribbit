@@ -1,7 +1,7 @@
 package gribbit.server.config;
 
+import gribbit.http.logging.Log;
 import gribbit.server.GribbitServer;
-import gribbit.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;

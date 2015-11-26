@@ -25,13 +25,15 @@
  */
 package gribbit.http.response;
 
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-/**
- * A text-based error response.
- */
-public class ErrorResponse extends TextResponse {
-    public ErrorResponse(HttpResponseStatus status, String content) {
-        super(status, content);
+public class EmptyResponse extends ByteBufResponse {
+
+    public static final EmptyResponse OK = new EmptyResponse(HttpResponseStatus.OK);
+    
+    public EmptyResponse(HttpResponseStatus status) {
+        super(status, "text/plain;charset=utf-8", Unpooled.EMPTY_BUFFER);
     }
+
 }

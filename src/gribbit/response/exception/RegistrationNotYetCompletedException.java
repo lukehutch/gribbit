@@ -25,7 +25,7 @@
  */
 package gribbit.response.exception;
 
-import gribbit.auth.Cookie;
+import gribbit.http.cookie.Cookie;
 import gribbit.http.request.Request;
 import gribbit.http.response.ErrorResponse;
 import gribbit.response.flashmsg.FlashMessage;

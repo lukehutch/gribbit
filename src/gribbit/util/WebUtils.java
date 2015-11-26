@@ -806,11 +806,11 @@ public class WebUtils {
         }
         String scheme1 = uri1.getScheme();
         if (scheme1 == null) {
-            scheme1 = GribbitProperties.SSL ? "https" : "http";
+            scheme1 = GribbitProperties.useTLS ? "https" : "http";
         }
         String scheme2 = uri2.getScheme();
         if (scheme2 == null) {
-            scheme2 = GribbitProperties.SSL ? "https" : "http";
+            scheme2 = GribbitProperties.useTLS ? "https" : "http";
         }
         if (!scheme1.equals(scheme2)) {
             return false;

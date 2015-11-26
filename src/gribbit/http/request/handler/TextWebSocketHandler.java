@@ -23,15 +23,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.response;
+package gribbit.http.request.handler;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
+import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.RequestHandlingException;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 
-/**
- * A text-based error response.
- */
-public class ErrorResponse extends TextResponse {
-    public ErrorResponse(HttpResponseStatus status, String content) {
-        super(status, content);
+public interface TextWebSocketHandler extends WebSocketHandler {
+    @Override
+    public default void handleBinaryFrame(ChannelHandlerContext ctx, BinaryWebSocketFrame frame)
+            throws RequestHandlingException {
+        throw new BadRequestException();
     }
 }

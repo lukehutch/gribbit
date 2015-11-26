@@ -26,11 +26,11 @@
 package gribbit.response;
 
 import gribbit.auth.CSRF;
+import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.Response;
 import gribbit.model.TemplateModel;
 import gribbit.util.JSON;
-import gribbit.util.Log;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;

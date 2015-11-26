@@ -26,6 +26,7 @@
 package gribbit.model;
 
 import gribbit.auth.CSRF;
+import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.model.util.FieldChecker;
 import gribbit.response.exception.BadRequestException;
@@ -33,7 +34,6 @@ import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.RequestHandlingException;
 import gribbit.server.GribbitServer;
 import gribbit.util.JSON;
-import gribbit.util.Log;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.lang.reflect.Field;

@@ -26,6 +26,8 @@
 package gribbit.auth;
 
 import gribbit.auth.User.Token.TokenType;
+import gribbit.http.cookie.Cookie;
+import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.Response;
 import gribbit.model.DBModelStringKey;
@@ -35,7 +37,6 @@ import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.Database;
 import gribbit.util.Hash;
-import gribbit.util.Log;
 import gribbit.util.WebUtils;
 
 import java.time.Instant;

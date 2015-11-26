@@ -27,6 +27,7 @@ package gribbit.auth.facebook;
 
 import gribbit.auth.User;
 import gribbit.handler.route.annotation.RoutePath;
+import gribbit.http.logging.Log;
 import gribbit.http.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.NotFoundException;
@@ -39,7 +40,6 @@ import gribbit.route.Route;
 import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.util.Log;
 import gribbit.util.RequestBuilder;
 import gribbit.util.StringUtils;
 

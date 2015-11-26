@@ -25,7 +25,6 @@
  */
 package gribbit.http.response;
 
-import gribbit.http.request.Request;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
@@ -33,26 +32,17 @@ import io.netty.handler.codec.http.HttpResponseStatus;
  * Raw ByteBuf response.
  */
 public class ByteBufResponse extends Response {
-    private String contentType;
-    ByteBuf content;
-    
+
+    protected ByteBuf content;
+
     public ByteBufResponse(HttpResponseStatus status) {
-        super(status);
+        this.status = status;
     }
 
     public ByteBufResponse(HttpResponseStatus status, String contentType, ByteBuf content) {
-        super(status);
+        this.status = status;
         this.contentType = contentType;
         this.content = content;
     }
 
-    @Override
-    public String getContentType(Request request) {
-        return contentType;
-    }
-
-    @Override
-    public ByteBuf getContent(Request request) {
-        return content;
-    }
 }

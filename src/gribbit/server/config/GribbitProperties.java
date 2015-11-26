@@ -45,8 +45,8 @@ public class GribbitProperties {
         }
     }
 
-    public static boolean SSL = PropertyUtils.getPropertyBoolean(properties, "ssl", true);
-    public static int PORT = PropertyUtils.getPropertyInt(properties, "port", SSL ? 8443 : 8080);
+    public static boolean useTLS = PropertyUtils.getPropertyBoolean(properties, "ssl", true);
+    public static int PORT = PropertyUtils.getPropertyInt(properties, "port", useTLS ? 8443 : 8080);
 
     public static String SMTP_SERVER = properties.getProperty("smtp.server");
     public static int SMTP_PORT = PropertyUtils.getPropertyInt(properties, "smtp.port", 587);

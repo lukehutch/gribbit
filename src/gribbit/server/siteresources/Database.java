@@ -25,13 +25,13 @@
  */
 package gribbit.server.siteresources;
 
+import gribbit.http.logging.Log;
 import gribbit.model.DBModel;
 import gribbit.model.DBModelLongKey;
 import gribbit.model.DBModelObjectIdKey;
 import gribbit.model.DBModelStringKey;
 import gribbit.model.field.annotation.DBIndex;
 import gribbit.server.config.GribbitProperties;
-import gribbit.util.Log;
 import gribbit.util.Reflection;
 
 import java.lang.reflect.Field;

@@ -25,11 +25,11 @@
  */
 package gribbit.response.exception;
 
+import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.ErrorResponse;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
-import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**

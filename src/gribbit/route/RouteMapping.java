@@ -32,9 +32,9 @@ import gribbit.handler.route.annotation.OnInternalServerError;
 import gribbit.handler.route.annotation.OnRegistrationNotYetCompleted;
 import gribbit.handler.route.annotation.OnUnauthorized;
 import gribbit.handler.route.annotation.RoutePath;
+import gribbit.http.logging.Log;
 import gribbit.model.DataModel;
 import gribbit.server.GribbitServer;
-import gribbit.util.Log;
 import gribbit.util.Reflection;
 
 import java.lang.annotation.Annotation;

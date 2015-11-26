@@ -25,46 +25,26 @@
  */
 package gribbit.server;
 
+import gribbit.http.logging.Log;
+import gribbit.http.request.Request;
 import gribbit.http.request.handler.HttpRequestHandler;
+import gribbit.http.response.FileResponse;
+import gribbit.http.response.Response;
+import gribbit.http.server.GribbitHttpServer;
+import gribbit.response.exception.RequestHandlingException;
 import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.SiteResources;
-import gribbit.util.Log;
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
-import io.netty.handler.ssl.OpenSsl;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslProvider;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
 
-import java.io.IOException;
-import java.net.DatagramSocket;
-import java.net.ServerSocket;
-import java.net.URI;
+import java.io.File;
 import java.util.concurrent.TimeUnit;
 
 public class GribbitServer {
-    /** The URI the server is running on. */
-    public static URI uri;
-
-    public static URI wsUri;
+    public static GribbitHttpServer server;
 
     public static String appPackageName;
-
-    public static String host;
-
-    public static int port;
 
     public static SiteResources siteResources;
 
@@ -123,34 +103,39 @@ public class GribbitServer {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Checks to see if a specific port is available. See
-     * http://stackoverflow.com/questions/434718/sockets-discover-port-availability-using-java
-     */
-    private static boolean portAvailable(int port) {
-        try (ServerSocket ss = new ServerSocket(port); DatagramSocket ds = new DatagramSocket(port)) {
-            ss.setReuseAddress(true);
-            ds.setReuseAddress(true);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    /**
      * Create a web server instance, and add all routes and handlers. Call start() to actually start the web server
      * after all routes and handlers have been added.
      */
-    public static void init(String domain, int port, String appPackageName) {
+    public void init(String domain, int port, String appPackageName) {
         // Initialize logger
         Log.info("Initializing Gribbit");
 
-        GribbitServer.host = domain;
+        HttpRequestHandler requestHandler = new HttpRequestHandler() {
+            @Override
+            public Response handle(Request request) throws RequestHandlingException {
+                // TODO: factor out request.matchRoute() and request.callRouteHandler()
+                
+                // Look up the route (or static file) based on the URL and HTTP method of the request.
+                // Throws an UnauthorizedException if the user is not authorized for the requested route.
+                // Throws NotFoundException if the requested path doesn't match any known Route or static resource.
+                // Upgrades the connection to a websocket connection if requested.
+                request.matchRoute();
 
-        if (!portAvailable(port)) {
-            System.err.println("Port " + port + " is not available -- is server already running?\n\nExiting.");
-            System.exit(1);
-        }
-        GribbitServer.port = port;
+                File staticResourceFile = request.getStaticResourceFile();
+                if (staticResourceFile != null) {
+                    // Serve a static file
+                    return new FileResponse(staticResourceFile);
+                } else {
+                    // No more chunks to receive; handle the request.
+                    // Call the RestHandler for the route. May throw a RequestHandlingException.
+                    Response response = request.callRouteHandler();
+                    return response;
+                }
+            }
+        };
+
+        GribbitServer.server = new GribbitHttpServer().httpRequestHandler(requestHandler).domain(domain).port(port)
+                .useTLS(GribbitProperties.useTLS);
 
         GribbitServer.appPackageName = appPackageName;
 
@@ -197,128 +182,9 @@ public class GribbitServer {
             System.err.println("\nFailed to load site resources, cannot initialize web server");
             System.exit(1);
         }
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------------------------------------------
-
-    public static void start() {
-        Log.info("Starting Gribbit server");
-        try {
-            // Set up SSL. See:
-            // http://maxrohde.com/2013/09/07/setting-up-ssl-with-netty/
-            // http://blog.hintcafe.com/post/33709433256/https-server-in-java-using-netty-and-keystore
-            // https://www.sslshopper.com/ssl-converter.html
-
-            // TODO: Listen on both SSL and non-SSL ports; redirect non-SSL to SSL; make cookies SSL-only
-            SslContext sslCtx;
-            if (GribbitProperties.SSL) {
-                SelfSignedCertificate ssc = new SelfSignedCertificate();
-                // TODO: netty-tcnative seems to always throw this error if added to the .pom
-                if (OpenSsl.isAvailable()) {
-                    try {
-                        // Use OpenSSL if the netty-tcnative Maven artifact is available (it is 30% faster than JDK)
-                        // TODO: Replaced by SslContextBuilder
-                        sslCtx = SslContext.newServerContext(SslProvider.OPENSSL, ssc.certificate(),
-                                ssc.privateKey());
-
-                        //                        certChainFile an X.509 certificate chain file in PEM format
-                        //                        keyFile a PKCS#8 private key file in PEM format
-                    } catch (Exception | Error e) {
-                        throw new RuntimeException("Could not link with OpenSSL libraries");
-                    }
-                } else {
-                    Log.warning("OpenSSL libraries are not available; falling back to the slower SslProvider.JDK. "
-                            + "Please add the appropriate netty-tcnative maven artifact for your platform. "
-                            + "See also: http://netty.io/wiki/forked-tomcat-native.html");
-                    // TODO: Replaced by SslContextBuilder
-                    sslCtx = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
-                }
-            } else {
-                sslCtx = null;
-            }
-
-            // TODO: make these use AutoCloseable: https://github.com/netty/netty/commit/0b5df22aec4ed037de1b03880d62752458dd5d28
-            EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-            EventLoopGroup workerGroup = new NioEventLoopGroup();
-            EventLoopGroup routeHandlerGroup = new NioEventLoopGroup();
-
-            // Configure the server.
-            try {
-                ServerBootstrap b = new ServerBootstrap();
-
-                // http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#14.0
-                b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
-
-                // b.option(ChannelOption.SO_BACKLOG, 1024);
-                final SslContext sslCtxFinal = sslCtx;
-                b.group(bossGroup, workerGroup) //
-                        .channel(NioServerSocketChannel.class) //
-                        // .handler(new LoggingHandler(LogLevel.INFO)) //
-                        .childHandler(new ChannelInitializer<SocketChannel>() {
-                            // Create an HTTP decoder/encoder and request handler for each connection,
-                            // so that the request can be handled in a stateful way
-                            @Override
-                            public void initChannel(SocketChannel ch) {
-                                ChannelPipeline p = ch.pipeline();
-                                if (sslCtxFinal != null) {
-                                    p.addLast(sslCtxFinal.newHandler(ch.alloc()));
-                                }
-
-                                // p.addLast(new LoggingHandler(LogLevel.INFO));
-
-                                p.addLast(new HttpContentDecompressor());
-
-                                p.addLast(new HttpServerCodec());
-
-                                p.addLast(new WebSocketServerCompressionHandler());
-
-                                p.addLast(routeHandlerGroup, new HttpRequestHandler());
-                            }
-                        });
-
-                //                // TODO: test these options suggested in http://goo.gl/AHvjmq
-                //                // See also http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#11.0
-                //                b.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
-                //                b.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 64 * 1024);
-                //                b.childOption(ChannelOption.SO_SNDBUF, 1048576);
-                //                b.childOption(ChannelOption.SO_RCVBUF, 1048576);
-                //                // bootstrap.childOption(ChannelOption.TCP_NODELAY, true);
-
-                Channel ch = b.bind(port).sync().channel();
-
-                String bareUri = host + (port == 80 || port == 443 ? "" : ":" + port);
-                uri = new URI((GribbitProperties.SSL ? "https" : "http") + "://" + bareUri);
-                wsUri = new URI((GribbitProperties.SSL ? "wss" : "ws") + "://" + bareUri + "/websocket");
-
-                Log.info("Gribbit web server started at " + uri + '/');
-
-                ch.closeFuture().sync();
-
-            } finally {
-                bossGroup.shutdownGracefully();
-                workerGroup.shutdownGracefully();
-            }
-
-            // TODO: final StaleConnectionTrackingHandler staleConnectionTrackingHandler = 
-            //          new StaleConnectionTrackingHandler(STALE_CONNECTION_TIMEOUT, executor);
-            //            ScheduledExecutorService staleCheckExecutor = 
-            //               Executors.newSingleThreadScheduledExecutor(
-            //                 new NamingThreadFactory(Gribbit.class.getSimpleName()
-            //                    + "-stale-connection-check"));
-            //            staleCheckExecutor.scheduleWithFixedDelay(new Runnable() {
-            //                @Override
-            //                public void run() {
-            //                    staleConnectionTrackingHandler.closeStaleConnections();
-            //                }
-            //            }, STALE_CONNECTION_TIMEOUT / 2, STALE_CONNECTION_TIMEOUT / 2,
-            //                TimeUnit.MILLISECONDS);
-            //            executorServices.add(staleCheckExecutor);
-            // connectionTrackingHandler = new ConnectionTrackingHandler();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("\nFailed to start server");
-            System.exit(1);
-        }
+        
+        server.start();
+        
+        // TODO: test server.shutdown()
     }
 }

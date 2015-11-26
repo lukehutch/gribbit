@@ -35,16 +35,13 @@ import static io.netty.handler.codec.http.HttpHeaderNames.IF_MODIFIED_SINCE;
 import static io.netty.handler.codec.http.HttpHeaderNames.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
-import gribbit.auth.Cookie;
 import gribbit.auth.User;
-import gribbit.http.request.handler.WebSocketHandler;
 import gribbit.http.response.Response;
 import gribbit.response.exception.BadRequestException;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.MethodNotAllowedException;
 import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.RequestHandlingException;
-import gribbit.response.exception.UnauthorizedException;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
@@ -57,6 +54,8 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
 
 import java.io.File;
@@ -71,14 +70,16 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 public class Request {
     private ChannelHandlerContext ctx;
-    private HttpRequest httpReq;
+    private HttpRequest httpRequest;
 
     private long reqReceivedTimeEpochMillis;
     private HttpMethod method;
+    private boolean isSecure;
     private boolean isHEADRequest;
     private boolean isKeepAlive;
     private String requestor;
@@ -133,9 +134,6 @@ public class Request {
      */
     private boolean isGetModelRequest;
 
-    /** The websocket handler. Appending "?_ws=1" to the URL to upgrade the connection to a websocket. */
-    private WebSocketHandler webSocketHandler;
-
     /** Flash messages. */
     private ArrayList<FlashMessage> flashMessages;
 
@@ -143,19 +141,40 @@ public class Request {
 
     public Request(ChannelHandlerContext ctx, HttpRequest httpReq) {
         this.ctx = ctx;
-        this.httpReq = httpReq;
+        this.httpRequest = httpReq;
         this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
 
         // Decode the path.
-        QueryStringDecoder decoder = new QueryStringDecoder(httpReq.uri());
+        String url = httpReq.uri();
+        QueryStringDecoder decoder = new QueryStringDecoder(url);
         this.urlPath = decoder.path();
         this.queryParamToVals = decoder.parameters();
 
         HttpHeaders headers = httpReq.headers();
 
-        // Parse and decode/decrypt cookies
-        this.cookieNameToCookies = Cookie.decodeCookieHeaders(headers.getAll(COOKIE));
+        // Decode cookies
+        for (CharSequence cookieHeader : headers.getAll(COOKIE)) {
+            for (Cookie cookie : ServerCookieDecoder.STRICT.decode(cookieHeader.toString())) {
+                // Log.fine("Cookie in request: " + nettyCookie);
+                if (cookieNameToCookies == null) {
+                    cookieNameToCookies = new HashMap<>();
+                }
+                String cookieName = cookie.name();
 
+                // Multiple cookies may be present in the request with the same name but with different paths
+                ArrayList<Cookie> cookiesWithThisName = cookieNameToCookies.get(cookieName);
+                if (cookiesWithThisName == null) {
+                    cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
+                }
+                cookiesWithThisName.add(cookie);
+            }
+        }
+        // Sort cookies into decreasing order of path length
+        for (Entry<String, ArrayList<Cookie>> ent : cookieNameToCookies.entrySet()) {
+            Collections.sort(ent.getValue(), COOKIE_COMPARATOR);
+        }
+
+        this.isSecure = url.startsWith("https:");
         this.method = httpReq.method();
 
         // Force the GET method if HEAD is requested
@@ -198,12 +217,45 @@ public class Request {
         // If this is a hash URL, look up original URL whose served resource was hashed to give this hash URL.
         // We only need to serve the resource at a hash URL once per resource per client, since resources served
         // from hash URLs are indefinitely cached in the browser.
+        // TODO: Move cache-busting out of http package
         this.urlHashKey = CacheExtension.getHashKey(this.urlPath);
         this.urlPathUnhashed = this.urlHashKey != null ? CacheExtension.getOrigURL(this.urlPath) : this.urlPath;
 
         // Get flash messages from cookie, if any
         this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
     }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Sort cookies into decreasing order of path length, breaking ties by sorting into increasing chronological
+     * order of creation time, as recommended by RFC 6265. This handles path and timestamp masking in situations
+     * where some older clients take the first cookie with a matching name.
+     * 
+     * See also: http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     */
+    private static final Comparator<Cookie> COOKIE_COMPARATOR = new Comparator<Cookie>() {
+        @Override
+        public int compare(Cookie c1, Cookie c2) {
+            String path1 = c1.path();
+            String path2 = c2.path();
+            // Cookies with unspecified path default to the path of the request. We don't
+            // know the request path here, but we assume that the length of an unspecified
+            // path is longer than any specified path, because setting cookies with a path
+            // longer than the request path is of limited use.
+            int len1 = path1 == null ? -1 : path1.length();
+            int len2 = path2 == null ? -1 : path2.length();
+            int assumedLen1 = len1 == -1 ? len2 + 1 : len1;
+            int assumedLen2 = len2 == -1 ? len1 + 1 : len2;
+            int diff = assumedLen2 - assumedLen1;
+            if (diff != 0) {
+                return diff;
+            }
+            // Rely on Java's sort stability to retain creation order in cases where
+            // cookies have same path length 
+            return -1;
+        }
+    };
 
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -266,28 +318,6 @@ public class Request {
         }
 
         // ------------------------------------------------------------------------------
-        // Handle websocket upgrade requests
-        // ------------------------------------------------------------------------------
-
-        boolean isWebSocketUpgradeRequest = "1".equals(this.getQueryParam("_ws"));
-        if (isWebSocketUpgradeRequest) {
-            if (!GribbitProperties.ALLOW_WEBSOCKETS) {
-                throw new BadRequestException();
-            }
-            if (this.authorizedRoute == null) {
-                throw new UnauthorizedException(this);
-            }
-            if (this.method != HttpMethod.GET) {
-                throw new MethodNotAllowedException();
-            }
-            // Create a new WebSocketHandler, and upgrade the connection
-            this.webSocketHandler = new WebSocketHandler(ctx, httpReq, this.origin, getQueryParam("_csrf"),
-                    lookupUser(), this.authorizedRoute);
-            // Remove the _ws query parameter
-            this.queryParamToVals.remove("_ws");
-        }
-
-        // ------------------------------------------------------------------------------
         // Try to match static resource requests if no Route matched
         // ------------------------------------------------------------------------------
 
@@ -304,14 +334,6 @@ public class Request {
                 throw new NotFoundException(this);
             }
         }
-    }
-
-    /**
-     * If non-null, the request URL contained the query parameter "?_ws=1", which upgrades the connection to a
-     * websocket.
-     */
-    public WebSocketHandler getWebSocketHandler() {
-        return webSocketHandler;
     }
 
     /** If non-null, the request was for a static file. */
@@ -410,61 +432,38 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Used for sorting cookies into decreasing order of path length */
-    private static final Comparator<Cookie> cookiePathLengthComparator = new Comparator<Cookie>() {
-        @Override
-        public int compare(Cookie o1, Cookie o2) {
-            return o2.getPath().length() - o1.getPath().length();
-        }
-    };
-
     /**
      * Get a collection of lists of cookies -- each list in the collection consists of one or more cookies, where
-     * all cookies in a list have the same name but different paths. (It is possible to receive multiple cookies
-     * with the same name in a request.) Cookie lists are ordered into decreasing order of path length to conform to
-     * a "SHOULD" clause in the HTTP header spec.
-     * 
-     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     * all cookies in a list have the same name but different paths. Cookie lists are ordered into decreasing order
+     * of path length to conform to RFC6295.
      */
-    public Collection<ArrayList<Cookie>> getAllCookies() {
+    public Collection<ArrayList<Cookie>> getCookies() {
         if (cookieNameToCookies == null) {
             return null;
         } else {
-            Collection<ArrayList<Cookie>> cookieLists = cookieNameToCookies.values();
-            for (ArrayList<Cookie> cookieList : cookieLists) {
-                Collections.sort(cookieList, cookiePathLengthComparator);
-            }
-            return cookieLists;
+            return cookieNameToCookies.values();
         }
     }
 
     /**
-     * Get all cookies with the given name, or null if there are no cookies with this name. (There may be multiple
-     * cookies with the same name but with different paths.) The returned list is ordered into decreasing order of
-     * path length to conform to a "SHOULD" clause in the HTTP header spec.
-     * 
-     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     * Get all cookies with the given name, or null if there are no cookies with this name. Cookies are ordered into
+     * decreasing order of path length to conform to RFC6295.
      */
-    public ArrayList<Cookie> getAllCookiesWithName(String cookieName) {
+    public ArrayList<Cookie> getCookiesWithName(String cookieName) {
         if (cookieNameToCookies == null) {
             return null;
         } else {
-            ArrayList<Cookie> cookieList = cookieNameToCookies.get(cookieName);
-            if (cookieList != null) {
-                Collections.sort(cookieList, cookiePathLengthComparator);
-            }
-            return cookieList;
+            return cookieNameToCookies.get(cookieName);
         }
     }
 
     /**
      * Get a cookie by name, or null if there are no cookies with this name. If there is more than one cookie with
-     * the same name, return the cookie with the longest path.
-     * 
-     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     * the same name, returns the cookie without a specified path, or if all cookies have paths, returns the cookie
+     * with the longest path.
      */
     public Cookie getCookie(String cookieName) {
-        ArrayList<Cookie> cookieList = getAllCookiesWithName(cookieName);
+        ArrayList<Cookie> cookieList = getCookiesWithName(cookieName);
         if (cookieList == null) {
             return null;
         } else {
@@ -473,17 +472,16 @@ public class Request {
     }
 
     /**
-     * Get the string value of a named cookie, or null if there are no cookies with this name. If there is more than
-     * one cookie with the same name, return the value of the one with the longest path.
-     * 
-     * See http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
+     * Get the value of a named cookie, or null if there are no cookies with this value. If there is more than one
+     * cookie with the same name, returns the value of the cookie without a specified path, or if all cookies have
+     * paths, returns the value of the cookie with the longest path.
      */
     public String getCookieValue(String cookieName) {
         Cookie cookie = getCookie(cookieName);
         if (cookie == null) {
             return null;
         } else {
-            return cookie.getValue();
+            return cookie.value();
         }
     }
 
@@ -614,6 +612,10 @@ public class Request {
         return xRequestedWith;
     }
 
+    public boolean isSecure() {
+        return isSecure;
+    }
+
     /**
      * True if the request URL contained the query parameter "?_getmodel=1", in which case return the DataModel
      * backing an HTML page, and not the rendered page itself.
@@ -637,5 +639,9 @@ public class Request {
             this.user = User.getLoggedInUser(this);
         }
         return this.user;
+    }
+
+    public HttpRequest getHttpRequest() {
+        return httpRequest;
     }
 }

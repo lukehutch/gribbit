@@ -25,6 +25,7 @@
  */
 package gribbit.server.siteresources;
 
+import gribbit.http.logging.Log;
 import gribbit.model.DBModel;
 import gribbit.model.DBModelStringKey;
 import gribbit.model.DataModel;
@@ -35,7 +36,6 @@ import gribbit.route.RouteHandler;
 import gribbit.route.RouteMapping;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import gribbit.util.thirdparty.UTF8;

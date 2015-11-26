@@ -25,9 +25,10 @@
  */
 package gribbit.auth.oauth.google;
 
-import gribbit.auth.Cookie;
 import gribbit.auth.User;
 import gribbit.handler.route.annotation.RoutePath;
+import gribbit.http.cookie.Cookie;
+import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.Response;
 import gribbit.response.exception.BadRequestException;
@@ -41,7 +42,6 @@ import gribbit.route.Route;
 import gribbit.route.RouteHandler;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.util.Log;
 import gribbit.util.RequestBuilder;
 
 import java.time.ZonedDateTime;

@@ -52,14 +52,14 @@ public class InternalServerErrorException extends RequestHandlingException {
     /**
      * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
      */
-    public InternalServerErrorException(Exception e) {
+    public InternalServerErrorException(Throwable e) {
         super(new ErrorResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR, "Internal Server Error"), e);
     }
 
     /**
      * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
      */
-    public InternalServerErrorException(Request request, String msg, Exception e) throws RequestHandlingException {
+    public InternalServerErrorException(Request request, String msg, Throwable e) throws RequestHandlingException {
         super(msg, e);
         generateResponse(request);
     }
