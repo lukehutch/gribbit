@@ -36,30 +36,23 @@ import static io.netty.handler.codec.http.HttpHeaderNames.ORIGIN;
 import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.User;
-import gribbit.http.response.Response;
+import gribbit.http.request.route.RequestURL;
 import gribbit.http.response.exception.BadRequestException;
-import gribbit.http.response.exception.InternalServerErrorException;
-import gribbit.http.response.exception.MethodNotAllowedException;
-import gribbit.http.response.exception.NotFoundException;
 import gribbit.http.response.exception.ResponseException;
 import gribbit.response.flashmsg.FlashMessage;
-import gribbit.route.Route;
-import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
-import gribbit.server.siteresources.CacheExtension;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
 import io.netty.handler.codec.http2.HttpConversionUtil;
+import io.netty.handler.ssl.SslHandler;
 
-import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.time.ZonedDateTime;
@@ -75,10 +68,12 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class Request {
-    private ChannelHandlerContext ctx;
+    private String rawURL;
+    private String normalizedURL;
     private HttpRequest httpRequest;
     private String streamId;
 
+    private String httpVersion;
     private long reqReceivedTimeEpochMillis;
     private HttpMethod method;
     private boolean isSecure;
@@ -86,11 +81,10 @@ public class Request {
     private boolean isKeepAlive;
     private String requestor;
     private String host;
-    private String urlPath;
-    private String urlHashKey;
-    private String urlPathUnhashed;
-    private File staticResourceFile;
-    private Route authorizedRoute;
+
+    //    private Route authorizedRoute;
+
+    //    private String urlHashKey;
 
     private CharSequence accept;
     private CharSequence acceptCharset;
@@ -143,20 +137,30 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public Request(ChannelHandlerContext ctx, HttpRequest httpReq) {
+    public Request(ChannelHandlerContext ctx, HttpRequest httpReq) throws ResponseException {
         this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
 
-        this.ctx = ctx;
         this.httpRequest = httpReq;
         HttpHeaders headers = httpReq.headers();
 
-        // Decode the path.
-        String url = httpReq.uri();
-        QueryStringDecoder decoder = new QueryStringDecoder(url);
-        this.urlPath = decoder.path();
-        this.queryParamToVals = decoder.parameters();
+        // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
+        this.rawURL = httpReq.uri();
+        if (rawURL.equals("/bad-request")) {
+            throw new BadRequestException();
+        }
 
+        // Decode the URL
+        RequestURL requestURL = new RequestURL(rawURL);
+        this.normalizedURL = requestURL.getNormalizedPath();
+        this.queryParamToVals = requestURL.getQueryParams();
+
+        // TODO: figure out how to detect HTTP/2 connections
+        this.httpVersion = httpReq.protocolVersion().toString();
+
+        // Get HTTP2 stream ID
         this.streamId = headers.getAsString(HttpConversionUtil.ExtensionHeaderNames.STREAM_ID.text());
+
+        this.isSecure = ctx.pipeline().get(SslHandler.class) != null; // TODO: is this correct for HTTP2?
 
         // Decode cookies
         try {
@@ -188,7 +192,6 @@ public class Request {
             Collections.sort(ent.getValue(), COOKIE_COMPARATOR);
         }
 
-        this.isSecure = url.startsWith("https:");
         this.method = httpReq.method();
 
         // Force the GET method if HEAD is requested
@@ -228,23 +231,24 @@ public class Request {
                     DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
         }
 
-        // If this is a hash URL, look up original URL whose served resource was hashed to give this hash URL.
-        // We only need to serve the resource at a hash URL once per resource per client, since resources served
-        // from hash URLs are indefinitely cached in the browser.
-        // TODO: Move cache-busting out of http package
-        this.urlHashKey = CacheExtension.getHashKey(this.urlPath);
-        this.urlPathUnhashed = this.urlHashKey != null ? CacheExtension.getOrigURL(this.urlPath) : this.urlPath;
+        //        // If this is a hash URL, look up original URL whose served resource was hashed to give this hash URL.
+        //        // We only need to serve the resource at a hash URL once per resource per client, since resources served
+        //        // from hash URLs are indefinitely cached in the browser.
+        //        // TODO: Move cache-busting out of http package
+        //        this.urlHashKey = CacheExtension.getHashKey(this.urlPath);
+        //        this.urlPathUnhashed = this.urlHashKey != null ? CacheExtension.getOrigURL(this.urlPath) : this.urlPath;
 
-        // Get flash messages from cookie, if any
-        this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
+        //        // Get flash messages from cookie, if any
+        //        this.flashMessages = FlashMessage.fromCookieString(getCookieValue(Cookie.FLASH_COOKIE_NAME));
     }
 
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Sort cookies into decreasing order of path length, breaking ties by sorting into increasing chronological
-     * order of creation time, as recommended by RFC 6265. This handles path and timestamp masking in situations
-     * where some older clients take the first cookie with a matching name.
+     * Sort cookies into decreasing order of path length, breaking ties by sorting into decreasing chronological
+     * order of creation time (similar to order recommended by RFC 6265, except that the tiebreaking order is
+     * reversed, since newer cookies should be preferred over older cookies). This handles path and timestamp
+     * masking in situations where some older clients take the first cookie with a matching name.
      * 
      * See also: http://stackoverflow.com/questions/4056306/how-to-handle-multiple-cookies-with-the-same-name
      */
@@ -257,117 +261,108 @@ public class Request {
             // know the request path here, but we assume that the length of an unspecified
             // path is longer than any specified path, because setting cookies with a path
             // longer than the request path is of limited use.
-            int len1 = path1 == null ? -1 : path1.length();
-            int len2 = path2 == null ? -1 : path2.length();
-            int assumedLen1 = len1 == -1 ? len2 + 1 : len1;
-            int assumedLen2 = len2 == -1 ? len1 + 1 : len2;
-            int diff = assumedLen2 - assumedLen1;
+            int len1 = path1 == null ? Integer.MAX_VALUE : path1.length();
+            int len2 = path2 == null ? Integer.MAX_VALUE : path2.length();
+            int diff = len2 - len1;
             if (diff != 0) {
                 return diff;
             }
-            // Rely on Java's sort stability to retain creation order in cases where
-            // cookies have same path length 
-            return -1;
+            // Reverse order in cases where cookies have same path length 
+            return 1;
         }
     };
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /**
-     * Looks up the route for the request, and ensures the user is authorized to access the route, otherwise a
-     * RequestHandlingException is thrown.
-     * 
-     * This is performed in a separate step from the constructor so that a non-null Request object can still exist
-     * if any of the checks here fail and a RequestHandlingException is thrown, so that the constructor to the
-     * exception can accept a non-null Request object with the details of the request.
-     */
-    public void matchRoute() throws ResponseException {
+    //    /**
+    //     * Looks up the route for the request, and ensures the user is authorized to access the route, otherwise a
+    //     * RequestHandlingException is thrown.
+    //     * 
+    //     * This is performed in a separate step from the constructor so that a non-null Request object can still exist
+    //     * if any of the checks here fail and a RequestHandlingException is thrown, so that the constructor to the
+    //     * exception can accept a non-null Request object with the details of the request.
+    //     */
+    //    public void matchRoute() throws ResponseException {
+    //        // Check for _getmodel=1 query parameter
+    //        this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
+    //        if (this.isGetModelRequest) {
+    //            this.queryParamToVals.remove("_getmodel");
+    //        }
+    //
+    //        // ------------------------------------------------------------------------------
+    //        // Find the Route corresponding to the request URI, and authenticate user
+    //        // ------------------------------------------------------------------------------
+    //
+    //        // Call route handlers until one is able to handle the route,
+    //        // or until we run out of handlers
+    //        ArrayList<Route> allRoutes = GribbitServer.siteResources.getAllRoutes();
+    //        for (int i = 0, n = allRoutes.size(); i < n; i++) {
+    //            Route route = allRoutes.get(i);
+    //            // If the request URI matches this route path
+    //            if (route.matches(this.urlPathUnhashed)) {
+    //                if (!(this.method == HttpMethod.GET || this.method == HttpMethod.POST)) {
+    //                    // Only GET and POST are supported
+    //                    throw new MethodNotAllowedException();
+    //
+    //                } else if ((this.method == HttpMethod.GET && !route.hasGetMethod())
+    //                        || (this.method == HttpMethod.POST && !route.hasPostMethod())) {
+    //                    // Tried to call an HTTP method that is not defined for this route
+    //                    throw new MethodNotAllowedException();
+    //
+    //                } else {
+    //                    // Call request.lookupUser() to check the session cookies to see if the user is logged in, 
+    //                    // if the route requires users to be logged in. If auth is required, see if the user can
+    //                    // access the requested route.
+    //                    // Throws a RequestHandlingException if not authorized.
+    //                    route.throwExceptionIfNotAuthorized(this);
+    //
+    //                    // If we reach here, either authorization is not required for the route, or the user is
+    //                    // logged in and they passed all auth tests. OK to handle the request with this route.
+    //                    this.authorizedRoute = route;
+    //                }
+    //
+    //                // URI matches, so don't need to search further URIs
+    //                break;
+    //            }
+    //        }
+    //
+    //        // ------------------------------------------------------------------------------
+    //        // Try to match static resource requests if no Route matched
+    //        // ------------------------------------------------------------------------------
+    //
+    //        if (this.authorizedRoute == null) {
+    //            if (this.method == HttpMethod.GET) {
+    //                // Set the static file to be served, if one matches the requested URL
+    //                this.staticResourceFile = GribbitServer.siteResources.getStaticResource(this.urlPathUnhashed);
+    //                if (this.staticResourceFile == null) {
+    //                    // Neither a route handler nor a static resource matched the request URI. Throw 404 Not Found.
+    //                    throw new NotFoundException(this);
+    //                }
+    //            } else {
+    //                // Tried to post to a non-existent Route
+    //                throw new NotFoundException(this);
+    //            }
+    //        }
+    //    }
 
-        // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
-        if (this.urlPath.equals("/bad-request")) {
-            throw new BadRequestException(this);
-        }
-
-        // Check for _getmodel=1 query parameter
-        this.isGetModelRequest = "1".equals(this.getQueryParam("_getmodel"));
-        if (this.isGetModelRequest) {
-            this.queryParamToVals.remove("_getmodel");
-        }
-
-        // ------------------------------------------------------------------------------
-        // Find the Route corresponding to the request URI, and authenticate user
-        // ------------------------------------------------------------------------------
-
-        // Call route handlers until one is able to handle the route,
-        // or until we run out of handlers
-        ArrayList<Route> allRoutes = GribbitServer.siteResources.getAllRoutes();
-        for (int i = 0, n = allRoutes.size(); i < n; i++) {
-            Route route = allRoutes.get(i);
-            // If the request URI matches this route path
-            if (route.matches(this.urlPathUnhashed)) {
-                if (!(this.method == HttpMethod.GET || this.method == HttpMethod.POST)) {
-                    // Only GET and POST are supported
-                    throw new MethodNotAllowedException();
-
-                } else if ((this.method == HttpMethod.GET && !route.hasGetMethod())
-                        || (this.method == HttpMethod.POST && !route.hasPostMethod())) {
-                    // Tried to call an HTTP method that is not defined for this route
-                    throw new MethodNotAllowedException();
-
-                } else {
-                    // Call request.lookupUser() to check the session cookies to see if the user is logged in, 
-                    // if the route requires users to be logged in. If auth is required, see if the user can
-                    // access the requested route.
-                    // Throws a RequestHandlingException if not authorized.
-                    route.throwExceptionIfNotAuthorized(this);
-
-                    // If we reach here, either authorization is not required for the route, or the user is
-                    // logged in and they passed all auth tests. OK to handle the request with this route.
-                    this.authorizedRoute = route;
-                }
-
-                // URI matches, so don't need to search further URIs
-                break;
-            }
-        }
-
-        // ------------------------------------------------------------------------------
-        // Try to match static resource requests if no Route matched
-        // ------------------------------------------------------------------------------
-
-        if (this.authorizedRoute == null) {
-            if (this.method == HttpMethod.GET) {
-                // Set the static file to be served, if one matches the requested URL
-                this.staticResourceFile = GribbitServer.siteResources.getStaticResource(this.urlPathUnhashed);
-                if (this.staticResourceFile == null) {
-                    // Neither a route handler nor a static resource matched the request URI. Throw 404 Not Found.
-                    throw new NotFoundException(this);
-                }
-            } else {
-                // Tried to post to a non-existent Route
-                throw new NotFoundException(this);
-            }
-        }
-    }
-
-    /** If non-null, the request was for a static file. */
-    public File getStaticResourceFile() {
-        return staticResourceFile;
-    }
-
-    /**
-     * Call the GET or POST handler for the Route corresponding to the requested URL path.
-     */
-    public Response callRouteHandler() throws ResponseException {
-        if (authorizedRoute == null) {
-            // Shouldn't happen, the caller should only call this method if the request URL matched an authorized route
-            throw new InternalServerErrorException("Unexpected: authorizedRoute is null");
-        }
-        return authorizedRoute.callHandler(this);
-    }
+    //    /**
+    //     * Call the GET or POST handler for the Route corresponding to the requested URL path.
+    //     */
+    //    public GeneralResponse callRouteHandler() throws ResponseException {
+    //        if (authorizedRoute == null) {
+    //            // Shouldn't happen, the caller should only call this method if the request URL matched an authorized route
+    //            throw new InternalServerErrorException("Unexpected: authorizedRoute is null");
+    //        }
+    //        return authorizedRoute.callHandler(this);
+    //    }
 
     // -----------------------------------------------------------------------------------------------------------------
 
+    /** Get the URL, normalized to handle ".." and ".". */
+    public String getURL() {
+        return normalizedURL;
+    }
+    
     public String getPostParam(String paramName) {
         if (postParamToValue == null) {
             return null;
@@ -463,7 +458,7 @@ public class Request {
      * Get all cookies with the given name, or null if there are no cookies with this name. Cookies are ordered into
      * decreasing order of path length to conform to RFC6295.
      */
-    public ArrayList<Cookie> getCookiesWithName(String cookieName) {
+    public ArrayList<Cookie> getCookies(String cookieName) {
         if (cookieNameToCookies == null) {
             return null;
         } else {
@@ -477,7 +472,7 @@ public class Request {
      * with the longest path.
      */
     public Cookie getCookie(String cookieName) {
-        ArrayList<Cookie> cookieList = getCookiesWithName(cookieName);
+        ArrayList<Cookie> cookieList = getCookies(cookieName);
         if (cookieList == null) {
             return null;
         } else {
@@ -518,7 +513,7 @@ public class Request {
             return contentLastModifiedEpochSeconds > ifModifiedSinceEpochSecond;
         }
     }
-    
+
     /** Return the If-Modified-Since header value from the request, or null if none. */
     public CharSequence getIfModifiedSince() {
         return ifModifiedSince;
@@ -533,7 +528,7 @@ public class Request {
     public String getStreamId() {
         return streamId;
     }
-    
+
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
@@ -557,29 +552,29 @@ public class Request {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /**
-     * Returns the request URL. May include a hash code of the form /_/HASHCODE/path . These hash codes are used for
-     * cache extension, to allow indefinite caching of hashed resources in the browser. The original resource can be
-     * fetched without caching using the path returned by getURLPathUnhashed().
-     */
-    public String getURLPathPossiblyHashed() {
-        return urlPath.toString();
-    }
-
-    /** Returns /path if this request was for a hash URL of the form /_/HASHCODE/path */
-    public String getURLPathUnhashed() {
-        return urlPathUnhashed;
-    }
-
-    /** Returns HASHCODE if this request was for a hash URL of the form /_/HASHCODE/path */
-    public String getURLHashKey() {
-        return urlHashKey;
-    }
-
-    /** Returns true if this request was for a hash URL of the form /_/HASHCODE/path */
-    public boolean isHashURL() {
-        return urlHashKey != null;
-    }
+    //    /**
+    //     * Returns the request URL. May include a hash code of the form /_/HASHCODE/path . These hash codes are used for
+    //     * cache extension, to allow indefinite caching of hashed resources in the browser. The original resource can be
+    //     * fetched without caching using the path returned by getURLPathUnhashed().
+    //     */
+    //    public String getURLPathPossiblyHashed() {
+    //        return urlPath.toString();
+    //    }
+    //
+    //    /** Returns /path if this request was for a hash URL of the form /_/HASHCODE/path */
+    //    public String getURLPathUnhashed() {
+    //        return urlPathUnhashed;
+    //    }
+    //
+    //    /** Returns HASHCODE if this request was for a hash URL of the form /_/HASHCODE/path */
+    //    public String getURLHashKey() {
+    //        return urlHashKey;
+    //    }
+    //
+    //    /** Returns true if this request was for a hash URL of the form /_/HASHCODE/path */
+    //    public boolean isHashURL() {
+    //        return urlHashKey != null;
+    //    }
 
     public String getRequestor() {
         return requestor == null ? "" : requestor;
@@ -587,6 +582,10 @@ public class Request {
 
     public HttpMethod getMethod() {
         return method;
+    }
+
+    public Object getRawURL() {
+        return rawURL;
     }
 
     public boolean isHEADRequest() {
@@ -597,8 +596,8 @@ public class Request {
         this.method = method;
     }
 
-    public void setURI(String uri) {
-        this.urlPath = uri;
+    public String getHttpVersion() {
+        return httpVersion;
     }
 
     public CharSequence getHost() {

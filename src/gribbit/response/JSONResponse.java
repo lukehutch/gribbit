@@ -26,7 +26,7 @@
 package gribbit.response;
 
 import gribbit.http.request.Request;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.JSON;
 import io.netty.buffer.ByteBuf;
@@ -34,7 +34,7 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-public class JSONResponse extends Response {
+public class JSONResponse extends GeneralResponse {
 
     private Object content;
 

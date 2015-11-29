@@ -23,23 +23,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.response.exception;
+package gribbit.http.response;
 
 import gribbit.http.request.Request;
-import gribbit.http.response.EmptyResponse;
-import gribbit.http.response.GeneralResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource that hasn't changed.
+ * A redirect response.
  */
-public class NotModifiedException extends LightweightResponseException {
-    public NotModifiedException() {
-        super(HttpResponseStatus.NOT_MODIFIED);
-    }
-    
-    @Override
-    public GeneralResponse generateErrorResponse(Request request) {
-        return new EmptyResponse(request, responseStatus);
+public class RedirectResponse extends EmptyResponse {
+    public RedirectResponse(Request request, String redirectURL) {
+        super(request, HttpResponseStatus.FOUND);
+        addHeader(HttpHeaderNames.LOCATION, redirectURL);
     }
 }

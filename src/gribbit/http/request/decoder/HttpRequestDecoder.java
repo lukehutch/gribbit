@@ -35,7 +35,7 @@ import gribbit.http.request.Request;
 import gribbit.http.request.handler.HttpErrorHandler;
 import gribbit.http.request.handler.HttpRequestHandler;
 import gribbit.http.request.handler.WebSocketHandler;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.http.response.exception.BadRequestException;
 import gribbit.http.response.exception.InternalServerErrorException;
 import gribbit.http.response.exception.ResponseException;
@@ -79,7 +79,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
@@ -165,6 +164,8 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
         return this;
     }
 
+    // -------------------------------------------------------------------------------------------------------------
+
     /** Add an error handler that overrides a default plain text error response. */
     public <E extends ResponseException> HttpRequestDecoder addHttpErrorHandler(Class<E> exceptionType,
             HttpErrorHandler<E> errorHandler) {
@@ -179,10 +180,18 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
      * See if there is an error handler for the specified exception type, and if so, use it to generate the
      * response.
      */
-    private <E extends ResponseException> Response tryCustomHttpErrorHandler(E exception) {
-        @SuppressWarnings("unchecked")
-        HttpErrorHandler<E> errorHandler = (HttpErrorHandler<E>) errorHandlers.get(exception.getClass());
-        return errorHandler == null ? null : errorHandler.generateResponse(request, exception);
+    private <E extends ResponseException> GeneralResponse generateErrorResponse(E exception) {
+        if (errorHandlers != null) {
+            @SuppressWarnings("unchecked")
+            HttpErrorHandler<E> errorHandler = (HttpErrorHandler<E>) errorHandlers.get(exception.getClass());
+            if (errorHandler != null) {
+                try {
+                    return errorHandler.generateResponse(request, exception);
+                } catch (Exception e) {
+                }
+            }
+        }
+        return exception.generateErrorResponse(request);
     }
 
     // -------------------------------------------------------------------------------------------------------------
@@ -253,82 +262,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
         }
     }
 
-    /** Try upgrading the request to a WebSocket connection using one of the provided WebSocketHandlers. */
-    private boolean tryWebSocketHandlers(ChannelHandlerContext ctx, HttpRequest httpReq)
-            throws ResponseException {
-        String url = httpReq.uri();
-        if (webSocketHandler == null) {
-            if (webSocketHandlers != null) {
-                // Look for a WebSocket handler that can handle this URL
-                for (WebSocketHandler handler : webSocketHandlers) {
-                    if (handler.isWebSocketUpgradeURL(url)) {
-                        // Upgrade connection to WebSocket
-                        WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
-                                httpReq.uri(), null, true);
-                        webSocketHandshaker = wsFactory.newHandshaker(httpReq);
-                        if (webSocketHandshaker == null) {
-                            WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
-                            return false;
-                        } else {
-                            // Attempt websocket handshake, and if it succeeds, upgrade connection to websocket
-                            webSocketHandshaker.handshake(ctx.channel(), httpReq);
-                        }
-                        webSocketHandler = handler;
-                        // TODO: do we need to send an empty OK response? ***********
-                        return true;
-                    }
-                }
-            } else {
-                // No WebSocket handlers
-                return false;
-            }
-        } else {
-            // Duplicate upgrade request, should not happen
-            throw new BadRequestException();
-        }
-        return false;
-    }
-
-    /** Handle a WebSocket frame using the same handler that was used to upgrade the connection. */
-    private void handleWebSocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame) throws BadRequestException,
-            ResponseException {
-        if (frame instanceof CloseWebSocketFrame) {
-            webSocketHandler.close();
-            webSocketHandler = null;
-            webSocketHandshaker.close(ctx.channel(), (CloseWebSocketFrame) frame.retain());
-            webSocketHandshaker = null;
-        } else if (frame instanceof PingWebSocketFrame) {
-            ctx.channel().write(new PongWebSocketFrame(frame.content().retain()));
-        } else if (frame instanceof TextWebSocketFrame) {
-            webSocketHandler.handleTextFrame(ctx, (TextWebSocketFrame) frame);
-        } else if (frame instanceof BinaryWebSocketFrame) {
-            webSocketHandler.handleBinaryFrame(ctx, (BinaryWebSocketFrame) frame);
-        } else {
-            throw new BadRequestException();
-        }
-    }
-
-    /** Try handling the HTTP request using one of the provided HttpRequestHandlers. */
-    private void tryHttpRequestHandlers(ChannelHandlerContext ctx) throws ResponseException {
-        boolean handled = false;
-        if (httpRequestHandlers != null) {
-            for (HttpRequestHandler handler : httpRequestHandlers) {
-                // Try generating a response with this HttpRequestHandler
-                Response response = handler.handle(request);
-                if (response != null) {
-                    // If a response was generated, send it, and don't check any remaining handlers
-                    response.send(request, ctx);
-                    handled = true;
-                    break;
-                }
-            }
-        }
-        if (!handled) {
-            // There is no handler registered for this HTTP request -- respond with Bad Request
-            Log.info("No registered HttpRequestHandler for request: " + request.getURLPathUnhashed());
-            throw new BadRequestException();
-        }
-    }
+    // -------------------------------------------------------------------------------------------------------------
 
     private void handlePOSTChunk(HttpContent chunk) throws BadRequestException, ResponseException {
         if (request == null || postRequestDecoder == null) {
@@ -390,7 +324,82 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
     // -------------------------------------------------------------------------------------------------------------
 
-    private static final Pattern FAVICON_PATTERN = Pattern.compile("^(.*/)?favicon\\.(ico|png|gif|jpeg|jpg|apng)$");
+    /** Try upgrading the request to a WebSocket connection using one of the provided WebSocketHandlers. */
+    private boolean tryWebSocketHandlers(ChannelHandlerContext ctx, HttpRequest httpReq) throws ResponseException {
+        String url = httpReq.uri();
+        if (webSocketHandler == null) {
+            if (webSocketHandlers != null) {
+                // Look for a WebSocket handler that can handle this URL
+                for (WebSocketHandler handler : webSocketHandlers) {
+                    if (handler.isWebSocketUpgradeURL(url)) {
+                        // Upgrade connection to WebSocket
+                        WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
+                                httpReq.uri(), null, true);
+                        webSocketHandshaker = wsFactory.newHandshaker(httpReq);
+                        if (webSocketHandshaker == null) {
+                            WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
+                            return false;
+                        } else {
+                            // Attempt websocket handshake, and if it succeeds, upgrade connection to websocket
+                            webSocketHandshaker.handshake(ctx.channel(), httpReq);
+                        }
+                        webSocketHandler = handler;
+                        // TODO: do we need to send an empty OK response? ***********
+                        return true;
+                    }
+                }
+            } else {
+                // No WebSocket handlers
+                return false;
+            }
+        } else {
+            // Duplicate upgrade request, should not happen
+            throw new BadRequestException();
+        }
+        return false;
+    }
+
+    /** Handle a WebSocket frame using the same handler that was used to upgrade the connection. */
+    private void handleWebSocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame) throws BadRequestException,
+            ResponseException {
+        if (frame instanceof CloseWebSocketFrame) {
+            webSocketHandler.close();
+            webSocketHandler = null;
+            webSocketHandshaker.close(ctx.channel(), (CloseWebSocketFrame) frame.retain());
+            webSocketHandshaker = null;
+        } else if (frame instanceof PingWebSocketFrame) {
+            ctx.channel().write(new PongWebSocketFrame(frame.content().retain()));
+        } else if (frame instanceof TextWebSocketFrame) {
+            webSocketHandler.handleTextFrame(ctx, (TextWebSocketFrame) frame);
+        } else if (frame instanceof BinaryWebSocketFrame) {
+            webSocketHandler.handleBinaryFrame(ctx, (BinaryWebSocketFrame) frame);
+        } else {
+            throw new BadRequestException();
+        }
+    }
+
+    // -------------------------------------------------------------------------------------------------------------
+
+    /** Try handling the HTTP request using one of the provided HttpRequestHandlers. */
+    private void tryHttpRequestHandlers(ChannelHandlerContext ctx) throws ResponseException {
+        if (httpRequestHandlers != null) {
+            for (HttpRequestHandler handler : httpRequestHandlers) {
+                // Try generating a response with this HttpRequestHandler. (Auto-calls close() after response sent.)
+                try (GeneralResponse response = handler.handle(request)) {
+                    if (response != null) {
+                        // If a response was generated, send it, and don't check any remaining handlers
+                        response.send(ctx);
+                        return;
+                    }
+                }
+            }
+        }
+        // There is no handler registered for this HTTP request -- respond with Bad Request
+        Log.info("No registered HttpRequestHandler for request: " + request.getURL());
+        throw new BadRequestException();
+    }
+
+    // -------------------------------------------------------------------------------------------------------------
 
     /**
      * Send non-OK response. Used by Netty pipeline for uncaught exceptions (e.g. connecion reset by peer, malformed
@@ -399,46 +408,32 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable e) {
         try {
-            if (!ctx.channel().isActive()) {
-                Log.exception("Exception thrown while calling toplevel exception handler, and channel "
-                        + "is already closed", e);
-                return;
-            }
             if (e instanceof NotSslRecordException) {
+                // Malformed SSL
                 ctx.channel().flush();
                 ctx.channel().close();
             } else if ("Connection reset by peer".equals(e.getMessage())) {
-                // (No need to log the backtrace in this case)
-                // Log.info(cause.getMessage());
                 // TODO: should connection be closed in this case? Does a response need to be sent?
+                // Log.info(cause.getMessage());
             } else {
-                // If there is no valid request object, can't generate a normal response page,
-                // because ErrorResponse requires a non-null request object to be able to call getContent() 
-
-                ResponseException exception = e instanceof ResponseException //
-                ? (ResponseException) e
-                        : new InternalServerErrorException(e);
-
-                if (exception instanceof InternalServerErrorException) {
-                    Log.exception("Unexpected exception while handling request", e);
-                }
-
                 if (request != null) {
+                    ResponseException exception = e instanceof ResponseException ? (ResponseException) e
+                            : new InternalServerErrorException(e);
+
                     // Override default error response page if there is a custom handler for this error type
-                    Response response = null;
-                    if (errorHandlers != null && !FAVICON_PATTERN.matcher(request.getURLPathUnhashed()).matches()) {
-                        // Override response with custom exception handler
-                        response = tryCustomHttpErrorHandler(exception);
-                    }
-                    if (response == null) {
-                        // Otherwise, use default plain text response
-                        response = exception.generateErrorResponse();
+                    GeneralResponse response = generateErrorResponse(exception);
+
+                    if (exception instanceof InternalServerErrorException) {
+                        // Log backtrace for Internal Server Errors
+                        Log.request(request, response, exception);
+                    } else {
+                        Log.request(request, response);
                     }
 
-                    // Try sending error response
-                    if (request != null && response != null) {
+                    // Send response
+                    if (request != null && ctx.channel().isOpen()) {
                         try {
-                            response.send(request, ctx);
+                            response.send(ctx);
                             return;
 
                         } catch (Exception e2) {
@@ -448,23 +443,23 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
                 // If couldn't send response in normal way (either there is no request object generated yet, or
                 // there was an exception calling response.send()), then send a plain text response as a fallback
-                if (!(exception instanceof InternalServerErrorException)) {
+                if (ctx.channel().isOpen()) {
                     Log.exception("Unable to send exception response", e);
+                    FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                    res.content().writeBytes("Internal Server Error".getBytes("UTF-8"));
+                    HttpHeaders headers = res.headers();
+                    headers.set(CONTENT_TYPE, "text/plain;charset=utf-8");
+                    HttpUtil.setContentLength(res, res.content().readableBytes());
+
+                    // Disable caching
+                    headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
+                    headers.add(PRAGMA, "no-cache"); // HTTP 1.0
+                    headers.add(EXPIRES, "0"); // Proxies
+
+                    ChannelFuture f = ctx.writeAndFlush(res);
+                    f.addListener(ChannelFutureListener.CLOSE);
                 }
-                FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
-                        HttpResponseStatus.INTERNAL_SERVER_ERROR);
-                res.content().writeBytes("Internal Server Error".getBytes("UTF-8"));
-                HttpHeaders headers = res.headers();
-                headers.set(CONTENT_TYPE, "text/plain;charset=utf-8");
-                HttpUtil.setContentLength(res, res.content().readableBytes());
-
-                // Disable caching
-                headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
-                headers.add(PRAGMA, "no-cache"); // HTTP 1.0
-                headers.add(EXPIRES, "0"); // Proxies
-
-                ChannelFuture f = ctx.writeAndFlush(res);
-                f.addListener(ChannelFutureListener.CLOSE);
             }
         } catch (Exception e2) {
             Log.exception("Exception thrown while calling toplevel exception handler", e2);

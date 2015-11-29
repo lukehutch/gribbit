@@ -30,7 +30,7 @@ import gribbit.handler.route.annotation.RoutePath;
 import gribbit.http.cookie.Cookie;
 import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.http.response.exception.BadRequestException;
 import gribbit.http.response.exception.NotFoundException;
 import gribbit.http.response.exception.RedirectException;
@@ -155,7 +155,7 @@ public class GoogleLogin extends RouteHandler {
     // This handler is initially called with "/login" appended to the URI, initiating the OAuth process.
     // The route of this same handler is given to Google with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
-    public Response get(String action) throws ResponseException {
+    public GeneralResponse get(String action) throws ResponseException {
         // Throw 404 if OAuth2 params are not configured 
         if (GribbitProperties.OAUTH_GOOGLE_CLIENT_ID == null || GribbitProperties.OAUTH_GOOGLE_CLIENT_ID.isEmpty()
                 || GribbitProperties.OAUTH_GOOGLE_CLIENT_SECRET == null

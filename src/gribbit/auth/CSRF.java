@@ -26,7 +26,7 @@
 package gribbit.auth;
 
 import gribbit.http.cookie.Cookie;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.thirdparty.UTF8;
 
@@ -101,7 +101,7 @@ public class CSRF {
      * should be read by Javascript code and added to any same-origin Javascript requests in the X-Csrf-Token
      * header. See: https://en.wikipedia.org/wiki/Cross-site_request_forgery#Cookie-to-Header_Token
      */
-    public static void setCsrfCookie(String csrfTok, String path, Response response) {
+    public static void setCsrfCookie(String csrfTok, String path, GeneralResponse response) {
         response.setCookie("Csrf-Token", csrfTok, path, /* maxAge = */-1, /* httpOnly = */false);
     }
 }

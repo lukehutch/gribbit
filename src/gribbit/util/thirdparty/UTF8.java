@@ -32,6 +32,7 @@ package gribbit.util.thirdparty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
 
 import java.io.UnsupportedEncodingException;
 
@@ -124,6 +125,12 @@ public class UTF8 {
     
     public static ByteBuf stringToUTF8ByteBuf(String str) {
         ByteBuf byteBuf = Unpooled.buffer(str.length() * 2);
+        byteBuf.writeBytes(stringToUTF8(str));
+        return byteBuf;
+    }
+    
+    public static ByteBuf stringToUTF8ByteBuf(String str, ChannelHandlerContext ctx) {
+        ByteBuf byteBuf = ctx.alloc().buffer(str.length() * 2);
         byteBuf.writeBytes(stringToUTF8(str));
         return byteBuf;
     }

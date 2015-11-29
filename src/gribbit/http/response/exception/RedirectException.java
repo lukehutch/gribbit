@@ -25,8 +25,9 @@
  */
 package gribbit.http.response.exception;
 
-import gribbit.http.response.Response;
-import io.netty.handler.codec.http.HttpHeaderNames;
+import gribbit.http.request.Request;
+import gribbit.http.response.GeneralResponse;
+import gribbit.http.response.RedirectResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
@@ -45,7 +46,7 @@ public class RedirectException extends LightweightResponseException {
     }
 
     @Override
-    public Response generateErrorResponse() {
-        return super.generateErrorResponse().addHeader(HttpHeaderNames.LOCATION, redirectURL);
+    public GeneralResponse generateErrorResponse(Request request) {
+        return new RedirectResponse(request, redirectURL);
     }
 }

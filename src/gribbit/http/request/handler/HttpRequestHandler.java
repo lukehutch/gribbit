@@ -26,7 +26,7 @@
 package gribbit.http.request.handler;
 
 import gribbit.http.request.Request;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.http.response.exception.ResponseException;
 
 public interface HttpRequestHandler {
@@ -39,5 +39,5 @@ public interface HttpRequestHandler {
      *         should return null, and the request will be passed on to the next handler.
      * @throws ResponseException
      */
-    public Response handle(Request request) throws ResponseException;
+    public GeneralResponse handle(Request request) throws ResponseException;
 }

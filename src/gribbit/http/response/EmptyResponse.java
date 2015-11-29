@@ -25,15 +25,24 @@
  */
 package gribbit.http.response;
 
-import io.netty.buffer.Unpooled;
+import gribbit.http.request.Request;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.LastHttpContent;
 
-public class EmptyResponse extends ByteBufResponse {
-
-    public static final EmptyResponse OK = new EmptyResponse(HttpResponseStatus.OK);
+public class EmptyResponse extends GeneralResponse {
+    public EmptyResponse(Request request, HttpResponseStatus status) {
+        super(request, status);
+    }
     
-    public EmptyResponse(HttpResponseStatus status) {
-        super(status, "text/plain;charset=utf-8", Unpooled.EMPTY_BUFFER);
+    @Override
+    public void writeResponse(ChannelHandlerContext ctx) {
+        contentLength = 0;
+        sendHeaders(ctx);
+        ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
     }
 
+    @Override
+    public void close() {
+    }
 }

@@ -195,22 +195,22 @@ public class GribbitHttpServer {
                 InboundHttp2ToHttpAdapter listener = new InboundHttp2ToHttpAdapter.Builder(connection)
                         .propagateSettings(true).validateHttpHeaders(false).maxContentLength(MAX_CONTENT_LENGTH)
                         .build();
-
                 ctx.pipeline().addLast(
                         new HttpToHttp2ConnectionHandler.Builder().frameListener(listener).build(connection));
                 if (nettyLogLevel != null) {
                     ctx.pipeline().addLast(new LoggingHandler(nettyLogLevel));
                 }
-                ctx.pipeline().addLast(new WebSocketServerCompressionHandler()); // TODO: needed for HTTP2?
+                ctx.pipeline().addLast(new WebSocketServerCompressionHandler());
                 ctx.pipeline().addLast(requestDecoderGroup, requestDecoder);
 
             } else if (ApplicationProtocolNames.HTTP_1_1.equals(protocol)) {
-                ctx.pipeline().addLast( //
-                        new HttpContentDecompressor(), //
-                        new HttpServerCodec(), //
-                        // TODO: We're currently doing manual aggregation of chunked requests (without limiting len) 
-                        /* new HttpObjectAggregator(MAX_CONTENT_LENGTH), */
-                        new WebSocketServerCompressionHandler());
+                ctx.pipeline().addLast(new HttpContentDecompressor(), new HttpServerCodec());
+                // TODO: We're currently doing manual aggregation of chunked requests (without limiting len) 
+                /* ctx.pipeline().addLast(new HttpObjectAggregator(MAX_CONTENT_LENGTH)); */
+                if (nettyLogLevel != null) {
+                    ctx.pipeline().addLast(new LoggingHandler(nettyLogLevel));
+                }
+                ctx.pipeline().addLast(new WebSocketServerCompressionHandler());
                 ctx.pipeline().addLast(requestDecoderGroup, requestDecoder);
 
             } else {

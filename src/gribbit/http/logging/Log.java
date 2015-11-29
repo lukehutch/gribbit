@@ -25,6 +25,8 @@
  */
 package gribbit.http.logging;
 
+import gribbit.http.request.Request;
+import gribbit.http.response.GeneralResponse;
 import gribbit.server.config.GribbitProperties;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Log4JLoggerFactory;
@@ -41,6 +43,7 @@ import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 public class Log {
 
@@ -155,4 +158,50 @@ public class Log {
         logger.log(Level.SEVERE, msg, cause);
     }
 
+    private static final Pattern FAVICON_PATTERN = Pattern.compile("^(.*/)?favicon\\.(ico|png|gif|jpeg|jpg|apng)$");
+
+    private static DateTimeFormatter LOG_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z");
+
+    /** Produce log line in Common Log Format -- https://en.wikipedia.org/wiki/Common_Log_Format */
+    private static String produceLogLine(Request request, GeneralResponse response) {
+        StringBuilder buf = new StringBuilder();
+        buf.append(request == null ? "-" : request.getOrigin());
+        buf.append(" - - [");
+        buf.append(ZonedDateTime.now().format(LOG_TIME_FORMATTER));
+        buf.append("] \"");
+        buf.append(request == null ? "-" : request.getMethod().toString());
+        buf.append(' ');
+        buf.append(request == null ? "-" : request.getRawURL());
+        buf.append(' ');
+        buf.append(request == null ? "-" : request.getHttpVersion());
+        buf.append("\" ");
+        buf.append(response == null ? "-" : Integer.toString(response.getStatus().code()));
+        buf.append(' ');
+        buf.append(response == null ? "-" : Long.toString(response.getContentLength()));
+        return buf.toString();
+    }
+
+    public static void request(Request request, GeneralResponse response) {
+        // Don't log favicon requests
+        if (!FAVICON_PATTERN.matcher(request.getRawURL().toString()).matches()) {
+            String msg = produceLogLine(request, response);
+            logger.log(Level.INFO, msg);
+        }
+    }
+
+    public static void request(Request request, GeneralResponse response, Exception exception) {
+        // Don't log favicon requests
+        if (!FAVICON_PATTERN.matcher(request.getRawURL().toString()).matches()) {
+            String msg = produceLogLine(request, response);
+            logger.log(Level.INFO, msg, exception);
+        }
+    }
+
+    public static void request(Request request, Exception exception) {
+        // Don't log favicon requests
+        if (!FAVICON_PATTERN.matcher(request.getRawURL().toString()).matches()) {
+            String msg = produceLogLine(request, null);
+            logger.log(Level.INFO, msg, exception);
+        }
+    }
 }

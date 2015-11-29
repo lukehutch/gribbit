@@ -29,7 +29,7 @@ import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.request.handler.HttpRequestHandler;
 import gribbit.http.response.FileResponse;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.http.response.exception.ResponseException;
 import gribbit.http.server.GribbitHttpServer;
 import gribbit.server.config.GribbitProperties;
@@ -112,7 +112,7 @@ public class GribbitServer {
 
         HttpRequestHandler requestHandler = new HttpRequestHandler() {
             @Override
-            public Response handle(Request request) throws ResponseException {
+            public GeneralResponse handle(Request request) throws ResponseException {
                 // TODO: factor out request.matchRoute() and request.callRouteHandler()
                 
                 // Look up the route (or static file) based on the URL and HTTP method of the request.
@@ -128,7 +128,7 @@ public class GribbitServer {
                 } else {
                     // No more chunks to receive; handle the request.
                     // Call the RestHandler for the route. May throw a RequestHandlingException.
-                    Response response = request.callRouteHandler();
+                    GeneralResponse response = request.callRouteHandler();
                     return response;
                 }
             }

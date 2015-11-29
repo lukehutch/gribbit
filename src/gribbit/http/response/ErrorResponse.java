@@ -25,13 +25,14 @@
  */
 package gribbit.http.response;
 
+import gribbit.http.request.Request;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * A text-based error response.
  */
 public class ErrorResponse extends TextResponse {
-    public ErrorResponse(HttpResponseStatus status, String content) {
-        super(status, content);
+    public ErrorResponse(Request request, HttpResponseStatus status, String content) {
+        super(request, status, content);
     }
 }

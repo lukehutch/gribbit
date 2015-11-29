@@ -167,6 +167,9 @@ public class SiteResources {
     /**
      * Returns a File reference to a static resource, if it exists within the static resource root. Returns null if
      * the file with this URI does not exist under the static resource root.
+     * 
+     * TODO: this has been superceded with the factoring-out of gribbit-http -- the server nowe does path
+     * normalization.
      */
     public File getStaticResource(String reqURI) {
         // Request URI must start with "/"

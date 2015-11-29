@@ -25,19 +25,12 @@
  */
 package gribbit.http.response;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
+import gribbit.http.request.Request;
+import gribbit.util.thirdparty.UTF8;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 public class TextResponse extends ByteBufResponse {
-    public TextResponse(HttpResponseStatus status, String content) {
-        super(status, "text/plain;charset=utf-8", toUTF8Bytes(content));
-    }
-    
-    private static ByteBuf toUTF8Bytes(String str) {
-        ByteBuf contentBytes = Unpooled.buffer(str.length() * 3 / 2);
-        ByteBufUtil.writeUtf8(contentBytes, str);
-        return contentBytes;
+    public TextResponse(Request request, HttpResponseStatus status, String content) {
+        super(request, status, UTF8.stringToUTF8ByteBuf(content), "text/plain;charset=utf-8");
     }
 }

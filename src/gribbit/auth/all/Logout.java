@@ -27,7 +27,7 @@ package gribbit.auth.all;
 
 import gribbit.handler.route.annotation.NoAuth;
 import gribbit.handler.route.annotation.RoutePath;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.http.response.exception.RedirectException;
 import gribbit.route.RouteHandler;
 
@@ -37,13 +37,13 @@ import gribbit.route.RouteHandler;
 @RoutePath("/logout")
 @NoAuth
 public class Logout extends RouteHandler {
-    public Response get() throws RedirectException {
+    public GeneralResponse get() throws RedirectException {
         RedirectException redir = new RedirectException("/");
         redir.generateErrorResponse().logOutUser(request);
         throw redir;
     }
 
-    public Response post() throws RedirectException {
+    public GeneralResponse post() throws RedirectException {
         return get();
     }
 }

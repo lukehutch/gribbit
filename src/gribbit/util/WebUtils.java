@@ -31,6 +31,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
 import gribbit.util.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8.UTF8Exception;
 import io.netty.handler.codec.http.HttpHeaders;
 
 import java.io.File;
@@ -132,70 +133,6 @@ public class WebUtils {
 
     // -----------------------------------------------------------------------------------------------------
 
-    private static final Map<String, String> EXTENSION_TO_MIMETYPE = toMap(new String[][] {
-            // See https://github.com/h5bp/server-configs-nginx/blob/master/mime.types for more
-            { "txt", "text/plain" }, //
-            { "htm", "text/html" }, //
-            { "html", "text/html" }, //
-            { "js", "application/javascript" }, //
-            { "json", "application/json" }, //
-            { "css", "text/css" }, //
-            { "xml", "application/xml" }, //
-            { "ico", "image/x-icon" }, //
-            { "png", "image/png" }, //
-            { "webp", "image/webp" }, //
-            { "gif", "image/gif" }, //
-            { "mng", "image/mng" }, //
-            { "jpg", "image/jpeg" }, //
-            { "jpeg", "image/jpeg" }, //
-            { "svg", "image/svg+xml" }, //
-            { "svgz", "image/svg+xml" }, // Served as image/svg+xml with a "Content-Encoding: gzip" header
-            { "gz", "application/x-gzip" }, //
-            { "bz2", "application/x-bzip2" }, //
-            { "zip", "application/zip" }, //
-            { "pdf", "application/pdf" }, //
-            { "ogg", "audio/ogg" }, //
-            { "mp3", "audio/mpeg" }, //
-            { "wav", "audio/x-wav" }, //
-            { "csv", "text/comma-separated-values" }, //
-
-            // Font types:
-            { "ttf", "application/x-font-ttf" }, //
-            { "ttc", "application/x-font-ttf" }, //
-            { "otf", "application/x-font-opentype" }, //
-            { "woff", "application/font-woff" }, //
-            { "woff2", "application/font-woff2" }, //
-            { "eot", "application/vnd.ms-fontobject" }, //
-            { "sfnt", "application/font-sfnt" }, //
-    });
-
-    private static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "ttf", "ttc", "otf", "woff",
-            "woff2", "eot", "sfnt" });
-
-    public static void setContentTypeHeaders(HttpHeaders headers, String path) {
-        // Default, if unknown
-        String contentType = "application/octet-stream";
-        int dotIdx = path.lastIndexOf('.'), slashIdx = path.lastIndexOf(File.separatorChar);
-        if (dotIdx > 0 && slashIdx < dotIdx) {
-            String leaf = path.substring(slashIdx + 1).toLowerCase();
-            String ext = path.substring(dotIdx + 1).toLowerCase();
-            String mimeType = WebUtils.EXTENSION_TO_MIMETYPE.get(ext);
-            if (mimeType != null) {
-                contentType = mimeType;
-            }
-            // .svgz files need an additional header -- see http://kaioa.com/node/45
-            if (ext.equals("svgz")) {
-                headers.set(CONTENT_ENCODING, "gzip");
-            }
-            // Fonts need a CORS header if served across domains, to work in Firefox and IE (and according to spec)
-            // -- see http://davidwalsh.name/cdn-fonts
-            if (FONT_EXTENSION.contains(ext) || leaf.equals("font.css") || leaf.equals("fonts.css")) {
-                headers.set(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-            }
-        }
-        headers.set(CONTENT_TYPE, contentType);
-    }
-
     public static boolean isCompressibleContentType(String contentType) {
         return contentType != null
                 && (contentType.startsWith("text/") || contentType.startsWith("application/javascript")
@@ -262,49 +199,59 @@ public class WebUtils {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /** Unescape a URL segment, and turn it from UTF-8 bytes into a Java string. TODO: test this. */
-    public static String unescapeURISegment(String segment) {
-        if (segment.indexOf('%') < 0)
-            // URLs with no escaped characters must be valid ASCII, and are therefore valid UTF-8
-            return segment;
-        byte[] buf = new byte[segment.length()];
-        int bufIdx = 0;
-        for (int segIdx = 0, escapePos = -1, escapedByte = 0, nSeg = segment.length(); //
-        segIdx < nSeg; segIdx++) {
-            char c = segment.charAt(segIdx);
-            if (escapePos == 0 || escapePos == 1) {
-                int digit = c >= '0' && c <= '9' ? (c - '0') : c >= 'a' && c <= 'f' ? (c - 'a' + 10) : c >= 'A'
-                        && c <= 'F' ? (c - 'A' + 10) : -1;
-                if (digit < 0) {
-                    // Got an invalid digit, cancel unescaping and ignore everything from '%' to
-                    // the invalid digit inclusive 
-                    escapePos = -1;
-                } else {
-                    escapedByte = (escapedByte << 4) | digit;
-                }
-                if (escapePos == 0) {
-                    escapePos = 1;
-                } else {
-                    buf[bufIdx++] = (byte) escapedByte;
-                    escapePos = -1;
-                }
-            } else if (c == '%') {
-                // Start decoding escaped char sequence, e.g. %5D
-                escapePos = 0;
-            } else if (c < 0xff) {
-                buf[bufIdx++] = (byte) c;
-            } else {
-                // Should never get high-bit-set chars here, because of urlSegmentMatcher
-                throw new RuntimeException("Got invalid character in URL segment: '" + c + "'");
+    /** Unescape a URL segment, and turn it from UTF-8 bytes into a Java string. */
+    public static String unescapeURLSegment(String str) {
+        boolean hasEscapedChar = false;
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            if ((c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' && c != '.'
+                    && c != '_') {
+                hasEscapedChar = true;
+                break;
             }
         }
-        try {
-            // Decode UTF-8 (UTF-8 bytes for non-ASCII characters are encoded into URLs using %-encoding) 
-            return new String(Arrays.copyOf(buf, bufIdx), "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
+        if (!hasEscapedChar) {
+            return str;
+        } else {
+            byte[] buf = new byte[str.length()];
+            int bufIdx = 0;
+            for (int segIdx = 0, nSeg = str.length(); segIdx < nSeg; segIdx++) {
+                char c = str.charAt(segIdx);
+                if (c == '%') {
+                    // Decode %-escaped char sequence, e.g. %5D
+                    if (segIdx > nSeg - 3) {
+                        // Ignore truncated %-seq at end of string
+                    } else {
+                        char c1 = str.charAt(++segIdx);
+                        int digit1 = c1 >= '0' && c1 <= '9' ? (c1 - '0') : c1 >= 'a' && c1 <= 'f' ? (c1 - 'a' + 10)
+                                : c1 >= 'A' && c1 <= 'F' ? (c1 - 'A' + 10) : -1;
+                        char c2 = str.charAt(++segIdx);
+                        int digit2 = c2 >= '0' && c2 <= '9' ? (c2 - '0') : c2 >= 'a' && c2 <= 'f' ? (c2 - 'a' + 10)
+                                : c2 >= 'A' && c2 <= 'F' ? (c2 - 'A' + 10) : -1;
+                        if (digit1 < 0 || digit2 < 0) {
+                            // Ignore invalid %-sequence
+                        } else {
+                            buf[bufIdx++] = (byte) ((digit1 << 4) | digit2);
+                        }
+                    }
+                } else if (c <= 0x7f) {
+                    buf[bufIdx++] = (byte) c;
+                } else {
+                    // Ignore invalid chars
+                }
+            }
+            if (bufIdx < buf.length) {
+                buf = Arrays.copyOf(buf, bufIdx);
+            }
+            try {
+                return UTF8.utf8ToString(buf);
+            } catch (UTF8Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
+
+    // -----------------------------------------------------------------------------------------------------
 
     /** Encode unsafe characters using %-encoding */
     private static void percentEncode(StringBuilder buf, char c) {
@@ -314,8 +261,6 @@ public class WebUtils {
         buf.append((char) (b2 <= 9 ? '0' + b2 : 'a' + b2 - 10));
     }
 
-    // -----------------------------------------------------------------------------------------------------
-
     // Valid URL characters: see
     // http://goo.gl/JNmVMa
     // http://goo.gl/OZ9OOZ
@@ -324,19 +269,32 @@ public class WebUtils {
     /**
      * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes.
      */
-    public static String escapeURISegment(String str) {
+    public static String escapeURLSegment(String str) {
         if (str == null) {
             return str;
         }
-        StringBuilder buf = new StringBuilder(str.length() * 4);
-        escapeURISegment(str, buf);
-        return buf.toString();
+        boolean hasEscapedChar = false;
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            if ((c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' && c != '.'
+                    && c != '_') {
+                hasEscapedChar = true;
+                break;
+            }
+        }
+        if (hasEscapedChar) {
+            StringBuilder buf = new StringBuilder(str.length() * 4);
+            escapeURLSegment(str, buf);
+            return buf.toString();
+        } else {
+            return str;
+        }
     }
 
     /**
      * Convert a single URL segment (between slashes) to UTF-8, then encode any unsafe bytes.
      */
-    public static void escapeURISegment(String str, StringBuilder buf) {
+    public static void escapeURLSegment(String str, StringBuilder buf) {
         if (str == null) {
             return;
         }
@@ -356,7 +314,7 @@ public class WebUtils {
      * Convert a URI query param key of the form "q" in "?q=v", %-encoding of UTF8 bytes for unusual characters.
      */
     public static void escapeQueryParamKey(String str, StringBuilder buf) {
-        escapeURISegment(str, buf);
+        escapeURLSegment(str, buf);
     }
 
     /**
@@ -367,7 +325,7 @@ public class WebUtils {
         if (str == null) {
             return;
         }
-        escapeURISegment(str.indexOf(' ') >= 0 ? str.replace(' ', '+') : str, buf);
+        escapeURLSegment(str.indexOf(' ') >= 0 ? str.replace(' ', '+') : str, buf);
     }
 
     public static void escapeQueryParamKeyVal(String key, String val, StringBuilder buf) {
@@ -439,7 +397,7 @@ public class WebUtils {
             }
             // FIXME: This will %-encode any unusual characters in the domain name, which will later
             // be rejected by java.net.URI. Need to use Punycode to represent general Unicode domains. 
-            escapeURISegment(part, buf);
+            escapeURLSegment(part, buf);
         }
         // Add query params, if present
         if (paramIdx >= 0) {
@@ -514,7 +472,7 @@ public class WebUtils {
 
     /** Decode (percent-unescape) a PLAIN-type cookie value that was encoded using escapeCookieValue(). */
     public static String unescapeCookieValue(String str) {
-        return unescapeURISegment(str);
+        return unescapeURLSegment(str);
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -855,14 +813,6 @@ public class WebUtils {
             set.add(elt);
         }
         return set;
-    }
-
-    private static <T> HashMap<T, T> toMap(T[][] pairs) {
-        HashMap<T, T> map = new HashMap<>();
-        for (T[] pair : pairs) {
-            map.put(pair[0], pair[1]);
-        }
-        return map;
     }
 
     private static HashMap<String, HashSet<String>> toMap(String[] kvPairs, String separator) {

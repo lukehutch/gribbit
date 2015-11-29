@@ -34,7 +34,7 @@ import gribbit.handler.route.annotation.NoAuth;
 import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.ErrorResponse;
-import gribbit.http.response.Response;
+import gribbit.http.response.GeneralResponse;
 import gribbit.http.response.exception.BadRequestException;
 import gribbit.http.response.exception.InternalServerErrorException;
 import gribbit.http.response.exception.RegistrationNotYetCompletedException;
@@ -110,7 +110,7 @@ public class Route {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Invoke a default method in a Route subinterface. */
-    private Response invokeMethod(Request request, Method method, Object[] methodParamVals)
+    private GeneralResponse invokeMethod(Request request, Method method, Object[] methodParamVals)
             throws ResponseException {
         // Create a handler instance
         RouteHandler instance;
@@ -126,7 +126,7 @@ public class Route {
 
         try {
             // Invoke the method
-            Response response = (Response) method.invoke(instance, methodParamVals);
+            GeneralResponse response = (GeneralResponse) method.invoke(instance, methodParamVals);
 
             // The Response object should not be null, but if it is, respond with No Content
             if (response == null) {
@@ -241,9 +241,9 @@ public class Route {
             }
 
             // Check return type
-            if ((isGet || isPost) && !Response.class.isAssignableFrom(method.getReturnType())) {
+            if ((isGet || isPost) && !GeneralResponse.class.isAssignableFrom(method.getReturnType())) {
                 throw new RuntimeException("Method " + handlerClass.getName() + "." + methodName
-                        + " should have a return type of " + Response.class.getName()
+                        + " should have a return type of " + GeneralResponse.class.getName()
                         + " or a subclass, instead of " + method.getReturnType().getName());
             }
 
@@ -405,8 +405,8 @@ public class Route {
      * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed
      * etc.
      */
-    public Response callHandler(Request request) throws ResponseException {
-        Response response;
+    public GeneralResponse callHandler(Request request) throws ResponseException {
+        GeneralResponse response;
         // Determine param vals for method
         HttpMethod reqMethod = request.getMethod();
 
@@ -456,7 +456,7 @@ public class Route {
     /**
      * Call the get() method for an error handler Route. (Does not do any authentication.)
      */
-    public Response callErrorHandler(Request request) throws ResponseException {
+    public GeneralResponse callErrorHandler(Request request) throws ResponseException {
         // Bind any URI params; invoke the get() method with URI params, and return the Response.
         Object[] getParamVals = bindGetParamsFromURI(request);
         return invokeMethod(request, getMethod, getParamVals);
