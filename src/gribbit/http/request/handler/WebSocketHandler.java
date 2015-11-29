@@ -25,17 +25,17 @@
  */
 package gribbit.http.request.handler;
 
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.ResponseException;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 
 public interface WebSocketHandler {
     /** Handle a text websocket frame. If you want to send a response, call ctx.WriteAndFlush(responseWebSocketFrame). */
-    public void handleTextFrame(ChannelHandlerContext ctx, TextWebSocketFrame frame) throws RequestHandlingException;
+    public void handleTextFrame(ChannelHandlerContext ctx, TextWebSocketFrame frame) throws ResponseException;
 
     /** Handle a text websocket frame. If you want to send a response, call ctx.WriteAndFlush(responseWebSocketFrame). */
-    public void handleBinaryFrame(ChannelHandlerContext ctx, BinaryWebSocketFrame frame) throws RequestHandlingException;
+    public void handleBinaryFrame(ChannelHandlerContext ctx, BinaryWebSocketFrame frame) throws ResponseException;
     
     /** Return true if the passed URL matches a websocket path. */
     public boolean isWebSocketUpgradeURL(String url);

@@ -23,26 +23,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response.exception;
+package gribbit.http.response.exception;
 
-import gribbit.http.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
- * This exception is thrown when a user tries to access a resource that hasn't changed. This
- * RequestHandlingException is special in that it does not take an exception message in the constructor, instead it
- * takes the last modified time of the resource that has not been modified since the timestamp of the version stored
- * in the browser's cache.
+ * A response that does not fill in the stack trace for speed (should be used as a superclass by all exception types
+ * except those that want to log stacktraces, e.g. internal server errors).
  */
-public class NotModifiedException extends RequestHandlingException {
-    /**
-     * This exception is thrown when a user tries to access a resource that hasn't changed. Takes the last modified
-     * time of the resource that has not been modified since the timestamp of the version stored in the browser's
-     * cache.
-     */
-    public NotModifiedException(long lastModifiedEpochSeconds) {
-        super(new ErrorResponse(HttpResponseStatus.NOT_MODIFIED, "") //
-                .setLastModifiedEpochSeconds(lastModifiedEpochSeconds));
+abstract class LightweightResponseException extends ResponseException {
+    public LightweightResponseException(HttpResponseStatus responseStatus) {
+        super(responseStatus);
     }
 
     /**

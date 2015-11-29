@@ -37,11 +37,11 @@ import static io.netty.handler.codec.http.HttpHeaderNames.REFERER;
 import static io.netty.handler.codec.http.HttpHeaderNames.USER_AGENT;
 import gribbit.auth.User;
 import gribbit.http.response.Response;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.InternalServerErrorException;
-import gribbit.response.exception.MethodNotAllowedException;
-import gribbit.response.exception.NotFoundException;
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.InternalServerErrorException;
+import gribbit.http.response.exception.MethodNotAllowedException;
+import gribbit.http.response.exception.NotFoundException;
+import gribbit.http.response.exception.ResponseException;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
@@ -57,6 +57,7 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.handler.codec.http2.HttpConversionUtil;
 
 import java.io.File;
 import java.net.InetAddress;
@@ -76,6 +77,7 @@ import java.util.Set;
 public class Request {
     private ChannelHandlerContext ctx;
     private HttpRequest httpRequest;
+    private String streamId;
 
     private long reqReceivedTimeEpochMillis;
     private HttpMethod method;
@@ -96,7 +98,9 @@ public class Request {
     private boolean acceptEncodingGzip;
     private CharSequence referer;
     private CharSequence userAgent;
-    private long ifModifiedSinceEpochSecond = 0;
+
+    private CharSequence ifModifiedSince;
+    private long ifModifiedSinceEpochSecond;
 
     private HashMap<String, ArrayList<Cookie>> cookieNameToCookies;
     private HashMap<String, String> postParamToValue;
@@ -140,9 +144,11 @@ public class Request {
     // -----------------------------------------------------------------------------------------------------
 
     public Request(ChannelHandlerContext ctx, HttpRequest httpReq) {
+        this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
+
         this.ctx = ctx;
         this.httpRequest = httpReq;
-        this.reqReceivedTimeEpochMillis = System.currentTimeMillis();
+        HttpHeaders headers = httpReq.headers();
 
         // Decode the path.
         String url = httpReq.uri();
@@ -150,26 +156,34 @@ public class Request {
         this.urlPath = decoder.path();
         this.queryParamToVals = decoder.parameters();
 
-        HttpHeaders headers = httpReq.headers();
+        this.streamId = headers.getAsString(HttpConversionUtil.ExtensionHeaderNames.STREAM_ID.text());
 
         // Decode cookies
-        for (CharSequence cookieHeader : headers.getAll(COOKIE)) {
-            for (Cookie cookie : ServerCookieDecoder.STRICT.decode(cookieHeader.toString())) {
-                // Log.fine("Cookie in request: " + nettyCookie);
-                if (cookieNameToCookies == null) {
-                    cookieNameToCookies = new HashMap<>();
-                }
-                String cookieName = cookie.name();
+        try {
+            for (CharSequence cookieHeader : headers.getAll(COOKIE)) {
+                for (Cookie cookie : ServerCookieDecoder.STRICT.decode(cookieHeader.toString())) {
+                    // Log.fine("Cookie in request: " + nettyCookie);
+                    if (cookieNameToCookies == null) {
+                        cookieNameToCookies = new HashMap<>();
+                    }
+                    String cookieName = cookie.name();
 
-                // Multiple cookies may be present in the request with the same name but with different paths
-                ArrayList<Cookie> cookiesWithThisName = cookieNameToCookies.get(cookieName);
-                if (cookiesWithThisName == null) {
-                    cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
+                    // Multiple cookies may be present in the request with the same name but with different paths
+                    ArrayList<Cookie> cookiesWithThisName = cookieNameToCookies.get(cookieName);
+                    if (cookiesWithThisName == null) {
+                        cookieNameToCookies.put(cookieName, cookiesWithThisName = new ArrayList<>());
+                    }
+                    cookiesWithThisName.add(cookie);
                 }
-                cookiesWithThisName.add(cookie);
             }
+        } catch (IllegalArgumentException e) {
+            // Malformed cookies cause ServerCookieDecoder to throw IllegalArgumentException
+            // Log.info("Malformed cookie in request");
+            throw new BadRequestException();
         }
-        // Sort cookies into decreasing order of path length
+        // Sort cookies into decreasing order of path length, in case client doesn't conform to RFC6295,
+        // delivering the cookies in this order itself. This allows us to get the most likely single
+        // cookie for a given cookie name by reading the first cookie in a list for a given name.
         for (Entry<String, ArrayList<Cookie>> ent : cookieNameToCookies.entrySet()) {
             Collections.sort(ent.getValue(), COOKIE_COMPARATOR);
         }
@@ -208,9 +222,9 @@ public class Request {
         this.acceptEncodingGzip = acceptEncoding != null
                 && acceptEncoding.toString().toLowerCase().contains("gzip");
 
-        CharSequence cacheDateHeader = headers.get(IF_MODIFIED_SINCE);
-        if (cacheDateHeader != null && cacheDateHeader.length() > 0) {
-            this.ifModifiedSinceEpochSecond = ZonedDateTime.parse(cacheDateHeader,
+        this.ifModifiedSince = headers.get(IF_MODIFIED_SINCE);
+        if (this.ifModifiedSince != null && this.ifModifiedSince.length() > 0) {
+            this.ifModifiedSinceEpochSecond = ZonedDateTime.parse(this.ifModifiedSince,
                     DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
         }
 
@@ -267,7 +281,7 @@ public class Request {
      * if any of the checks here fail and a RequestHandlingException is thrown, so that the constructor to the
      * exception can accept a non-null Request object with the details of the request.
      */
-    public void matchRoute() throws RequestHandlingException {
+    public void matchRoute() throws ResponseException {
 
         // Netty changes the URI of the request to "/bad-request" if the HTTP request was malformed
         if (this.urlPath.equals("/bad-request")) {
@@ -344,7 +358,7 @@ public class Request {
     /**
      * Call the GET or POST handler for the Route corresponding to the requested URL path.
      */
-    public Response callRouteHandler() throws RequestHandlingException {
+    public Response callRouteHandler() throws ResponseException {
         if (authorizedRoute == null) {
             // Shouldn't happen, the caller should only call this method if the request URL matched an authorized route
             throw new InternalServerErrorException("Unexpected: authorizedRoute is null");
@@ -504,11 +518,22 @@ public class Request {
             return contentLastModifiedEpochSeconds > ifModifiedSinceEpochSecond;
         }
     }
+    
+    /** Return the If-Modified-Since header value from the request, or null if none. */
+    public CharSequence getIfModifiedSince() {
+        return ifModifiedSince;
+    }
 
     public long getReqReceivedTimeEpochMillis() {
         return reqReceivedTimeEpochMillis;
     }
 
+    // -----------------------------------------------------------------------------------------------------------------
+
+    public String getStreamId() {
+        return streamId;
+    }
+    
     // -----------------------------------------------------------------------------------------------------------------
 
     /**

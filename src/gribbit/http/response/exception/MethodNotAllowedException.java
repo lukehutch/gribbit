@@ -23,28 +23,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response.exception;
+package gribbit.http.response.exception;
 
-import gribbit.http.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
  */
-public class MethodNotAllowedException extends RequestHandlingException {
-    /**
-     * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
-     */
+public class MethodNotAllowedException extends LightweightResponseException {
     public MethodNotAllowedException() {
-        super(new ErrorResponse(HttpResponseStatus.METHOD_NOT_ALLOWED, "Method not allowed"));
-    }
-
-    /**
-     * Don't pay the cost of filling in the stack trace -- see
-     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
-     */
-    @Override
-    public synchronized Throwable fillInStackTrace() {
-        return this;
+        super(HttpResponseStatus.METHOD_NOT_ALLOWED);
     }
 }

@@ -23,17 +23,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.request.handler;
+package gribbit.http.response.exception;
 
-import gribbit.http.response.exception.BadRequestException;
-import gribbit.http.response.exception.ResponseException;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
-public interface TextWebSocketHandler extends WebSocketHandler {
-    @Override
-    public default void handleBinaryFrame(ChannelHandlerContext ctx, BinaryWebSocketFrame frame)
-            throws ResponseException {
-        throw new BadRequestException();
+/**
+ * This exception is thrown when a user tries to access a resource they are not authorized to access.
+ */
+public class UnauthorizedException extends LightweightResponseException {
+    public UnauthorizedException() {
+        super(HttpResponseStatus.UNAUTHORIZED);
     }
 }

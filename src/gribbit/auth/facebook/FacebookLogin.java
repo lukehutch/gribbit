@@ -29,11 +29,11 @@ import gribbit.auth.User;
 import gribbit.handler.route.annotation.RoutePath;
 import gribbit.http.logging.Log;
 import gribbit.http.response.Response;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.NotFoundException;
-import gribbit.response.exception.RedirectException;
-import gribbit.response.exception.RequestHandlingException;
-import gribbit.response.exception.UnauthorizedException;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.NotFoundException;
+import gribbit.http.response.exception.RedirectException;
+import gribbit.http.response.exception.ResponseException;
+import gribbit.http.response.exception.UnauthorizedException;
 import gribbit.response.flashmsg.FlashMessage;
 import gribbit.response.flashmsg.FlashMessage.FlashType;
 import gribbit.route.Route;
@@ -202,7 +202,7 @@ public class FacebookLogin extends RouteHandler {
     // This handler is initially called with "/login" appended to the URI, initiating the OAuth process.
     // The route of this same handler is given to Facebook with "/callback" appended in place of "/login" to
     // handle the OAuth2 callback after successful authentication.
-    public Response get(String action) throws RequestHandlingException {
+    public Response get(String action) throws ResponseException {
         // Throw 404 if OAuth2 params are not configured 
         if (GribbitProperties.OAUTH_FACEBOOK_CLIENT_ID == null
                 || GribbitProperties.OAUTH_FACEBOOK_CLIENT_ID.isEmpty()
@@ -397,7 +397,7 @@ public class FacebookLogin extends RouteHandler {
                     //                        }
                     //                    }
 
-                } catch (RequestHandlingException e) {
+                } catch (ResponseException e) {
                     // Pass back to caller
                     throw e;
 
@@ -417,7 +417,7 @@ public class FacebookLogin extends RouteHandler {
                 "Could not log you in, please check your password or contact the site administrator."));
 
         // Generate Unauthorized response
-        RequestHandlingException unauthorizedException;
+        ResponseException unauthorizedException;
         if ("callback".equals(action)) {
             // We don't want the long callback URI in the browser address field,
             // so redirect to the unauthorized handler's route
@@ -429,9 +429,9 @@ public class FacebookLogin extends RouteHandler {
         // Clear session cookies in response
         if (user != null) {
             // This logout method is a little faster, because user doesn't have to be looked up in request
-            unauthorizedException.getErrorResponse().logOutUser(user);
+            unauthorizedException.generateErrorResponse().logOutUser(user);
         } else {
-            unauthorizedException.getErrorResponse().logOutUser(request);
+            unauthorizedException.generateErrorResponse().logOutUser(request);
         }
         throw unauthorizedException;
     }

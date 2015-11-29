@@ -38,38 +38,51 @@ import static io.netty.handler.codec.http.HttpHeaderNames.LAST_MODIFIED;
 import static io.netty.handler.codec.http.HttpHeaderNames.PRAGMA;
 import static io.netty.handler.codec.http.HttpHeaderNames.SERVER;
 import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
+import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 import static io.netty.handler.codec.http.HttpHeaderValues.GZIP;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.InternalServerErrorException;
+import gribbit.http.response.exception.NotFoundException;
+import gribbit.http.response.exception.NotModifiedException;
+import gribbit.http.response.exception.ResponseException;
 import gribbit.server.GribbitServer;
-import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.util.WebUtils;
+import gribbit.util.thirdparty.UTF8;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.channel.DefaultFileRegion;
 import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpChunkedInput;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+import io.netty.handler.codec.http2.HttpConversionUtil;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.stream.ChunkedFile;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map.Entry;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -77,23 +90,34 @@ import java.util.zip.GZIPOutputStream;
  * of the response type.
  */
 public abstract class Response {
-    private Request request;
-    private DefaultHttpResponse httpRes;
+    protected final Request request;
     protected final HttpResponseStatus status;
-    protected String contentType;
-    protected ArrayList<Cookie> cookies;
-    protected long lastModifiedEpochSeconds, maxAgeSeconds;
+    protected final String contentType;
+    protected final DefaultHttpResponse httpResponse;
 
-    private ZonedDateTime timeNow = ZonedDateTime.now();
-    private long timeNowEpochSeconds = timeNow.toEpochSecond();
-    private static final long ONE_YEAR_IN_SECONDS = 31536000L;
+    protected boolean keepAlive;
+    protected HashMap<String, Cookie> cookies;
+
+    protected ZonedDateTime timeNow = ZonedDateTime.now();
+    protected long timeNowEpochSeconds = timeNow.toEpochSecond();
+    protected static final long ONE_YEAR_IN_SECONDS = 31536000L;
+
+    protected long lastModifiedEpochSeconds;
+    protected long maxAgeSeconds;
+
+    protected boolean compressStreamIfPossible = true;
 
     /** Generate a response with a specified status and content type. */
     public Response(Request request, HttpResponseStatus status, String contentType) {
         this.request = request;
         this.status = status;
         this.contentType = contentType;
-        this.httpRes = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
+        this.httpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
+
+        // Close connection after serving response if response status is Bad Request or Internal Server Error.
+        // TODO: Do we need to close connection on error? (e.g. does it help mitigate DoS attacks?)
+        this.keepAlive = request.isKeepAlive() && (this.getStatus() != HttpResponseStatus.BAD_REQUEST //
+                || this.getStatus() != HttpResponseStatus.INTERNAL_SERVER_ERROR);
     }
 
     /** Generate a response with an "OK" status and specified content type. */
@@ -135,10 +159,10 @@ public abstract class Response {
     }
 
     /**
-     * Ensure the response is not cached. (This is the default, unless setMaxAgeSeconds() or
-     * setLastModifiedEpochSeconds() has been called already.)
+     * Ensure the response is not cached. (This is the default, unless setMaxAgeSeconds(),
+     * setLastModifiedEpochSeconds() or cacheForever() has been called already.)
      */
-    public void notCached() {
+    public void doNotCache() {
         setLastModifiedEpochSeconds(0);
         setMaxAgeSeconds(0);
     }
@@ -153,28 +177,37 @@ public abstract class Response {
 
     // -----------------------------------------------------------------------------------------------------
 
-    public Response addHeader(String key, String value) {
-        httpRes.headers().set(key, value);
-        return this;
+    /**
+     * Disable gzip-compression of content streams. (By default, streams with compressible mimetypes like text, HTML
+     * and Javascript are compressed by gzip as they are sent.)
+     */
+    public void disableCompression() {
+        this.compressStreamIfPossible = false;
     }
 
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Set a cookie in the response. (As per the standard, cookies with a shorter path will be masked in the browser
-     * by cookies with a longer path on routes with the longer path as a prefix.)
+     * Set a cookie in the response.
+     * 
+     * (As per RFC6295, the server can only return one cookie with a given name per response. We arbitrarily choose
+     * the last value the cookie is set to as the one that is sent in the response, even if setCookie is called
+     * multiple times for a given cookie name with different paths.)
      */
     public Response setCookie(Cookie cookie) {
         if (cookies == null) {
-            cookies = new ArrayList<>();
+            cookies = new HashMap<>();
         }
-        cookies.add(cookie);
+        cookies.put(cookie.name(), cookie);
         return this;
     }
 
     /**
-     * Set a cookie in the response. Note that cookies with a shorter path will be masked by cookies with a longer
-     * path on routes with the longer path as a prefix.
+     * Set a cookie in the response.
+     * 
+     * (As per RFC6295, the server can only return one cookie with a given name per response. We arbitrarily choose
+     * the last value the cookie is set to as the one that is sent in the response, even if setCookie is called
+     * multiple times for a given cookie name with different paths.)
      * 
      * If the request was made over HTTPS, then the cookie is also set to be visible only over HTTPS.
      * 
@@ -200,11 +233,15 @@ public abstract class Response {
         if (request.isSecure()) {
             cookie.setSecure(true);
         }
-        return this;
+        return setCookie(cookie);
     }
 
     /**
      * Set an HTTP-only cookie in the response with the same path as the request, and a max age of 1 year.
+     * 
+     * (As per RFC6295, the server can only return one cookie with a given name per response. We arbitrarily choose
+     * the last value the cookie is set to as the one that is sent in the response, even if setCookie is called
+     * multiple times for a given cookie name with different paths.)
      * 
      * If the request was made over HTTPS, then the cookie is also set to be visible only over HTTPS.
      * 
@@ -220,7 +257,11 @@ public abstract class Response {
 
     /**
      * Look through the request for cookies with the given name, and delete any matches in the response. (i.e. can
-     * only delete cookies that are actually visible in the request.)
+     * only delete cookies that are actually visible in the request.) Note that per RFC6295, the client should be
+     * sending cookies in order of decreasing path length, and also the server can only send one Set-Cookie header
+     * per cookie name, so if there are multiple matches, only the last match (the one with the shortest path) will
+     * be deleted when the response is set, and you'll need to return multiple responses with the same deleteCookie
+     * action applied to delete them all.
      */
     public Response deleteCookie(String cookieName) {
         for (Cookie cookie : request.getCookiesWithName(cookieName)) {
@@ -232,23 +273,42 @@ public abstract class Response {
 
     // -----------------------------------------------------------------------------------------------------
 
+    public Response addHeader(CharSequence key, CharSequence value) {
+        httpResponse.headers().set(key, value);
+        return this;
+    }
+
     protected void setGeneralHeaders() {
-        httpRes.headers().add(SERVER, GribbitServer.SERVER_IDENTIFIER);
+        HttpHeaders headers = httpResponse.headers();
+        headers.add(SERVER, GribbitServer.SERVER_IDENTIFIER);
 
         // Date header uses server time, and should use the same clock as Expires and Last-Modified
-        httpRes.headers().set(DATE, timeNow.format(DateTimeFormatter.RFC_1123_DATE_TIME));
+        headers.set(DATE, timeNow.format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
         // Add an Accept-Encoding: gzip header to the response to let the client know that in future
         // it can send compressed requests. (This header is probably ignored by most clients, because
         // on initial request they don't know yet if the server can accept compressed content, but
         // there must be clients out there that look for this header and compress content on the
         // second and subsequent requests? See http://stackoverflow.com/a/1450163/3950982 )
-        httpRes.headers().add(ACCEPT_ENCODING, "gzip");
+        headers.add(ACCEPT_ENCODING, "gzip");
+
+        // Set HTTP2 stream ID in response if present in request
+        if (request.getStreamId() != null) {
+            headers.set(HttpConversionUtil.ExtensionHeaderNames.STREAM_ID.text(), request.getStreamId());
+        }
+
+        if (keepAlive) {
+            httpResponse.headers().add(CONNECTION, KEEP_ALIVE);
+        }
+
+        // Content type is passed into constructor, so it is always available
+        headers.set(CONTENT_TYPE, contentType);
     }
 
-    protected void setCacheHeaders() {
+    protected void setCacheHeaders() throws ResponseException {
         boolean cached = false;
-        if (this.getStatus() == HttpResponseStatus.OK) {
+        HttpHeaders headers = httpResponse.headers();
+        if (status == HttpResponseStatus.OK) {
             // Set caching headers -- see:
             // http://www.mobify.com/blog/beginners-guide-to-http-cache-headers/
             // https://www.mnot.net/cache_docs/
@@ -257,74 +317,265 @@ public abstract class Response {
             // RouteHandlers that want to make use of this value should check the return value of
             // request.cachedVersionIsOlderThan(serverTimestamp), where serverTimestamp was the timestamp at which
             // the value previously changed, and if the return value is false, throw NotModifiedException.
-            long lastModifiedEpochSeconds = this.getLastModifiedEpochSeconds();
             if (lastModifiedEpochSeconds > 0L) {
-                httpRes.headers().set(LAST_MODIFIED,
+                headers.set(LAST_MODIFIED,
                         ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSeconds), ZoneId.of("UTC"))
                                 .format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
             } else if (request.isHashURL() && maxAgeSeconds > 0L) {
+                // TODO: Move cache busting code out of http package
+
                 // Only URLs that include a hash key (and whose response has a non-zero maxAgeSeconds) can be cached.
                 // N.B. can set "Cache-Control: public", since the resource is hashed, so it can be served to other
                 // clients that request it (they would have to know the hash URL to request it in the first place).
-                httpRes.headers().set(CACHE_CONTROL, "public, max-age=" + maxAgeSeconds);
-                httpRes.headers().set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds)
+                headers.set(CACHE_CONTROL, "public, max-age=" + maxAgeSeconds);
+                headers.set(EXPIRES, timeNow.plusSeconds(maxAgeSeconds)
                         .format(DateTimeFormatter.RFC_1123_DATE_TIME));
-                httpRes.headers().set(ETAG, request.getURLHashKey());
+                headers.set(ETAG, request.getURLHashKey());
                 cached = true;
             }
+
+        } else if (this.getStatus() == HttpResponseStatus.NOT_MODIFIED) {
+            // For NOT_MODIFIED, need to return the same last modified time as was passed in the request
+            if (request.getIfModifiedSince() != null) {
+                headers.set(LAST_MODIFIED, request.getIfModifiedSince());
+            } else {
+                throw new InternalServerErrorException("Cannot send a Not Modified response if the request does "
+                        + "not have an If-Modified-Since header");
+            }
+            cached = true;
+
         } else if (this.getStatus() == HttpResponseStatus.NOT_FOUND) {
             // Cache 404 messages for 5 minutes to reduce server load
-            int cacheTime = 300;
-            httpRes.headers().set(CACHE_CONTROL, "max-age=" + cacheTime);
-            httpRes.headers().set(EXPIRES, timeNow.plusSeconds(cacheTime).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+            int cacheTime = 60 * 5;
+            headers.set(CACHE_CONTROL, "max-age=" + cacheTime);
+            headers.set(EXPIRES, timeNow.plusSeconds(cacheTime).format(DateTimeFormatter.RFC_1123_DATE_TIME));
             cached = true;
         }
+
         if (!cached) {
             // Disable caching for all URLs that do not contain a hash key. In particular, caching is
             // disabled for error messages, resources that don't have a last modified time, and responses
             // from RouteHandlers that do not set a maxAge (and are therefore not hashed).
 
             // This is the minimum necessary set of headers for disabling caching, see http://goo.gl/yXGd2x
-            httpRes.headers().add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
-            httpRes.headers().add(PRAGMA, "no-cache"); // HTTP 1.0
-            httpRes.headers().add(EXPIRES, "0"); // Proxies
+            headers.add(CACHE_CONTROL, "no-cache, no-store, must-revalidate"); // HTTP 1.1
+            headers.add(PRAGMA, "no-cache"); // HTTP 1.0
+            headers.add(EXPIRES, "0"); // Proxies
         }
     }
 
     protected void setCookieHeaders() {
-        // Delete cookies in the response matching the requested name (on any cookie path visible to the request)
-        HashSet<String> cookiesToDelete = this.getCookiesToDelete();
-        if (cookiesToDelete != null) {
-            for (String cookieName : cookiesToDelete) {
-                // Log.fine("Cookie to delete for req " + reqURI + " : " + cookieName);
-                ArrayList<Cookie> allCookiesWithName = request.getAllCookiesWithName(cookieName);
-                if (allCookiesWithName != null) {
-                    for (Cookie cookie : allCookiesWithName) {
-                        // Delete all cookies with the requested name (there may be multiple cookies
-                        // with this name but with different paths)
-                        httpRes.headers().add(SET_COOKIE, Cookie.deleteCookie(cookie).toString());
-                    }
-                }
-            }
-        }
-
         // Set cookies in the response
-        ArrayList<Cookie> cookiesToSet = this.getCookiesToSet();
-        if (cookiesToSet != null) {
-            for (Cookie cookie : cookiesToSet) {
-                if (cookiesToDelete != null && cookiesToDelete.contains(cookie.getName())) {
-                    Log.warning("Tried to delete and set the cookie \"" + cookie.getName()
-                            + "\" in the same response -- ignoring the set request");
-                } else {
-                    httpRes.headers().add(SET_COOKIE, cookie.toString());
-                }
+        for (String cookieStr : ServerCookieEncoder.STRICT.encode(cookies.values())) {
+            httpResponse.headers().add(SET_COOKIE, cookieStr);
+        }
+    }
+
+    /**
+     * Overridden by subclasses to generate the content of the response. Call sendContentResponse(),
+     * sendHeadResponse(), or sendFileResponse() once the content has been located and/or generated.
+     */
+    protected abstract ChannelFuture generateAndSendContent(boolean isHeadRequest) throws ResponseException;
+
+    protected ChannelFuture sendContentResponse(String content, ChannelHandlerContext ctx) {
+        ByteBuf contentBytes = ctx.alloc().buffer(content.length() * 2);
+        contentBytes.writeBytes(UTF8.stringToUTF8(content));
+        return sendContentResponse(contentBytes, ctx);
+    }
+
+    protected ChannelFuture sendContentResponse(ByteBuf content, ChannelHandlerContext ctx) {
+        // Gzip content if the configuration property is set to allow gzip, and the client supports gzip encoding,
+        // and the content size is larger than 1kb, and the content type is compressible 
+        HttpHeaders headers = httpResponse.headers();
+        if (this.compressStreamIfPossible && //
+                request.acceptEncodingGzip() //
+                && content.readableBytes() > 1024 //
+                && WebUtils.isCompressibleContentType(contentType)) {
+            byte[] contentBytes = content.array();
+            int contentLen = content.readableBytes();
+            ByteBuf gzippedContent = ctx.alloc().buffer(contentLen);
+            try {
+                // TODO: compare speed to using JZlib.GZIPOutputStream
+                GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
+                gzipStream.write(contentBytes, 0, contentLen);
+                gzipStream.close();
+            } catch (IOException e) {
+                // Should not happen
+                Log.exception("Could not gzip content", e);
+                gzippedContent = Unpooled.EMPTY_BUFFER;
             }
+            // Release the content ByteBuf after last usage, and then use gzipped content instead
+            content.release();
+            content = gzippedContent;
+            httpResponse.headers().set(CONTENT_ENCODING, GZIP);
+        }
+        headers.set(CONTENT_LENGTH, Integer.toString(content.readableBytes()));
+
+        // Write headers, content, and end marker
+        ctx.write(httpResponse);
+        ctx.write(content);
+        return ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
+    }
+
+    protected ChannelFuture sendHeadResponse(int contentLen, ChannelHandlerContext ctx) {
+        httpResponse.headers().set(CONTENT_LENGTH, Integer.toString(contentLen));
+        ctx.write(httpResponse);
+        return ctx.write(LastHttpContent.EMPTY_LAST_CONTENT);
+    }
+   
+    /**
+     * Send a file on a given path. It is the caller's responsibility to ensure that the path has been properly
+     * sanitized so that it only exposes file content that should be exposed.
+     * 
+     * If a file does not exist at this path (or the object at the path is not a regular file), throws
+     * NotFoundException.
+     */
+    protected ChannelFuture sendFileResponse(Path path) throws ResponseException {
+        File file = path.toFile();
+        if (!file.exists() || !file.isFile() || file.isHidden()) {
+            throw new NotFoundException();
+        }
+        // Create new RandomAccessFile (which allows us to find file length etc.)
+        try (RandomAccessFile fileToServe = new RandomAccessFile(file, "r")) {
+            HttpHeaders headers = httpResponse.headers();
+            // Check last-modified timestamp against the If-Modified-Since header timestamp in the request
+            // (resolution is 1 sec)
+            long lastModifiedEpochSeconds = file.lastModified() / 1000;
+            if (!request.contentModified(lastModifiedEpochSeconds)) {
+                // File has not been modified since it was last cached -- return Not Modified
+                throw new NotModifiedException();
+            }
+
+            long fileLength = fileToServe.length();
+            headers.set(CONTENT_LENGTH, Long.toString(fileLength));
+            WebUtils.setContentTypeHeaders(headers, file.getPath());
+
+            // If the file contents have changed since the last time the file was hashed,
+            // schedule the file to be hashed in the background so that future references to the
+            // file's URI in a src/href attribute of served HTML templates will include a hash
+            // URI rather than the original URI for the file, allowing the browser to cache the
+            // file indefinitely until it changes.
+            CacheExtension.updateHashURI(request.getURLPathUnhashed(), file);
+
+            // If file was already cached, and the request URI included the hash key, then this is
+            // the first time this client has fetched this file since the browser cache was last
+            // cleared. Mark this resource as indefinitely cached. If the file is not being served
+            // on a hash URI, then at least set the Last-Modified header, so that if the client
+            // requests the same unmodified resource again on the same non-hash URI, the server can
+            // return Not Modified instead of serving the contents of the file.
+
+            // Date header uses server time, and should use the same clock as Expires and Last-Modified
+            ZonedDateTime timeNow = ZonedDateTime.now();
+            headers.set(DATE, timeNow.format(DateTimeFormatter.RFC_1123_DATE_TIME));
+
+            // Last-Modified is used to determine whether a Not Modified response should be returned on next request
+            // Add last modified header to cacheable resources. This is needed because Chrome sends
+            // "Cache-Control: max-age=0" when the user types in a URL and hits enter, or hits refresh.
+            // In these circumstances, sending back "Cache-Control: public, max-age=31536000" does
+            // no good, because the browser has already requested the resource rather than relying on
+            // its cache. By setting the last modified header for all cacheable resources, we can
+            // at least send "Not Modified" as a response if the resource has not been modified,
+            // which doesn't save on roundtrips, but at least saves on re-transferring the resources
+            // to the browser when they're already in the browser's cache.
+            headers.set(LAST_MODIFIED,
+                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSeconds), ZoneId.of("UTC"))
+                            .format(DateTimeFormatter.RFC_1123_DATE_TIME));
+
+            String hashKey = request.getURLHashKey();
+            if (hashKey != null) {
+                // File was requested on a hash URL => cache the most recent version of the file indefinitely
+                // at the hash URL. If the file contents no longer match the hash (i.e. the contents have
+                // changed since the hash for the request URI was looked up by the RouteHandler), it's no big
+                // deal, we can just serve the newer file contents at the old hash, and the client will still
+                // get the newest content, just cached against the old hash URL.
+                int indefinitely = 31536000; // 1 year (max according to spec)
+                headers.set(CACHE_CONTROL, "public, max-age=" + indefinitely);
+                headers.set(EXPIRES, timeNow.plusSeconds(indefinitely).format(DateTimeFormatter.RFC_1123_DATE_TIME));
+                headers.set(ETAG, hashKey);
+            }
+
+            if (request.isKeepAlive()) {
+                headers.add(CONNECTION, KEEP_ALIVE);
+            }
+
+            // FileRegions cannot be used with SSL, have to use chunked content
+            boolean isChunked = ctx.pipeline().get(SslHandler.class) != null;
+            if (isChunked) {
+                headers.add(TRANSFER_ENCODING, CHUNKED);
+            }
+
+            // Write HTTP headers to channel
+            ctx.write(httpRes);
+
+            // For HEAD requests, don't send the body
+            if (request.isHEADRequest()) {
+                ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+                return;
+            }
+
+            // TODO: when a file is requested, if it's a compressible type, schedule it to be gzipped on disk, and
+            // return the gzipped version instead of the original version, as long as the gzipped version has a
+            // newer timestamp.
+
+            // Write file content to channel.
+            // Both methods will close fileToServe after sending the file, see:
+            // https://github.com/netty/netty/issues/2474#issuecomment-117905496
+            @SuppressWarnings("unused")
+            ChannelFuture sendFileFuture;
+            ChannelFuture lastContentFuture;
+            if (!isChunked) {
+                // Use FileRegions if possible, which supports zero-copy / mmio.
+                sendFileFuture = ctx.write(new DefaultFileRegion(fileToServe.getChannel(), 0, fileLength),
+                        ctx.newProgressivePromise());
+                // Write the end marker
+                lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+            } else {
+                // Can't use FileRegions / zero-copy with SSL
+                // HttpChunkedInput will write the end marker (LastHttpContent) for us, see:
+                // https://github.com/netty/netty/commit/4ba2ce3cbbc55391520cfc98a7d4227630fbf978
+                lastContentFuture = sendFileFuture = ctx.writeAndFlush(new HttpChunkedInput(new ChunkedFile(
+                        fileToServe, 0, fileLength, 1)), ctx.newProgressivePromise());
+            }
+
+            // Possibly close the connection after the last chunk has been sent.
+            if (!request.isKeepAlive()) {
+                lastContentFuture.addListener(ChannelFutureListener.CLOSE);
+            }
+
+            //    // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
+            //    // progress (e.g. to update user's UI over a web socket to show download progress.)
+            //    sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+            //        @Override
+            //        public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
+            //            if (total < 0) { // Total unknown
+            //                System.err.println(future.channel() + " Progress: " + progress);
+            //            } else {
+            //                System.err.println(future.channel() + " Progress: " + progress + " / " + total);
+            //            }
+            //        }
+            //    
+            //        @Override
+            //        public void operationComplete(ChannelProgressiveFuture future) {
+            //            System.err.println(future.channel() + " Transfer complete.");
+            //        }
+            //    });
+
+            Log.fine(request.getRequestor() + "\t" + request.getURLPathUnhashed() + "\tfile://" + file.getPath()
+                    + "\t" + HttpResponseStatus.OK + "\t"
+                    + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
+        } catch (FileNotFoundException e) {
+            // 404 Not Found
+            throw new NotFoundException(request);
+        } catch (IOException e1) {
+            // Should only be thrown by Autocloseable if close() fails
+            throw new InternalServerErrorException(e1);
         }
     }
 
     /** Send an HTTP response. */
-    public void send(Request request, ChannelHandlerContext ctx) throws RequestHandlingException {
+    public void send(Request request, ChannelHandlerContext ctx) throws ResponseException {
+        // TODO
         //        // Add flash messages to response template, if any
         //        if (this instanceof HTMLPageResponse) {
         //            // Only complete HTML pages have flash messages
@@ -345,90 +596,27 @@ public abstract class Response {
         //            }
         //        }
 
-        // If the response needs hashing, and the response does not have an error status, then schedule the
-        // content of the response for hashing, and store a mapping from the original request URI to the
-        // hash URI so that future HTML responses that have src/href attributes that contain this request
-        // URI will replace this request URI with the hash URI instead. This will mean the client will
-        // fetch that hash URI only once until it expires in the cache, so that on subsequent requests,
-        // the linked resource won't even be requested from the server.
-        long maxAgeSeconds = this.getMaxAgeSeconds();
-        if (maxAgeSeconds > 0L && this.getStatus() == HttpResponseStatus.OK) {
-            CacheExtension.updateHashURI(request.getURLPathUnhashed(), content, //
-                    /* lastModifiedEpochSeconds = */timeNowEpochSeconds);
-        }
-
-        // Gzip content if the configuration property is set to allow gzip, and the client supports gzip encoding,
-        // and the content size is larger than 1kb, and the content type is compressible 
-        ByteBuf contentToUse = content;
-        boolean isGzipped = false;
-        if (GribbitProperties.CONTENT_GZIP && //
-                request.acceptEncodingGzip() //
-                && content.readableBytes() > 1024 //
-                && WebUtils.isCompressibleContentType(contentType)) {
-            // TODO: compare speed to using JZlib.GZIPOutputStream
-            byte[] contentBytes = content.array();
-            int contentLen = content.readableBytes();
-            ByteBuf gzippedContent = Unpooled.buffer(contentLen);
-            try {
-                GZIPOutputStream gzipStream = new GZIPOutputStream(new ByteBufOutputStream(gzippedContent));
-                gzipStream.write(contentBytes, 0, contentLen);
-                gzipStream.close();
-            } catch (IOException e) {
-                // Should not happen
-                Log.exception("Could not gzip content", e);
-                gzippedContent = Unpooled.EMPTY_BUFFER;
-            }
-            contentToUse = gzippedContent;
-            isGzipped = true;
-            // Release the content ByteBuf after last usage
-            content.release();
-            content = null;
-        }
-
-        // Create a FullHttpResponse object that wraps the response status and content
-        DefaultFullHttpResponse httpRes = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, this.getStatus(), //
-                contentToUse);
-        HttpHeaders headers = httpRes.headers();
-        httpRes.headers().set(CONTENT_LENGTH, Integer.toString(contentToUse.readableBytes()));
-        if (isGzipped) {
-            httpRes.headers().set(CONTENT_ENCODING, GZIP);
-        }
-        httpRes.headers().set(CONTENT_TYPE, contentType);
-
-        // Add any custom headers from the Response object
-        if (customHeaders != null) {
-            for (Entry<String, String> header : customhttpRes.headers().entrySet()) {
-                httpRes.headers().add(header.getKey(), header.getValue());
-            }
-        }
-
-        // Close the connection after serving the response if the response status is anything other than OK
-        boolean keepAlive = request.isKeepAlive() && (this.getStatus() == HttpResponseStatus.OK
-        // TODO: In addition to redirects (HttpResponseStatus.FOUND), should the channel be kept alive for other
-        // result codes, e.g. NOT_MODIFIED?
-                || this.getStatus() != HttpResponseStatus.FOUND);
-        if (keepAlive) {
-            httpRes.headers().add(CONNECTION, KEEP_ALIVE);
-        }
+        // TODO
+        //        // If the response needs hashing, and the response does not have an error status, then schedule the
+        //        // content of the response for hashing, and store a mapping from the original request URI to the
+        //        // hash URI so that future HTML responses that have src/href attributes that contain this request
+        //        // URI will replace this request URI with the hash URI instead. This will mean the client will
+        //        // fetch that hash URI only once until it expires in the cache, so that on subsequent requests,
+        //        // the linked resource won't even be requested from the server.
+        //        long maxAgeSeconds = this.getMaxAgeSeconds();
+        //        if (maxAgeSeconds > 0L && this.getStatus() == HttpResponseStatus.OK) {
+        //            CacheExtension.updateHashURI(request.getURLPathUnhashed(), content, //
+        //                    /* lastModifiedEpochSeconds = */timeNowEpochSeconds);
+        //        }
 
         if (request.isHEADRequest()) {
             // Don't return a body for HEAD requests (but still return the content length).
-            httpRes.content().clear();
+            httpResponse.content().clear();
         }
 
-        if (ctx.channel().isOpen()) {
-            // Write the ByteBuffer returned by httpRes.content() back into the pipeline
-            // See http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#4.0
-            ChannelFuture future = ctx.writeAndFlush(httpRes);
-
-            // Close the connection after the write operation is done if necessary.
-            if (!keepAlive) {
-                future.addListener(ChannelFutureListener.CLOSE);
-            }
-
-        } else {
-            // Client already closed the connection, nothing can be sent
-            // Log.info("Channel closed by client before response sent");
+        ctx.flush();
+        if (!keepAlive) {
+            ctx.newPromise().addListener(ChannelFutureListener.CLOSE);
         }
 
         // Log the request and response

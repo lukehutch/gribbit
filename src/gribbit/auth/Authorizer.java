@@ -26,7 +26,7 @@
 package gribbit.auth;
 
 import gribbit.http.request.Request;
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.ResponseException;
 import gribbit.route.Route;
 
 /**
@@ -45,8 +45,8 @@ public interface Authorizer {
      *            looked up for the current user (based on the session cookie) before the Authorizer is called.
      * @param route
      *            The route to check.
-     * @throws RequestHandlingException
+     * @throws ResponseException
      *             Thrown if the user is not logged in, or is logged in but is not authorized for this route.
      */
-    public void throwExceptionIfNotAuthorized(Request request, Route route) throws RequestHandlingException;
+    public void throwExceptionIfNotAuthorized(Request request, Route route) throws ResponseException;
 }

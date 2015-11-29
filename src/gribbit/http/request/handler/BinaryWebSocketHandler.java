@@ -25,15 +25,15 @@
  */
 package gribbit.http.request.handler;
 
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.ResponseException;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 
 public interface BinaryWebSocketHandler extends WebSocketHandler {
     @Override
     public default void handleTextFrame(ChannelHandlerContext ctx, TextWebSocketFrame frame)
-            throws RequestHandlingException {
+            throws ResponseException {
         throw new BadRequestException();
     }
 }

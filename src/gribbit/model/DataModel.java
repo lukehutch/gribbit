@@ -28,10 +28,10 @@ package gribbit.model;
 import gribbit.auth.CSRF;
 import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.InternalServerErrorException;
+import gribbit.http.response.exception.ResponseException;
 import gribbit.model.util.FieldChecker;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.InternalServerErrorException;
-import gribbit.response.exception.RequestHandlingException;
 import gribbit.server.GribbitServer;
 import gribbit.util.JSON;
 import io.netty.handler.codec.http.multipart.FileUpload;
@@ -65,7 +65,7 @@ public abstract class DataModel {
      * @throws AppException
      *             if any of the constraint annotations are not specified
      */
-    public void bindFromPost(Request request) throws RequestHandlingException {
+    public void bindFromPost(Request request) throws ResponseException {
 
         // Match field names against POST param names, and set values of fields whenever there is a match
         HashSet<String> unusedPostParams = new HashSet<String>(request.getPostParamNames());

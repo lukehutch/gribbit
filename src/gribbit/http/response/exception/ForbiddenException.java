@@ -23,29 +23,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.response.exception;
+package gribbit.http.response.exception;
 
-import gribbit.http.response.ErrorResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 /**
  * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
  */
-public class ForbiddenException extends RequestHandlingException {
-    /**
-     * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden
-     * method.
-     */
+public class ForbiddenException extends LightweightResponseException {
     public ForbiddenException() {
-        super(new ErrorResponse(HttpResponseStatus.FORBIDDEN, "Forbidden"));
-    }
-
-    /**
-     * Don't pay the cost of filling in the stack trace -- see
-     * http://java-performance.info/throwing-an-exception-in-java-is-very-slow/
-     */
-    @Override
-    public synchronized Throwable fillInStackTrace() {
-        return this;
+        super(HttpResponseStatus.FORBIDDEN);
     }
 }

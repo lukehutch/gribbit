@@ -30,10 +30,10 @@ import gribbit.http.cookie.Cookie;
 import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.Response;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.ResponseException;
+import gribbit.http.response.exception.UnauthorizedException;
 import gribbit.model.DBModelStringKey;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.RequestHandlingException;
-import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.Database;
 import gribbit.util.Hash;
@@ -139,7 +139,7 @@ public class User extends DBModelStringKey {
      */
     // FIXME: remove this, and store tokens in user
     public static User validateTok(Request request, String email, String suppliedToken, TokenType tokType)
-            throws RequestHandlingException {
+            throws ResponseException {
         if (email.isEmpty() || email.equals("null") || email.indexOf('@') < 0) {
             throw new BadRequestException(request, "Invalid email address");
         }
@@ -285,7 +285,7 @@ public class User extends DBModelStringKey {
      *             if user is not whitelisted for login
      */
     public void changePassword(Request request, String newPassword, Response response)
-            throws RequestHandlingException {
+            throws ResponseException {
         if (sessionTokHasExpired()) {
             throw new UnauthorizedException(request);
         }
@@ -318,7 +318,7 @@ public class User extends DBModelStringKey {
      * @return User if successfully authenticated, null otherwise
      */
     public static User authenticate(Request request, String email, String password, Response response)
-            throws RequestHandlingException {
+            throws ResponseException {
         // FIXME: Allow only one login attempt per email address every 5 seconds. Add email addrs to a ConcurrentTreeSet
         // or something (*if* the email addr is already in the database, to prevent DoS), and every 5s, purge old
         // entries from the tree. If an attempt is made in less than 5s, then return an error rather than blocking for
@@ -401,7 +401,7 @@ public class User extends DBModelStringKey {
     /**
      * Create a new authentication token for user and save session cookie.
      */
-    public void logIn(Request request, Response response) throws RequestHandlingException {
+    public void logIn(Request request, Response response) throws ResponseException {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null || GribbitServer.loginWhitelistChecker.allowUserToLogin(id)) {
 
@@ -447,7 +447,7 @@ public class User extends DBModelStringKey {
      * Create a user and log them in.
      */
     private static User create(Request request, String email, String passwordHash, boolean registrationComplete,
-            Response response) throws RequestHandlingException {
+            Response response) throws ResponseException {
         // Check user against login whitelist, if it exists
         if (GribbitServer.loginWhitelistChecker == null
                 || GribbitServer.loginWhitelistChecker.allowUserToLogin(email)) {
@@ -491,7 +491,7 @@ public class User extends DBModelStringKey {
      *             if a user with this email addr already exists.
      */
     public static User create(Request request, String email, String passwordHash, Response response)
-            throws RequestHandlingException {
+            throws ResponseException {
         return create(request, email, passwordHash, /* registrationComplete = */false, response);
     }
 
@@ -502,7 +502,7 @@ public class User extends DBModelStringKey {
      *             if a user with this email addr already exists.
      */
     public static User createFederatedLoginUser(Request request, String email, Response response)
-            throws RequestHandlingException {
+            throws ResponseException {
         return create(request, email, FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER, /* registrationComplete = */true,
                 response);
     }

@@ -30,6 +30,9 @@
  */
 package gribbit.util.thirdparty;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+
 import java.io.UnsupportedEncodingException;
 
 public class UTF8 {
@@ -117,5 +120,11 @@ public class UTF8 {
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
+    }
+    
+    public static ByteBuf stringToUTF8ByteBuf(String str) {
+        ByteBuf byteBuf = Unpooled.buffer(str.length() * 2);
+        byteBuf.writeBytes(stringToUTF8(str));
+        return byteBuf;
     }
 }

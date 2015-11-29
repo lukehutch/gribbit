@@ -29,11 +29,7 @@ import gribbit.server.config.GribbitProperties;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
-import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-
-import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  * Cookies!

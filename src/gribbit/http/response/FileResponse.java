@@ -37,9 +37,9 @@ import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
-import gribbit.response.exception.NotFoundException;
-import gribbit.response.exception.NotModifiedException;
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.NotFoundException;
+import gribbit.http.response.exception.NotModifiedException;
+import gribbit.http.response.exception.ResponseException;
 import gribbit.server.GribbitServer;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.util.WebUtils;
@@ -74,7 +74,7 @@ public class FileResponse extends Response {
 
     /** Serve a File. */
     @Override
-    public void send(Request request, ChannelHandlerContext ctx) throws RequestHandlingException {
+    public void send(Request request, ChannelHandlerContext ctx) throws ResponseException {
         // Create new RandomAccessFile (which allows us to find file length etc.)
         try (RandomAccessFile fileToServe = new RandomAccessFile(file, "r")) {
             // Check last-modified timestamp against the If-Modified-Since header timestamp in the request
@@ -121,10 +121,9 @@ public class FileResponse extends Response {
             // at least send "Not Modified" as a response if the resource has not been modified,
             // which doesn't save on roundtrips, but at least saves on re-transferring the resources
             // to the browser when they're already in the browser's cache.
-            headers.set(
-                    LAST_MODIFIED,
-                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSeconds), ZoneId.of("UTC")).format(
-                            DateTimeFormatter.RFC_1123_DATE_TIME));
+            headers.set(LAST_MODIFIED,
+                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(lastModifiedEpochSeconds), ZoneId.of("UTC"))
+                            .format(DateTimeFormatter.RFC_1123_DATE_TIME));
 
             String hashKey = request.getURLHashKey();
             if (hashKey != null) {
@@ -183,14 +182,9 @@ public class FileResponse extends Response {
             }
 
             // Possibly close the connection after the last chunk has been sent.
-            lastContentFuture.addListener(new ChannelFutureListener() {
-                @Override
-                public void operationComplete(ChannelFuture future) {
-                    if (!request.isKeepAlive()) {
-                        future.channel().close();
-                    }
-                }
-            });
+            if (!request.isKeepAlive()) {
+                lastContentFuture.addListener(ChannelFutureListener.CLOSE);
+            }
 
             //    // Can add ChannelProgressiveFutureListener to sendFileFuture if we need to track
             //    // progress (e.g. to update user's UI over a web socket to show download progress.)
@@ -210,8 +204,8 @@ public class FileResponse extends Response {
             //        }
             //    });
 
-            Log.fine(request.getRequestor() + "\t" + request.getURLPathUnhashed() + "\tfile://" + file.getPath() + "\t"
-                    + HttpResponseStatus.OK + "\t"
+            Log.fine(request.getRequestor() + "\t" + request.getURLPathUnhashed() + "\tfile://" + file.getPath()
+                    + "\t" + HttpResponseStatus.OK + "\t"
                     + (System.currentTimeMillis() - request.getReqReceivedTimeEpochMillis()) + " msec");
         } catch (FileNotFoundException e) {
             // 404 Not Found

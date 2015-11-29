@@ -198,7 +198,6 @@ public class WebUtils {
 
     public static boolean isCompressibleContentType(String contentType) {
         return contentType != null
-                && !contentType.isEmpty()
                 && (contentType.startsWith("text/") || contentType.startsWith("application/javascript")
                         || contentType.startsWith("application/json") || contentType.startsWith("application/xml")
                         || contentType.startsWith("image/svg+xml") || contentType

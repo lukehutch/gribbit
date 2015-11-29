@@ -23,17 +23,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.request.handler;
+package gribbit.http.response.exception;
 
-import gribbit.http.response.exception.BadRequestException;
-import gribbit.http.response.exception.ResponseException;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
-public interface TextWebSocketHandler extends WebSocketHandler {
+/**
+ * This exception is thrown when user-supplied data in the request is invalid.
+ */
+public class BadRequestException extends LightweightResponseException {
+    String msg;
+
+    public BadRequestException() {
+        super(HttpResponseStatus.BAD_REQUEST);
+    }
+
+    public BadRequestException(String msg) {
+        this();
+        this.msg = msg;
+    }
+
     @Override
-    public default void handleBinaryFrame(ChannelHandlerContext ctx, BinaryWebSocketFrame frame)
-            throws ResponseException {
-        throw new BadRequestException();
+    protected String getResponseMessage() {
+        return msg == null ? super.getResponseMessage() : super.getResponseMessage() + " -- " + msg;
     }
 }

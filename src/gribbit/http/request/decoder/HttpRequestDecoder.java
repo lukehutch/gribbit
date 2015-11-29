@@ -36,9 +36,9 @@ import gribbit.http.request.handler.HttpErrorHandler;
 import gribbit.http.request.handler.HttpRequestHandler;
 import gribbit.http.request.handler.WebSocketHandler;
 import gribbit.http.response.Response;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.InternalServerErrorException;
-import gribbit.response.exception.RequestHandlingException;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.InternalServerErrorException;
+import gribbit.http.response.exception.ResponseException;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -79,6 +79,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
@@ -89,8 +90,8 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
     private ArrayList<HttpRequestHandler> httpRequestHandlers;
     private ArrayList<WebSocketHandler> webSocketHandlers;
-    private HashMap<Class<? extends RequestHandlingException>, //
-    HttpErrorHandler<? extends RequestHandlingException>> errorHandlers;
+    private HashMap<Class<? extends ResponseException>, //
+    HttpErrorHandler<? extends ResponseException>> errorHandlers;
 
     // -------------------------------------------------------------------------------------------------------------
 
@@ -115,8 +116,8 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
     }
 
     public HttpRequestDecoder(ArrayList<HttpRequestHandler> httpRequestHandlers,
-            ArrayList<WebSocketHandler> webSocketHandlers, HashMap<Class<? extends RequestHandlingException>, //
-            HttpErrorHandler<? extends RequestHandlingException>> errorHandlers) {
+            ArrayList<WebSocketHandler> webSocketHandlers, HashMap<Class<? extends ResponseException>, //
+            HttpErrorHandler<? extends ResponseException>> errorHandlers) {
         this.httpRequestHandlers = httpRequestHandlers;
         this.webSocketHandlers = webSocketHandlers;
         this.errorHandlers = errorHandlers;
@@ -165,7 +166,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
     }
 
     /** Add an error handler that overrides a default plain text error response. */
-    public <E extends RequestHandlingException> HttpRequestDecoder addHttpErrorHandler(Class<E> exceptionType,
+    public <E extends ResponseException> HttpRequestDecoder addHttpErrorHandler(Class<E> exceptionType,
             HttpErrorHandler<E> errorHandler) {
         if (errorHandlers == null) {
             errorHandlers = new HashMap<>();
@@ -178,7 +179,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
      * See if there is an error handler for the specified exception type, and if so, use it to generate the
      * response.
      */
-    private <E extends RequestHandlingException> Response tryHttpErrorHandler(E exception) {
+    private <E extends ResponseException> Response tryCustomHttpErrorHandler(E exception) {
         @SuppressWarnings("unchecked")
         HttpErrorHandler<E> errorHandler = (HttpErrorHandler<E>) errorHandlers.get(exception.getClass());
         return errorHandler == null ? null : errorHandler.generateResponse(request, exception);
@@ -254,7 +255,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
     /** Try upgrading the request to a WebSocket connection using one of the provided WebSocketHandlers. */
     private boolean tryWebSocketHandlers(ChannelHandlerContext ctx, HttpRequest httpReq)
-            throws RequestHandlingException {
+            throws ResponseException {
         String url = httpReq.uri();
         if (webSocketHandler == null) {
             if (webSocketHandlers != null) {
@@ -290,7 +291,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
     /** Handle a WebSocket frame using the same handler that was used to upgrade the connection. */
     private void handleWebSocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame) throws BadRequestException,
-            RequestHandlingException {
+            ResponseException {
         if (frame instanceof CloseWebSocketFrame) {
             webSocketHandler.close();
             webSocketHandler = null;
@@ -308,7 +309,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
     }
 
     /** Try handling the HTTP request using one of the provided HttpRequestHandlers. */
-    private void tryHttpRequestHandlers(ChannelHandlerContext ctx) throws RequestHandlingException {
+    private void tryHttpRequestHandlers(ChannelHandlerContext ctx) throws ResponseException {
         boolean handled = false;
         if (httpRequestHandlers != null) {
             for (HttpRequestHandler handler : httpRequestHandlers) {
@@ -329,7 +330,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
         }
     }
 
-    private void handlePOSTChunk(HttpContent chunk) throws BadRequestException, RequestHandlingException {
+    private void handlePOSTChunk(HttpContent chunk) throws BadRequestException, ResponseException {
         if (request == null || postRequestDecoder == null) {
             // Should not happen for well-formed requests
             return;
@@ -389,6 +390,8 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
 
     // -------------------------------------------------------------------------------------------------------------
 
+    private static final Pattern FAVICON_PATTERN = Pattern.compile("^(.*/)?favicon\\.(ico|png|gif|jpeg|jpg|apng)$");
+
     /**
      * Send non-OK response. Used by Netty pipeline for uncaught exceptions (e.g. connecion reset by peer, malformed
      * HTTP message, etc.), and also called manually for caught exceptions.
@@ -412,31 +415,34 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
                 // If there is no valid request object, can't generate a normal response page,
                 // because ErrorResponse requires a non-null request object to be able to call getContent() 
 
-                RequestHandlingException exception = e instanceof RequestHandlingException //
-                ? (RequestHandlingException) e
+                ResponseException exception = e instanceof ResponseException //
+                ? (ResponseException) e
                         : new InternalServerErrorException(e);
 
                 if (exception instanceof InternalServerErrorException) {
                     Log.exception("Unexpected exception while handling request", e);
                 }
 
-                // Override default error response page if there is a custom handler for this error type
-                Response response = null;
-                if (errorHandlers != null) {
-                    // Override response with custom exception handler, if provided
-                    response = tryHttpErrorHandler(exception);
-                }
-                if (response == null) {
-                    // Otherwise, use default plain text response
-                    response = exception.getErrorResponse();
-                }
-
-                // Try sending error response
                 if (request != null) {
-                    try {
-                        response.send(request, ctx);
-                        return;
-                    } catch (Exception e2) {
+                    // Override default error response page if there is a custom handler for this error type
+                    Response response = null;
+                    if (errorHandlers != null && !FAVICON_PATTERN.matcher(request.getURLPathUnhashed()).matches()) {
+                        // Override response with custom exception handler
+                        response = tryCustomHttpErrorHandler(exception);
+                    }
+                    if (response == null) {
+                        // Otherwise, use default plain text response
+                        response = exception.generateErrorResponse();
+                    }
+
+                    // Try sending error response
+                    if (request != null && response != null) {
+                        try {
+                            response.send(request, ctx);
+                            return;
+
+                        } catch (Exception e2) {
+                        }
                     }
                 }
 

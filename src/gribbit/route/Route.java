@@ -35,13 +35,13 @@ import gribbit.http.logging.Log;
 import gribbit.http.request.Request;
 import gribbit.http.response.ErrorResponse;
 import gribbit.http.response.Response;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.InternalServerErrorException;
+import gribbit.http.response.exception.RegistrationNotYetCompletedException;
+import gribbit.http.response.exception.ResponseException;
+import gribbit.http.response.exception.UnauthorizedException;
 import gribbit.model.DataModel;
 import gribbit.response.HTMLResponse;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.InternalServerErrorException;
-import gribbit.response.exception.RegistrationNotYetCompletedException;
-import gribbit.response.exception.RequestHandlingException;
-import gribbit.response.exception.UnauthorizedException;
 import gribbit.server.GribbitServer;
 import gribbit.util.Reflection;
 import gribbit.util.WebUtils;
@@ -78,7 +78,7 @@ public class Route {
      */
     private static class LoggedInAuthorizer implements Authorizer {
         @Override
-        public void throwExceptionIfNotAuthorized(Request request, Route route) throws RequestHandlingException {
+        public void throwExceptionIfNotAuthorized(Request request, Route route) throws ResponseException {
             if (!request.lookupUser().registrationIsComplete()) {
                 // User is logged in, but registration is not yet completed (e.g. they haven't verified their
                 // email address).
@@ -92,7 +92,7 @@ public class Route {
      * authorization, or if the authorization test passes. Throws a RequestHandlingException if the route requires
      * authorization and the user is not logged in or is not authorized for the route.
      */
-    public void throwExceptionIfNotAuthorized(Request request) throws RequestHandlingException {
+    public void throwExceptionIfNotAuthorized(Request request) throws ResponseException {
         if (authorizer != null) {
             // There is an Authorizer specified, so the user must be logged in.
             // Look up the User object based on the session cookies in the request. 
@@ -111,7 +111,7 @@ public class Route {
 
     /** Invoke a default method in a Route subinterface. */
     private Response invokeMethod(Request request, Method method, Object[] methodParamVals)
-            throws RequestHandlingException {
+            throws ResponseException {
         // Create a handler instance
         RouteHandler instance;
         try {
@@ -174,8 +174,8 @@ public class Route {
             // If method.invoke() throws a RequestHandlingException, it gets wrapped in an InvocationTargetException,
             // Unwrap it and re-throw it.
             Throwable cause = e.getCause();
-            if (cause instanceof RequestHandlingException) {
-                throw (RequestHandlingException) cause;
+            if (cause instanceof ResponseException) {
+                throw (ResponseException) cause;
             } else if (cause instanceof Exception) {
                 throw new InternalServerErrorException(request, "Exception while invoking the method "
                         + handlerClass.getName() + "." + method.getName(), (Exception) cause);
@@ -313,7 +313,7 @@ public class Route {
      * 
      * @param user
      */
-    private Object[] bindPostParamFromPOSTData(Request request) throws RequestHandlingException {
+    private Object[] bindPostParamFromPOSTData(Request request) throws ResponseException {
         if (postParamType == null) {
             // post() takes no params
             return null;
@@ -344,7 +344,7 @@ public class Route {
      * If a get() method takes one or more parameters, bind the parameters from URI segments after the end of the
      * route's base URI, e.g. /person/53 for a route of /person gives one Integer-typed param value of 53
      */
-    private Object[] bindGetParamsFromURI(Request request) throws RequestHandlingException {
+    private Object[] bindGetParamsFromURI(Request request) throws ResponseException {
         String reqURI = request.getURLPathUnhashed();
         if (getParamTypes.length == 0) {
             // get() takes no params
@@ -405,7 +405,7 @@ public class Route {
      * Assumes user is sufficiently authorized to call this handler, i.e. assumes login checks have been performed
      * etc.
      */
-    public Response callHandler(Request request) throws RequestHandlingException {
+    public Response callHandler(Request request) throws ResponseException {
         Response response;
         // Determine param vals for method
         HttpMethod reqMethod = request.getMethod();
@@ -456,7 +456,7 @@ public class Route {
     /**
      * Call the get() method for an error handler Route. (Does not do any authentication.)
      */
-    public Response callErrorHandler(Request request) throws RequestHandlingException {
+    public Response callErrorHandler(Request request) throws ResponseException {
         // Bind any URI params; invoke the get() method with URI params, and return the Response.
         Object[] getParamVals = bindGetParamsFromURI(request);
         return invokeMethod(request, getMethod, getParamVals);

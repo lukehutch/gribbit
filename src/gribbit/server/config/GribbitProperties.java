@@ -68,7 +68,6 @@ public class GribbitProperties {
 
     public static boolean ALLOW_WEBSOCKETS = PropertyUtils.getPropertyBoolean(properties, "websockets.allow", true);
 
-    public static boolean CONTENT_GZIP = PropertyUtils.getPropertyBoolean(properties, "content.gzip", true);
     public static boolean PRETTY_PRINT_HTML = PropertyUtils
             .getPropertyBoolean(properties, "prettyprint.html", true);
     public static boolean PRETTY_PRINT_JSON = PropertyUtils

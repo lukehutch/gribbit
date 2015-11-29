@@ -27,11 +27,11 @@ package gribbit.websocket;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
-import gribbit.response.exception.BadRequestException;
-import gribbit.response.exception.ForbiddenException;
-import gribbit.response.exception.MethodNotAllowedException;
-import gribbit.response.exception.RequestHandlingException;
-import gribbit.response.exception.UnauthorizedException;
+import gribbit.http.response.exception.BadRequestException;
+import gribbit.http.response.exception.ForbiddenException;
+import gribbit.http.response.exception.MethodNotAllowedException;
+import gribbit.http.response.exception.ResponseException;
+import gribbit.http.response.exception.UnauthorizedException;
 import gribbit.route.Route;
 import gribbit.server.GribbitServer;
 import gribbit.server.config.GribbitProperties;
@@ -216,7 +216,7 @@ public class AuthenticatedWebSocketHandler {
     }
 
     public AuthenticatedWebSocketHandler(ChannelHandlerContext ctx, HttpRequest httpReq, CharSequence origin,
-            String csrfQueryParam, User user, Route authorizedRoute) throws RequestHandlingException {
+            String csrfQueryParam, User user, Route authorizedRoute) throws ResponseException {
 
         if (user == null) {
             // Require users to be logged in before initiating WebSocket requests to mitigate DoS attacks
