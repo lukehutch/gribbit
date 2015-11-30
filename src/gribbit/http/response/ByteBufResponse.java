@@ -58,6 +58,10 @@ public class ByteBufResponse extends GeneralResponse {
         this.content = content;
     }
 
+    public ByteBufResponse(Request request, ByteBuf content, String contentType) {
+        this(request, HttpResponseStatus.OK, content, contentType);
+    }
+
     @Override
     public void writeResponse(ChannelHandlerContext ctx) {
         if (this.gzipContent) {

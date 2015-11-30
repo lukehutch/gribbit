@@ -29,12 +29,12 @@ import gribbit.http.request.Request;
 import gribbit.util.thirdparty.UTF8;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-public class TextResponse extends ByteBufResponse {
-    public TextResponse(Request request, HttpResponseStatus status, String content) {
-        super(request, status, UTF8.stringToUTF8ByteBuf(content), "text/plain;charset=utf-8");
+public class HTMLResponse extends ByteBufResponse {
+    public HTMLResponse(Request request, HttpResponseStatus status, String content) {
+        super(request, status, UTF8.stringToUTF8ByteBuf(content), "text/html;charset=utf-8");
     }
 
-    public TextResponse(Request request, String content) {
+    public HTMLResponse(Request request, String content) {
         this(request, HttpResponseStatus.OK, content);
     }
 }

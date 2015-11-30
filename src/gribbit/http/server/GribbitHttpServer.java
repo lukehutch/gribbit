@@ -31,7 +31,6 @@ import gribbit.http.request.handler.HttpErrorHandler;
 import gribbit.http.request.handler.HttpRequestHandler;
 import gribbit.http.request.handler.WebSocketHandler;
 import gribbit.http.response.exception.ResponseException;
-import gribbit.server.config.GribbitProperties;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
@@ -70,7 +69,6 @@ import java.net.URI;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import javax.net.ssl.SSLException;
 
@@ -191,25 +189,25 @@ public class GribbitHttpServer {
         @Override
         protected void configurePipeline(ChannelHandlerContext ctx, String protocol) throws Exception {
             if (ApplicationProtocolNames.HTTP_2.equals(protocol)) {
+                if (nettyLogLevel != null) {
+                    ctx.pipeline().addLast(new LoggingHandler(nettyLogLevel));
+                }
                 DefaultHttp2Connection connection = new DefaultHttp2Connection(true);
                 InboundHttp2ToHttpAdapter listener = new InboundHttp2ToHttpAdapter.Builder(connection)
                         .propagateSettings(true).validateHttpHeaders(false).maxContentLength(MAX_CONTENT_LENGTH)
                         .build();
                 ctx.pipeline().addLast(
                         new HttpToHttp2ConnectionHandler.Builder().frameListener(listener).build(connection));
-                if (nettyLogLevel != null) {
-                    ctx.pipeline().addLast(new LoggingHandler(nettyLogLevel));
-                }
                 ctx.pipeline().addLast(new WebSocketServerCompressionHandler());
                 ctx.pipeline().addLast(requestDecoderGroup, requestDecoder);
 
             } else if (ApplicationProtocolNames.HTTP_1_1.equals(protocol)) {
-                ctx.pipeline().addLast(new HttpContentDecompressor(), new HttpServerCodec());
-                // TODO: We're currently doing manual aggregation of chunked requests (without limiting len) 
-                /* ctx.pipeline().addLast(new HttpObjectAggregator(MAX_CONTENT_LENGTH)); */
                 if (nettyLogLevel != null) {
                     ctx.pipeline().addLast(new LoggingHandler(nettyLogLevel));
                 }
+                ctx.pipeline().addLast(new HttpContentDecompressor(), new HttpServerCodec());
+                // TODO: We're currently doing manual aggregation of chunked requests (without limiting len) 
+                /* ctx.pipeline().addLast(new HttpObjectAggregator(MAX_CONTENT_LENGTH)); */
                 ctx.pipeline().addLast(new WebSocketServerCompressionHandler());
                 ctx.pipeline().addLast(requestDecoderGroup, requestDecoder);
 
@@ -237,114 +235,99 @@ public class GribbitHttpServer {
         }
 
         // Initialize logger
-        Log.info("Starting " + GribbitHttpServer.class.getName() + " on port " + port);
+        Log.info("Starting " + serverName + " on port " + port);
 
         if (!portAvailable(port)) {
             throw new IllegalArgumentException("Port " + port + " is not available -- is server already running?");
         }
 
-        // Configure and start up the server. (We do this in a different thread, passing back any exception that
-        // occurs in a (single-element) blocking queue, so that we can use Autocloseable with the thread groups.)
-        LinkedBlockingQueue<Exception> startupException = new LinkedBlockingQueue<>();
-        new Thread() {
-            public void run() {
-                // TODO: allow the number of threads to be configurable?
-                try (EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-                        EventLoopGroup workerGroup = new NioEventLoopGroup();
-                        EventLoopGroup requestDecoderGroup = new NioEventLoopGroup()) {
-
-                    ServerBootstrap b = new ServerBootstrap();
-                    // http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#14.0
-                    b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
-
-                    final SslContext sslCtx = GribbitProperties.useTLS ? configureTLS() : null;
-                    b.option(ChannelOption.SO_BACKLOG, 1024);
-                    b.group(bossGroup, workerGroup) //
-                            .channel(NioServerSocketChannel.class) //
-                            // .handler(new LoggingHandler(LogLevel.INFO)) //
-                            .childHandler(new ChannelInitializer<SocketChannel>() {
-                                // Create an HTTP decoder/encoder and request handler for each connection,
-                                // so that the request can be handled in a stateful way
-                                @Override
-                                public void initChannel(SocketChannel ch) {
-                                    ChannelPipeline p = ch.pipeline();
-                                    HttpRequestDecoder httpRequestDecoder = new HttpRequestDecoder(
-                                            httpRequestHandlers, webSocketHandlers, errorHandlers);
-                                    if (sslCtx != null) {
-                                        p.addLast(sslCtx.newHandler(ch.alloc()), new Http2OrHttpHandler(
-                                                requestDecoderGroup, httpRequestDecoder));
-                                    } else {
-                                        p.addLast(requestDecoderGroup, httpRequestDecoder);
-                                    }
-                                }
-                            });
-
-                    //                // TODO: test these options suggested in http://goo.gl/AHvjmq
-                    //                // See also http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#11.0
-                    //                b.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
-                    //                b.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 64 * 1024);
-                    //                b.childOption(ChannelOption.SO_SNDBUF, 1048576);
-                    //                b.childOption(ChannelOption.SO_RCVBUF, 1048576);
-                    //                // bootstrap.childOption(ChannelOption.TCP_NODELAY, true);
-
-                    // TODO: Apache closes KeepAlive connections after a few seconds, see
-                    //       http://en.wikipedia.org/wiki/HTTP_persistent_connection
-                    // TODO: implement a stale connection tracker
-                    // final StaleConnectionTrackingHandler staleConnectionTrackingHandler = 
-                    //          new StaleConnectionTrackingHandler(STALE_CONNECTION_TIMEOUT, executor);
-                    //            ScheduledExecutorService staleCheckExecutor = 
-                    //               Executors.newSingleThreadScheduledExecutor(
-                    //                 new NamingThreadFactory(Gribbit.class.getSimpleName()
-                    //                    + "-stale-connection-check"));
-                    //            staleCheckExecutor.scheduleWithFixedDelay(new Runnable() {
-                    //                @Override
-                    //                public void run() {
-                    //                    staleConnectionTrackingHandler.closeStaleConnections();
-                    //                }
-                    //            }, STALE_CONNECTION_TIMEOUT / 2, STALE_CONNECTION_TIMEOUT / 2,
-                    //                TimeUnit.MILLISECONDS);
-                    //            executorServices.add(staleCheckExecutor);
-                    // connectionTrackingHandler = new ConnectionTrackingHandler();
-
-                    String domainAndPort = domain
-                            + ((!useTLS && port == 80) || (useTLS && port == 443) ? "" : ":" + port);
-                    uri = new URI((useTLS ? "https" : "http") + "://" + domainAndPort);
-                    wsUri = new URI((useTLS ? "wss" : "ws") + "://" + domainAndPort);
-
-                    // Set up channel
-                    channel = b.bind(port).sync().channel();
-
-                    // Successfully started up (no startup exception) -- cause start() to exit,
-                    // but keep this thread running, waiting on channel close..
-                    startupException.add(null);
-                    Log.info(serverName + " started at " + uri + "/");
-
-                    // Wait (possibly indefinitely) for channel to close via call to this.shutdown()
-                    channel.closeFuture().sync();
-                    channel = null;
-
-                    Log.info(serverName + " successfully shut down");
-
-                } catch (Exception e) {
-                    startupException.add(e);
-                    try {
-                        channel.flush();
-                        channel.close();
-                    } catch (Exception e2) {
-                    }
-                }
-            };
-        }.start();
-
-        // Throw IllegalArgumentException if anything went wrong setting up channel
-        Exception e = null;
+        // TODO: allow the number of threads to be configurable?
+        EventLoopGroup bossGroup = new NioEventLoopGroup(1);
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        EventLoopGroup requestDecoderGroup = new NioEventLoopGroup();
         try {
-            e = startupException.take();
-        } catch (InterruptedException e2) {
-            e = e2;
-        }
-        if (e != null) {
-            throw new IllegalArgumentException("Exception while starting up " + serverName, e);
+            final SslContext sslCtx = useTLS ? configureTLS() : null;
+
+            ServerBootstrap b = new ServerBootstrap();
+            // http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#14.0
+            b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+
+            b.option(ChannelOption.SO_BACKLOG, 1024);
+            b.group(bossGroup, workerGroup) //
+                    .channel(NioServerSocketChannel.class) //
+                    .handler(new LoggingHandler(LogLevel.DEBUG)) //
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                        // Create an HTTP decoder/encoder and request handler for each connection,
+                        // so that the request can be handled in a stateful way
+                        @Override
+                        public void initChannel(SocketChannel ch) {
+                            ChannelPipeline p = ch.pipeline();
+                            HttpRequestDecoder httpRequestDecoder = new HttpRequestDecoder(httpRequestHandlers,
+                                    webSocketHandlers, errorHandlers);
+                            if (sslCtx != null) {
+                                p.addLast(sslCtx.newHandler(ch.alloc()), new Http2OrHttpHandler(
+                                        requestDecoderGroup, httpRequestDecoder)); // TODO: correct for HTTP2?
+                            } else {
+                                // TODO: unify this with HTTP 1.1 treatment in http2OrHttpHandler
+
+                                p.addLast(new HttpContentDecompressor(), new HttpServerCodec());
+                                // TODO: We're currently doing manual aggregation of chunked requests (without limiting len) 
+                                /* p.addLast(new HttpObjectAggregator(MAX_CONTENT_LENGTH)); */
+                                p.addLast(new WebSocketServerCompressionHandler());
+                                p.addLast(requestDecoderGroup, httpRequestDecoder);
+                            }
+                        }
+                    });
+
+            //                // TODO: test these options suggested in http://goo.gl/AHvjmq
+            //                // See also http://normanmaurer.me/presentations/2014-facebook-eng-netty/slides.html#11.0
+            //                b.childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 64 * 1024);
+            //                b.childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 64 * 1024);
+            //                b.childOption(ChannelOption.SO_SNDBUF, 1048576);
+            //                b.childOption(ChannelOption.SO_RCVBUF, 1048576);
+            //                // bootstrap.childOption(ChannelOption.TCP_NODELAY, true);
+
+            // TODO: Apache closes KeepAlive connections after a few seconds, see
+            //       http://en.wikipedia.org/wiki/HTTP_persistent_connection
+            // TODO: implement a stale connection tracker
+            // final StaleConnectionTrackingHandler staleConnectionTrackingHandler = 
+            //          new StaleConnectionTrackingHandler(STALE_CONNECTION_TIMEOUT, executor);
+            //            ScheduledExecutorService staleCheckExecutor = 
+            //               Executors.newSingleThreadScheduledExecutor(
+            //                 new NamingThreadFactory(Gribbit.class.getSimpleName()
+            //                    + "-stale-connection-check"));
+            //            staleCheckExecutor.scheduleWithFixedDelay(new Runnable() {
+            //                @Override
+            //                public void run() {
+            //                    staleConnectionTrackingHandler.closeStaleConnections();
+            //                }
+            //            }, STALE_CONNECTION_TIMEOUT / 2, STALE_CONNECTION_TIMEOUT / 2,
+            //                TimeUnit.MILLISECONDS);
+            //            executorServices.add(staleCheckExecutor);
+            // connectionTrackingHandler = new ConnectionTrackingHandler();
+
+            String domainAndPort = domain + ((!useTLS && port == 80) || (useTLS && port == 443) ? "" : ":" + port);
+            uri = new URI((useTLS ? "https" : "http") + "://" + domainAndPort);
+            wsUri = new URI((useTLS ? "wss" : "ws") + "://" + domainAndPort);
+
+            // Set up channel
+            channel = b.bind(port).sync().channel();
+
+            Log.info(serverName + " started at " + uri + "/");
+
+            // Wait (possibly indefinitely) for channel to close via call to this.shutdown()
+            channel.closeFuture().sync();
+            channel = null;
+
+            Log.info(serverName + " successfully shut down");
+
+        } catch (Exception e) {
+            throw new RuntimeException("Could not start server", e);
+
+        } finally {
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
+            requestDecoderGroup.shutdownGracefully();
         }
         return this;
     }

@@ -208,6 +208,9 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
                     throw new BadRequestException(null);
                 }
 
+                // Free resources to avoid DoS attack by sending repeated unterminated requests
+                freeResources();
+
                 // Parse the HttpRequest fields. 
                 request = new Request(ctx, httpReq);
 
@@ -228,26 +231,10 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
                     postRequestDecoder = new HttpPostRequestDecoder(httpDataFactory, httpReq);
                 }
 
-            } else if (request != null) {
-                // (If request is null here, got an exception partway through the request -- ignore the rest of the
-                // messages in the request.)
+            } else if (msg instanceof LastHttpContent) {
+                // Reached end of HTTP request
 
-                if (msg instanceof WebSocketFrame) {
-                    // Handle WebSocket frame
-                    if (webSocketHandler == null) {
-                        // Connection was never upgraded to websocket
-                        throw new BadRequestException();
-                    }
-                    handleWebSocketFrame(ctx, (WebSocketFrame) msg);
-
-                } else if (msg instanceof HttpContent) {
-                    // Decode HTTP POST body
-                    HttpContent chunk = (HttpContent) msg;
-                    handlePOSTChunk(chunk);
-
-                } else if (msg instanceof LastHttpContent) {
-                    // Reached end of HTTP request
-
+                if (request != null) {
                     // Check for WebSocket upgrade request
                     if (!tryWebSocketHandlers(ctx, request.getHttpRequest())) {
                         // This is a regular HTTP request -- find a handler for the request
@@ -256,6 +243,19 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
                     // After the last content message has been processed, free resources
                     freeResources();
                 }
+
+            } else if (msg instanceof HttpContent) {
+                // Decode HTTP POST body
+                HttpContent chunk = (HttpContent) msg;
+                handlePOSTChunk(chunk);
+
+            } else if (msg instanceof WebSocketFrame) {
+                // Handle WebSocket frame
+                if (webSocketHandler == null) {
+                    // Connection was never upgraded to websocket
+                    throw new BadRequestException();
+                }
+                handleWebSocketFrame(ctx, (WebSocketFrame) msg);
             }
         } catch (Exception e) {
             exceptionCaught(ctx, e);
@@ -444,7 +444,7 @@ public class HttpRequestDecoder extends SimpleChannelInboundHandler<Object> {
                 // If couldn't send response in normal way (either there is no request object generated yet, or
                 // there was an exception calling response.send()), then send a plain text response as a fallback
                 if (ctx.channel().isOpen()) {
-                    Log.exception("Unable to send exception response", e);
+                    Log.exception("Unexpected un-sendable exception", e);
                     FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                             HttpResponseStatus.INTERNAL_SERVER_ERROR);
                     res.content().writeBytes("Internal Server Error".getBytes("UTF-8"));

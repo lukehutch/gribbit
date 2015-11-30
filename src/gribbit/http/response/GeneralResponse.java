@@ -291,8 +291,10 @@ public abstract class GeneralResponse extends Response {
         }
 
         // Set cookies in the response
-        for (String cookieStr : ServerCookieEncoder.STRICT.encode(cookies.values())) {
-            headers.add(SET_COOKIE, cookieStr);
+        if (cookies != null) {
+            for (String cookieStr : ServerCookieEncoder.STRICT.encode(cookies.values())) {
+                headers.add(SET_COOKIE, cookieStr);
+            }
         }
 
         // Set cache headers ---------------------------------------------------------------------------------------

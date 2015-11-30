@@ -147,6 +147,8 @@ public class Request {
         this.rawURL = httpReq.uri();
         if (rawURL.equals("/bad-request")) {
             throw new BadRequestException();
+        } else if (rawURL.isEmpty()) {
+            rawURL = "/";
         }
 
         // Decode the URL
@@ -188,8 +190,10 @@ public class Request {
         // Sort cookies into decreasing order of path length, in case client doesn't conform to RFC6295,
         // delivering the cookies in this order itself. This allows us to get the most likely single
         // cookie for a given cookie name by reading the first cookie in a list for a given name.
-        for (Entry<String, ArrayList<Cookie>> ent : cookieNameToCookies.entrySet()) {
-            Collections.sort(ent.getValue(), COOKIE_COMPARATOR);
+        if (cookieNameToCookies != null) {
+            for (Entry<String, ArrayList<Cookie>> ent : cookieNameToCookies.entrySet()) {
+                Collections.sort(ent.getValue(), COOKIE_COMPARATOR);
+            }
         }
 
         this.method = httpReq.method();
@@ -362,7 +366,7 @@ public class Request {
     public String getURL() {
         return normalizedURL;
     }
-    
+
     public String getPostParam(String paramName) {
         if (postParamToValue == null) {
             return null;

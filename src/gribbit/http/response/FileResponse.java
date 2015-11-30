@@ -50,7 +50,7 @@ import java.util.HashSet;
 import java.util.Map;
 
 public class FileResponse extends GeneralResponse implements AutoCloseable {
-    private RandomAccessFile file;
+    private RandomAccessFile raf;
 
     // -------------------------------------------------------------------------------------------------------------
 
@@ -117,7 +117,7 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
 
         File f = new File(path);
         try {
-            file = new RandomAccessFile(path, "r");
+            raf = new RandomAccessFile(path, "r");
             if (!f.isFile() || f.isHidden()) {
                 throw new NotFoundException();
             }
@@ -129,7 +129,6 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
                 // File has not been modified since it was last cached -- return Not Modified
                 throw new NotModifiedException();
             }
-            contentLength = f.length();
 
             int dotIdx = path.lastIndexOf('.'), slashIdx = path.lastIndexOf(File.separatorChar);
             if (dotIdx > 0 && slashIdx < dotIdx) {
@@ -149,6 +148,8 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
                     addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
                 }
             }
+
+            contentLength = f.length();
 
         } catch (FileNotFoundException e) {
             throw new NotFoundException();
@@ -179,13 +180,6 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
         //            maxAgeSeconds = -1;
         //        }
 
-        // FileRegions cannot be used with SSL, have to use chunked content.
-        // TODO: Does this work with HTTP2?
-        boolean isChunked = ctx.pipeline().get(SslHandler.class) != null;
-        if (isChunked) {
-            addHeader(TRANSFER_ENCODING, CHUNKED);
-        }
-
         sendHeaders(ctx);
 
         // TODO: when a file is requested, if it's a compressible type, schedule it to be gzipped on disk, and
@@ -193,13 +187,17 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
         // newer timestamp.
 
         if (!request.isHEADRequest()) {
+            // FileRegions cannot be used with SSL, have to use chunked content.
+            // TODO: Does this work with HTTP2?
+            boolean isChunked = ctx.pipeline().get(SslHandler.class) != null;
+
             // Write file content to channel. Both methods will close file after sending, see:
             // https://github.com/netty/netty/issues/2474#issuecomment-117905496
             @SuppressWarnings("unused")
             ChannelFuture sendFileFuture;
             if (!isChunked) {
                 // Use FileRegions if possible, which supports zero-copy / mmio.
-                sendFileFuture = ctx.write(new DefaultFileRegion(file.getChannel(), 0, contentLength),
+                sendFileFuture = ctx.write(new DefaultFileRegion(raf.getChannel(), 0, contentLength),
                         ctx.newProgressivePromise());
                 // Write the end marker
                 ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
@@ -207,7 +205,8 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
                 // Can't use FileRegions / zero-copy with SSL
                 // HttpChunkedInput will write the end marker (LastHttpContent) for us, see:
                 // https://github.com/netty/netty/commit/4ba2ce3cbbc55391520cfc98a7d4227630fbf978
-                sendFileFuture = ctx.writeAndFlush(new HttpChunkedInput(new ChunkedFile(file,
+                addHeader(TRANSFER_ENCODING, CHUNKED);
+                sendFileFuture = ctx.writeAndFlush(new HttpChunkedInput(new ChunkedFile(raf,
                         0, contentLength, 1)), ctx.newProgressivePromise());
             }
 
@@ -233,10 +232,10 @@ public class FileResponse extends GeneralResponse implements AutoCloseable {
 
     @Override
     public void close() {
-        if (file != null) {
+        if (raf != null) {
             try {
-                file.close();
-                file = null;
+                raf.close();
+                raf = null;
             } catch (IOException e) {
             }
         }
