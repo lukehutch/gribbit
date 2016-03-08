@@ -112,24 +112,12 @@ public class User extends DBModelStringKey {
      * If there is no Roles annotation (i.e. if roles == null), the user must at least be logged in (i.e. user
      * cannot be null).
      * 
-     * If there is a Roles annotation, and it contains the value RoleNames.PUBLIC, then this function will always
-     * return true.
-     * 
      * Otherwise, the user must be logged in, and must have one of the roles listed in the annotation for this
      * function to return true.
      */
     public static boolean userIsAuthorized(User user, Roles roles) {
-        boolean isPublic = false;
-        if (roles != null) {
-            for (String reqdRole : roles.value()) {
-                if (reqdRole.equals(RoleNames.PUBLIC)) {
-                    isPublic = true;
-                    break;
-                }
-            }
-        }
-        if (isPublic || (user != null && (roles == null || roles.value().length == 0))) {
-            // Route is public, or there are no roles specified, and user is logged in
+        if (user != null && (roles == null || roles.value().length == 0)) {
+            // There are no roles specified, and user is logged in
             return true;
         }
         if (user != null && user.roles != null && roles != null && roles.value() != null) {

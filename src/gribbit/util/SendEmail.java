@@ -71,7 +71,12 @@ public class SendEmail {
             } catch (EmailException e) {
                 Log.exception("Failure while trying to send email to " + fullEmailAddr + " : " + subject, e);
             }
-        }, completionFuture -> {
+            future.complete();
+
+        }, res -> {
+            if (res.failed()) {
+                Log.error("Exception while trying to send email");
+            }
         });
     }
 

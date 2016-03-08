@@ -290,11 +290,12 @@ public class GribbitServer {
                 try {
                     // Send response
                     response.send(routingContext);
+
                 } catch (Exception e) {
                     // Failure while sending response, connection was probably closed
                 }
                 future.complete();
-            }, //
+            },
                     // From the docs:
                     // "By default, if executeBlocking is called several times from the same context (e.g. the
                     // same verticle instance) then the different executeBlocking are executed serially (i.e.
@@ -305,7 +306,11 @@ public class GribbitServer {
 
                     //
                     // Async result handler
-                    future -> {
+                    res -> {
+                        if (res.failed()) {
+                            // An uncaught exception was thrown from the blocking handler
+                            routingContext.fail(res.cause());
+                        }
                     });
         });
 

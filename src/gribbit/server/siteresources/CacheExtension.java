@@ -124,7 +124,11 @@ public class CacheExtension {
             }
             // Remove origURI from set of URIs in the queue
             scheduledURIsToHash.remove(origURI);
-        }, completionFuture -> {
+            future.complete();
+        }, res -> {
+            if (res.failed()) {
+                Log.error("Exception in hasher");
+            }
         });
     }
 

@@ -25,27 +25,15 @@
  */
 package gribbit.handler.route.annotation;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This annotation may be added to a RouteHandler class, or to its get() or post() methods, for Role-Based Access
- * Control.
- * 
- * If the Roles annotation is added to a RouteHandler class, the annotation is inherited by any methods that do not
- * have their own Roles annotation. If a get() or post() method has a Roles annotation, any Roles annotation on the
- * class is ignored for that method.
- * 
- * If a Roles annotation is not present on a route, a user must be logged in to access the route, but the user does
- * not have to have a specific role.
- * 
- * If one or more roles are given in a Roles annotation, the user must have one or more of the listed roles to
- * access the route.
- * 
- * Note that a Public annotation overrides a Roles annotation.
+ * Used to annotate routes as public, which can be accessed without being logged in. Overrides the Roles annotation.
  */
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Roles {
-    /** The Authorized roles for the route. */
-    String[] value();
+@Target(ElementType.TYPE)
+public @interface Public {
 }

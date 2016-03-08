@@ -32,6 +32,7 @@ import java.util.List;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
+import gribbit.handler.route.annotation.Public;
 import gribbit.handler.route.annotation.Roles;
 import gribbit.model.DataModel;
 import gribbit.response.ErrorResponse;
@@ -54,6 +55,7 @@ import io.vertx.ext.web.RoutingContext;
 /** The metadata about a Route. */
 public class Route {
     private ParsedURL routePath;
+    private boolean routeIsPublic;
     private Class<? extends RouteHandler> handlerClass;
     private Roles getRoles, postRoles;
 
@@ -68,6 +70,7 @@ public class Route {
     public Route(Class<? extends RouteHandler> handlerClass, String routePath) {
         this.handlerClass = handlerClass;
         this.routePath = new ParsedURL(routePath);
+        this.routeIsPublic = handlerClass.getAnnotation(Public.class) != null;
         Roles classRoles = handlerClass.getAnnotation(Roles.class);
 
         // Check for methods get() and post() in the handler subinterface
@@ -273,7 +276,7 @@ public class Route {
         }
 
         // Check if user can call method
-        if (checkAuthorized && !User.userIsAuthorized(instance.user, methodRoles)) {
+        if (checkAuthorized && !routeIsPublic && !User.userIsAuthorized(instance.user, methodRoles)) {
             throw new UnauthorizedException();
         }
 
