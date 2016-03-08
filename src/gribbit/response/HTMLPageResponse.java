@@ -25,15 +25,13 @@
  */
 package gribbit.response;
 
-import gribbit.model.TemplateModel;
-import gribbit.response.flashmsg.FlashMessage;
-import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.util.ArrayList;
+
+import gribbit.model.TemplateModel;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 /** A response that yields a complete HTML document. */
 public class HTMLPageResponse extends HTMLResponse {
-
     public HTMLPageResponse(HttpResponseStatus status, String title, TemplateModel body) {
         super(status, new HTMLPageTemplateModel(title, body));
     }
@@ -56,12 +54,5 @@ public class HTMLPageResponse extends HTMLResponse {
 
     public HTMLPageResponse(String title, ArrayList<? extends TemplateModel> bodyItems) {
         this(HttpResponseStatus.OK, title, bodyItems);
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /** Add flash messages to the page template model so that the messages are displayed. */
-    public void setFlashMessages(ArrayList<FlashMessage> flashMessages) {
-        ((HTMLPageTemplateModel) content).setFlashMessages(flashMessages);
     }
 }

@@ -23,15 +23,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.response.exception;
+package gribbit.response;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-/**
- * This exception is thrown when a user tries to access a resource with the wrong HTTP method.
- */
-public class MethodNotAllowedException extends LightweightResponseException {
-    public MethodNotAllowedException() {
-        super(HttpResponseStatus.METHOD_NOT_ALLOWED);
+public class EmptyErrorResponse extends TextResponse {
+    public EmptyErrorResponse(HttpResponseStatus status) {
+        super(status, "");
     }
 }

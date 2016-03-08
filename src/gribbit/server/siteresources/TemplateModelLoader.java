@@ -26,7 +26,6 @@
 package gribbit.server.siteresources;
 
 import gribbit.auth.CSRF;
-import gribbit.http.logging.Log;
 import gribbit.model.DataModel;
 import gribbit.model.TemplateModel;
 import gribbit.model.field.annotation.Email;
@@ -41,6 +40,7 @@ import gribbit.model.field.annotation.Regex;
 import gribbit.model.util.FieldChecker;
 import gribbit.response.HTMLPageTemplateModel;
 import gribbit.route.RouteHandler;
+import gribbit.util.Log;
 import gribbit.util.MultiMapKeyToSet;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;

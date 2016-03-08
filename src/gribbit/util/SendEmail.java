@@ -25,15 +25,14 @@
  */
 package gribbit.util;
 
-import gribbit.http.logging.Log;
-import gribbit.model.DataModel;
-import gribbit.server.GribbitServer;
-import gribbit.server.config.GribbitProperties;
-
 import org.apache.commons.mail.DefaultAuthenticator;
 import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.HtmlEmail;
 import org.apache.commons.mail.ImageHtmlEmail;
+
+import gribbit.model.DataModel;
+import gribbit.server.GribbitServer;
+import gribbit.server.config.GribbitProperties;
 
 public class SendEmail {
 
@@ -41,41 +40,38 @@ public class SendEmail {
     public static void sendEmail(final String toName, final String to, final String subject,
             final DataModel message, final String messagePlainText) {
         // Queue sending of email in a new thread
-        GribbitServer.backgroundTaskGroup.execute(new Runnable() {
-            @Override
-            public void run() {
-                if (GribbitProperties.SMTP_SERVER == null || GribbitProperties.SEND_EMAIL_ADDRESS == null
-                        || GribbitProperties.SEND_EMAIL_PASSWORD == null
-                        || GribbitProperties.SEND_EMAIL_ADDRESS == null
-                        || GribbitProperties.SEND_EMAIL_NAME == null) {
-                    throw new RuntimeException("SMTP is not fully configured in the properties file");
-                }
-
-                String fullEmailAddr = "\"" + toName + "\" <" + to + ">";
-                try {
-                    HtmlEmail email = new ImageHtmlEmail();
-                    email.setDebug(false);
-
-                    email.setHostName(GribbitProperties.SMTP_SERVER);
-                    email.setSmtpPort(GribbitProperties.SMTP_PORT);
-                    email.setAuthenticator(new DefaultAuthenticator(GribbitProperties.SEND_EMAIL_ADDRESS,
-                            GribbitProperties.SEND_EMAIL_PASSWORD));
-                    email.setStartTLSRequired(true);
-
-                    email.addTo(to, toName);
-                    email.setFrom(GribbitProperties.SEND_EMAIL_ADDRESS, GribbitProperties.SEND_EMAIL_NAME);
-                    email.setSubject(subject);
-                    email.setHtmlMsg(message.toString());
-                    email.setTextMsg(messagePlainText);
-
-                    email.send();
-
-                    Log.info("Sent email to " + fullEmailAddr + " : " + subject);
-
-                } catch (EmailException e) {
-                    Log.exception("Failure while trying to send email to " + fullEmailAddr + " : " + subject, e);
-                }
+        GribbitServer.vertx.executeBlocking(future -> {
+            if (GribbitProperties.SMTP_SERVER == null || GribbitProperties.SEND_EMAIL_ADDRESS == null
+                    || GribbitProperties.SEND_EMAIL_PASSWORD == null || GribbitProperties.SEND_EMAIL_ADDRESS == null
+                    || GribbitProperties.SEND_EMAIL_NAME == null) {
+                throw new RuntimeException("SMTP is not fully configured in the properties file");
             }
+
+            String fullEmailAddr = "\"" + toName + "\" <" + to + ">";
+            try {
+                HtmlEmail email = new ImageHtmlEmail();
+                email.setDebug(false);
+
+                email.setHostName(GribbitProperties.SMTP_SERVER);
+                email.setSmtpPort(GribbitProperties.SMTP_PORT);
+                email.setAuthenticator(new DefaultAuthenticator(GribbitProperties.SEND_EMAIL_ADDRESS,
+                        GribbitProperties.SEND_EMAIL_PASSWORD));
+                email.setStartTLSRequired(true);
+
+                email.addTo(to, toName);
+                email.setFrom(GribbitProperties.SEND_EMAIL_ADDRESS, GribbitProperties.SEND_EMAIL_NAME);
+                email.setSubject(subject);
+                email.setHtmlMsg(message.toString());
+                email.setTextMsg(messagePlainText);
+
+                email.send();
+
+                Log.info("Sent email to " + fullEmailAddr + " : " + subject);
+
+            } catch (EmailException e) {
+                Log.exception("Failure while trying to send email to " + fullEmailAddr + " : " + subject, e);
+            }
+        }, completionFuture -> {
         });
     }
 

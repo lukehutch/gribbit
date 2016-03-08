@@ -25,8 +25,7 @@
  */
 package gribbit.auth;
 
-import gribbit.http.cookie.Cookie;
-import gribbit.http.response.GeneralResponse;
+import gribbit.response.Response;
 import gribbit.util.RandomTokenGenerator;
 import gribbit.util.thirdparty.UTF8;
 
@@ -48,6 +47,9 @@ public class CSRF {
      */
     public static final String CSRF_PARAM_NAME = "csrf";
 
+    /** CSRF cookie name. */
+    public static final String CSRF_COOKIE_NAME = "_csrf";
+
     /**
      * Placeholder token used to hold a fixed number of characters in the csrf hidden input in forms on an HTML
      * page.
@@ -57,6 +59,8 @@ public class CSRF {
     /** Placeholder for CSRF token, in bytes. */
     public static final byte[] CSRF_TOKEN_PLACEHOLDER_BYTES = UTF8.stringToUTF8(CSRF_TOKEN_PLACEHOLDER);
 
+    public static final int CSRF_TOKEN_LENGTH = 16;
+    
     /**
      * Placeholder used for substitution into forms when the user is not logged in (because if the user is not
      * logged in, the appropriate CSRF token for the user is not known).
@@ -71,7 +75,7 @@ public class CSRF {
     }
 
     public static String generateRandomCSRFToken() {
-        return RandomTokenGenerator.generateRandomTokenBase64(Cookie.SESSION_COOKIE_LENGTH);
+        return RandomTokenGenerator.generateRandomTokenBase64(CSRF_TOKEN_LENGTH);
     }
 
     /**
@@ -101,7 +105,7 @@ public class CSRF {
      * should be read by Javascript code and added to any same-origin Javascript requests in the X-Csrf-Token
      * header. See: https://en.wikipedia.org/wiki/Cross-site_request_forgery#Cookie-to-Header_Token
      */
-    public static void setCsrfCookie(String csrfTok, String path, GeneralResponse response) {
-        response.setCookie("Csrf-Token", csrfTok, path, /* maxAge = */-1, /* httpOnly = */false);
+    public static void setCsrfCookie(String csrfTok, String path, Response response) {
+        response.setCookie(CSRF_COOKIE_NAME, csrfTok, path, /* maxAge = */-1, /* httpOnly = */false);
     }
 }

@@ -64,8 +64,6 @@ public class GribbitProperties {
 
     public static String DB_NAME = properties.getProperty("dbname", "gribbit");
 
-    public static String STATIC_RESOURCE_ROOT = properties.getProperty("staticroot", null);
-
     public static boolean ALLOW_WEBSOCKETS = PropertyUtils.getPropertyBoolean(properties, "websockets.allow", true);
 
     public static boolean PRETTY_PRINT_HTML = PropertyUtils
@@ -74,8 +72,4 @@ public class GribbitProperties {
             .getPropertyBoolean(properties, "prettyprint.json", true);
 
     public static boolean ALLOW_GET_MODEL = PropertyUtils.getPropertyBoolean(properties, "_getmodel.allow", true);
-
-    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = PropertyUtils.getPropertyInt(properties,
-            "classpath.poll.ms", 5000);
-
 }

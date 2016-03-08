@@ -23,11 +23,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.utils;
-
-import gribbit.http.utils.UTF8.UTF8Exception;
+package gribbit.util;
 
 import java.util.Arrays;
+
+import gribbit.util.UTF8.UTF8Exception;
 
 public class URLUtils {
 

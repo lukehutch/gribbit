@@ -25,6 +25,13 @@
  */
 package gribbit.route;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.regex.Pattern;
+
 import gribbit.handler.route.annotation.Disabled;
 import gribbit.handler.route.annotation.On404NotFound;
 import gribbit.handler.route.annotation.OnBadRequest;
@@ -32,17 +39,9 @@ import gribbit.handler.route.annotation.OnInternalServerError;
 import gribbit.handler.route.annotation.OnRegistrationNotYetCompleted;
 import gribbit.handler.route.annotation.OnUnauthorized;
 import gribbit.handler.route.annotation.RoutePath;
-import gribbit.http.logging.Log;
 import gribbit.model.DataModel;
-import gribbit.server.GribbitServer;
+import gribbit.util.Log;
 import gribbit.util.Reflection;
-
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Set;
-import java.util.regex.Pattern;
 
 public class RouteMapping {
 
@@ -63,7 +62,7 @@ public class RouteMapping {
 
     private static final Pattern VALID_ROUTE_OVERRIDE = Pattern.compile("^(/|(/[a-zA-Z0-9\\-_]+)+)$");
 
-    // -----------------------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------------------------------
 
     public ArrayList<Route> getAllRoutes() {
         return allRoutes;
@@ -93,7 +92,7 @@ public class RouteMapping {
         return emailNotValidatedRoute;
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------------------------------
 
     /**
      * Get the Route corresponding to a given RestHandler class.
@@ -124,7 +123,7 @@ public class RouteMapping {
         return formModelToRoute.keySet();
     }
 
-    // -----------------------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------------------------------
 
     /**
      * Convert class name to route path. For example:
@@ -135,26 +134,16 @@ public class RouteMapping {
         StringBuilder buf = new StringBuilder("/");
         String name = handler.getName().replace('$', '.').replace('.', '/');
         int leaf = name.lastIndexOf('/') + 1;
-        buf.append(name.substring(0, leaf));
+        buf.append(name.substring(0, leaf).toLowerCase());
         for (int i = leaf, n = name.length(); i < n; i++) {
             if (i > leaf && Character.isUpperCase(name.charAt(i)) && !Character.isUpperCase(name.charAt(i - 1)))
                 buf.append('-');
             buf.append(Character.toLowerCase(name.charAt(i)));
         }
-        String path;
-        if (buf.length() > 2
-                && buf.subSequence(1, GribbitServer.appPackageName.length() + 1).equals(
-                        GribbitServer.appPackageName)) {
-            path = buf.substring(GribbitServer.appPackageName.length() + 1);
-        } else {
-            path = buf.toString();
-        }
-        // In case of uppercase packagenames or inner classes, convert all to lowercase
-        path = path.toLowerCase();
-        return path;
+        return buf.toString();
     }
 
-    // -----------------------------------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------------------------------
 
     public void removeRoute(Route route) {
         if (route != null) {
@@ -178,8 +167,9 @@ public class RouteMapping {
             String routeOverride = routeOverrideAnnotation == null ? null : routeOverrideAnnotation.value();
             if (routeOverride != null) {
                 if (!VALID_ROUTE_OVERRIDE.matcher(routeOverride).matches()) {
-                    throw new RuntimeException(RoutePath.class.getName() + " annotation on class "
-                            + handler.getName() + " has value \"" + routeOverride + "\" which is not a valid route");
+                    throw new RuntimeException(
+                            RoutePath.class.getName() + " annotation on class " + handler.getName()
+                                    + " has value \"" + routeOverride + "\" which is not a valid route");
                 }
             }
 
@@ -255,9 +245,9 @@ public class RouteMapping {
             // Make sure route is unique
             Route existing = routeForRoutePath.put(routeInfo.getRoutePath(), routeInfo);
             if (existing != null) {
-                throw new RuntimeException("Two handlers have the same route: " + existing.getRoutePath()
-                        + " is handled by " + existing.getHandler().getName() + " and "
-                        + routeInfo.getHandler().getName());
+                throw new RuntimeException(
+                        "Two handlers have the same route: " + existing.getRoutePath() + " is handled by "
+                                + existing.getHandler().getName() + " and " + routeInfo.getHandler().getName());
             }
             if (routeForHandler.put(handler, routeInfo) != null) {
                 // Should not happen, objects on classpath should only be scanned once

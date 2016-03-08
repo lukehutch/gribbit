@@ -37,6 +37,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+@SuppressWarnings("deprecation")
 public class JSONJackson {
 
     // TODO: maybe try using https://github.com/jdereg/json-io instead for parsing JSON?

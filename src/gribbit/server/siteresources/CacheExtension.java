@@ -25,21 +25,20 @@
  */
 package gribbit.server.siteresources;
 
-import gribbit.http.logging.Log;
-import gribbit.server.GribbitServer;
-import gribbit.util.Base64Safe;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.codec.digest.DigestUtils;
+
+import gribbit.server.GribbitServer;
+import gribbit.util.Base64Safe;
+import gribbit.util.Log;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 
 /**
  * Implement "cache extension" or "hash-caching" be rewriting URL references in HTML templates to include a hashcode
@@ -107,28 +106,26 @@ public class CacheExtension {
      */
     private static void scheduleHasher(String origURI, long lastModifiedEpochSeconds, Hasher hasher) {
         // Schedule the hashing task
-        GribbitServer.backgroundTaskGroup.schedule(new Runnable() {
-            @Override
-            public void run() {
-                long startTime = System.currentTimeMillis();
+        GribbitServer.vertx.executeBlocking(future -> {
+            long startTime = System.currentTimeMillis();
 
-                // Perform MD5 digest, then convert to URI-safe base 64 encoding, then to hash URI
-                String hashKey = hasher.computeHashKey();
+            // Perform MD5 digest, then convert to URI-safe base 64 encoding, then to hash URI
+            String hashKey = hasher.computeHashKey();
 
-                if (hashKey != null) {
-                    // Save mapping between origURI and hash key
-                    updateURIHashAndTimestamp(origURI, hashKey, lastModifiedEpochSeconds);
+            if (hashKey != null) {
+                // Save mapping between origURI and hash key
+                updateURIHashAndTimestamp(origURI, hashKey, lastModifiedEpochSeconds);
 
-                    Log.fine("Hashing resource: " + origURI + " -> " + hashKey + " -- took "
-                            + (System.currentTimeMillis() - startTime) + " msec");
-                } else {
-                    // If hashing failed (e.g. for FileNotFound exception, or issue reading from ByteBuf)
-                    // then just leave the resource unhashed
-                }
-                // Remove origURI from set of URIs in the queue
-                scheduledURIsToHash.remove(origURI);
+                Log.fine("Hashing resource: " + origURI + " -> " + hashKey + " -- took "
+                        + (System.currentTimeMillis() - startTime) + " msec");
+            } else {
+                // If hashing failed (e.g. for FileNotFound exception, or issue reading from ByteBuf)
+                // then just leave the resource unhashed
             }
-        }, 0, TimeUnit.MILLISECONDS);
+            // Remove origURI from set of URIs in the queue
+            scheduledURIsToHash.remove(origURI);
+        }, completionFuture -> {
+        });
     }
 
     @FunctionalInterface
@@ -172,8 +169,8 @@ public class CacheExtension {
                         public String computeHashKey() {
                             // Compute MD5 hash of the ByteBuf contents, then base64-encode the results
                             try {
-                                String hash = Base64Safe.base64Encode(DigestUtils.md5(new ByteBufInputStream(
-                                        content)));
+                                String hash = Base64Safe
+                                        .base64Encode(DigestUtils.md5(new ByteBufInputStream(content)));
                                 content.release(); // TODO: does ByteBufInputStream call release()?
                                 return hash;
                             } catch (IOException e) {

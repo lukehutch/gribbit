@@ -25,8 +25,9 @@
  */
 package gribbit.route;
 
-import gribbit.http.request.Request;
-import gribbit.response.flashmsg.FlashMessage;
+import gribbit.auth.User;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.Session;
 
 /**
  * A route handler. Override the public default get() method with optional params to accept URL params, and/or the
@@ -35,26 +36,7 @@ import gribbit.response.flashmsg.FlashMessage;
  * RouteHandlerAuthAndValidatedEmailRequired, and not RouteHandler itself.
  */
 public abstract class RouteHandler {
-
-    public Request request;
-
-    /**
-     * Add a flash message (a message that will be popped up at the top of a webpage the next time a page is served.
-     */
-    public void addFlashMessage(FlashMessage flashMessage) {
-        request.addFlashMessage(flashMessage);
-    }
-
-    /** Clear flash messages. */
-    public void clearFlashMessages() {
-        request.clearFlashMessage();
-    }
-
-    /**
-     * Convenience method to get the value of a named cookie from the request. If there are multiple cookies with
-     * this name, returns the value of the cookie with the longest path, as per the HTTP spec.
-     */
-    public String getCookieValue(String cookieName) {
-        return request.getCookieValue(cookieName);
-    }
+    public RoutingContext routingContext;
+    public Session session;
+    public User user;
 }

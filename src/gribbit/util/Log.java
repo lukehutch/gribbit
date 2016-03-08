@@ -23,12 +23,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.logging;
-
-import gribbit.http.request.Request;
-import gribbit.http.response.Response;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Log4JLoggerFactory;
+package gribbit.util;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -43,6 +38,11 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+
+import gribbit.response.Response;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Log4JLoggerFactory;
+import io.vertx.core.http.HttpServerRequest;
 
 public class Log {
 
@@ -160,43 +160,43 @@ public class Log {
     private static DateTimeFormatter LOG_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z");
 
     /** Produce log line in Common Log Format -- https://en.wikipedia.org/wiki/Common_Log_Format */
-    private static String produceLogLine(Request request, Response response) {
+    private static String produceLogLine(HttpServerRequest request, Response response) {
         StringBuilder buf = new StringBuilder();
-        buf.append(request == null ? "-" : request.getOrigin());
+        buf.append(request == null ? "-" : request.remoteAddress());
         buf.append(" - - [");
         buf.append(ZonedDateTime.now().format(LOG_TIME_FORMATTER));
         buf.append("] \"");
-        buf.append(request == null ? "-" : request.getMethod().toString());
+        buf.append(request == null ? "-" : request.method());
         buf.append(' ');
-        buf.append(request == null ? "-" : request.getRawURL());
+        buf.append(request == null ? "-" : request.uri());
         buf.append(' ');
-        buf.append(request == null ? "-" : request.getHttpVersion());
+        buf.append('-');  // Not sure how to read HTTP version from vertx request
         buf.append("\" ");
         buf.append(response == null ? "-" : Integer.toString(response.getStatus().code()));
         buf.append(' ');
-        buf.append(response == null ? "-" : Long.toString(response.getContentLength()));
+        buf.append("-"); // Content-Length is calculated by Vert.x, so is unknown here
         return buf.toString();
     }
 
-    public static void request(Request request, Response response) {
+    public static void request(HttpServerRequest request, Response response) {
         // Don't log favicon requests
-        if (!FAVICON_PATTERN.matcher(request.getRawURL().toString()).matches()) {
+        if (!FAVICON_PATTERN.matcher(request.uri()).matches()) {
             String msg = produceLogLine(request, response);
             logger.log(Level.INFO, msg);
         }
     }
 
-    public static void request(Request request, Response response, Exception exception) {
+    public static void request(HttpServerRequest request, Response response, Exception exception) {
         // Don't log favicon requests
-        if (!FAVICON_PATTERN.matcher(request.getRawURL().toString()).matches()) {
+        if (!FAVICON_PATTERN.matcher(request.uri()).matches()) {
             String msg = produceLogLine(request, response);
             logger.log(Level.INFO, msg, exception);
         }
     }
 
-    public static void request(Request request, Exception exception) {
+    public static void request(HttpServerRequest request, Exception exception) {
         // Don't log favicon requests
-        if (!FAVICON_PATTERN.matcher(request.getRawURL().toString()).matches()) {
+        if (!FAVICON_PATTERN.matcher(request.uri()).matches()) {
             String msg = produceLogLine(request, null);
             logger.log(Level.INFO, msg, exception);
         }

@@ -25,35 +25,46 @@
  */
 package gribbit.response;
 
-import gribbit.http.request.Request;
-import gribbit.http.response.GeneralResponse;
-import gribbit.server.config.GribbitProperties;
 import gribbit.util.JSON;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.RoutingContext;
 
-public class JSONResponse extends GeneralResponse {
+public class JSONResponse extends Response {
 
-    private Object content;
+    private String contentStr;
 
-    public JSONResponse(HttpResponseStatus status, Object content) {
+    public JSONResponse(HttpResponseStatus status, JsonObject jsonObject) {
         super(status);
-        this.content = content;
+        this.contentStr = jsonObject.encode();
+    }
+
+    public JSONResponse(HttpResponseStatus status, JsonArray jsonArray) {
+        super(status);
+        this.contentStr = jsonArray.encode();
+    }
+
+    public JSONResponse(HttpResponseStatus status, Object obj) {
+        super(status);
+        this.contentStr = JSON.toJSON(obj);
+    }
+
+    public JSONResponse(JsonObject jsonObject) {
+        this(HttpResponseStatus.OK, jsonObject);
+    }
+
+    public JSONResponse(JsonArray jsonArray) {
+        this(HttpResponseStatus.OK, jsonArray);
+    }
+
+    public JSONResponse(Object obj) {
+        this(HttpResponseStatus.OK, obj);
     }
 
     @Override
-    public ByteBuf getContent(Request request) {
-        String jsonStr = JSON.toJSON(content, GribbitProperties.PRETTY_PRINT_JSON);
-        ByteBuf contentBytes = Unpooled.buffer(jsonStr.length() * 3 / 2);
-        ByteBufUtil.writeUtf8(contentBytes, jsonStr);
-        return contentBytes;
+    public void send(RoutingContext routingContext) {
+        sendHeaders(routingContext, "application/json;charset=utf-8");
+        routingContext.response().end(contentStr);
     }
-
-    @Override
-    public String getContentType(Request request) {
-        return "application/json;charset=utf-8";
-    }
-
 }

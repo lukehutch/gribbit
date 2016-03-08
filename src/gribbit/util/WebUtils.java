@@ -25,24 +25,15 @@
  */
 package gribbit.util;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN;
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_ENCODING;
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
-import gribbit.server.GribbitServer;
-import gribbit.server.config.GribbitProperties;
-import gribbit.util.thirdparty.UTF8;
-import gribbit.util.thirdparty.UTF8.UTF8Exception;
-import io.netty.handler.codec.http.HttpHeaders;
-
-import java.io.File;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.regex.Pattern;
+
+import gribbit.util.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8.UTF8Exception;
 
 public class WebUtils {
 
@@ -77,15 +68,15 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     /** HTML tags that should not be closed. http://www.w3.org/TR/html-markup/syntax.html#void-element */
-    public static final HashSet<String> VOID_ELEMENTS = toSet(new String[] { "area", "base", "br", "col",
-            "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr",
-            "!doctype", "!DOCTYPE" });
+    public static final HashSet<String> VOID_ELEMENTS = toSet(
+            new String[] { "area", "base", "br", "col", "command", "embed", "hr", "img", "input", "keygen", "link",
+                    "meta", "param", "source", "track", "wbr", "!doctype", "!DOCTYPE" });
 
     /** HTML inline elements. https://developer.mozilla.org/en-US/docs/Web/HTML/Inline_elemente */
-    public static final HashSet<String> INLINE_ELEMENTS = toSet(new String[] { "a", "abbr", "acronym", "b", "bdo",
-            "big", "br", "button", "cite", "code", "dfn", "em", "i", "img", "input", "kbd", "label", "map",
-            "object", "q", "samp", "select", "small", "span", "strong", "sub", "sup", "textarea", "title", "tt",
-            "var" });
+    public static final HashSet<String> INLINE_ELEMENTS = toSet(
+            new String[] { "a", "abbr", "acronym", "b", "bdo", "big", "br", "button", "cite", "code", "dfn", "em",
+                    "i", "img", "input", "kbd", "label", "map", "object", "q", "samp", "select", "small", "span",
+                    "strong", "sub", "sup", "textarea", "title", "tt", "var" });
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -96,12 +87,13 @@ public class WebUtils {
      * (Applet and object tags are rejected during template loading, so those tags' attributes are not listed here,
      * but they also take URL params.)
      */
-    private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = toMap(new String[] { "a.href",
-            "area.href", "base.href", "blockquote.cite", "body.background", "del.cite", "form.action",
-            "frame.longdesc", "frame.src", "head.profile", "iframe.longdesc", "iframe.src", "img.longdesc",
-            "img.src", "img.usemap", "input.src", "input.usemap", "ins.cite", "link.href", "q.cite", "script.src",
-            "audio.src", "button.formaction", "command.icon", "embed.src", "html.manifest", "input.formaction",
-            "source.src", "video.poster", "video.src" }, ".");
+    private static final HashMap<String, HashSet<String>> URL_ELT_ATTRS = toMap(
+            new String[] { "a.href", "area.href", "base.href", "blockquote.cite", "body.background", "del.cite",
+                    "form.action", "frame.longdesc", "frame.src", "head.profile", "iframe.longdesc", "iframe.src",
+                    "img.longdesc", "img.src", "img.usemap", "input.src", "input.usemap", "ins.cite", "link.href",
+                    "q.cite", "script.src", "audio.src", "button.formaction", "command.icon", "embed.src",
+                    "html.manifest", "input.formaction", "source.src", "video.poster", "video.src" },
+            ".");
 
     /** Return true if the given HTML attribute takes a URL as a value */
     public static boolean isURLAttr(String tagName, String attrName) {
@@ -134,11 +126,10 @@ public class WebUtils {
     // -----------------------------------------------------------------------------------------------------
 
     public static boolean isCompressibleContentType(String contentType) {
-        return contentType != null
-                && (contentType.startsWith("text/") || contentType.startsWith("application/javascript")
-                        || contentType.startsWith("application/json") || contentType.startsWith("application/xml")
-                        || contentType.startsWith("image/svg+xml") || contentType
-                            .startsWith("application/x-font-ttf"));
+        return contentType != null && (contentType.startsWith("text/")
+                || contentType.startsWith("application/javascript") || contentType.startsWith("application/json")
+                || contentType.startsWith("application/xml") || contentType.startsWith("image/svg+xml")
+                || contentType.startsWith("application/x-font-ttf"));
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -155,7 +146,7 @@ public class WebUtils {
         return
         //Not empty/null/'#'
         hrefURI != null && !hrefURI.isEmpty() && !hrefURI.startsWith("#") //
-                // Not external/absolute URI
+        // Not external/absolute URI
                 && !EXTERNAL_URI.matcher(hrefURI).matches() //
                 // Not template param
                 && !hrefURI.contains("${");
@@ -176,8 +167,8 @@ public class WebUtils {
         // Return original URL if it is empty, starts with "#", or is a template param
         if (isLocalURL(hrefURL)) {
             // Build new path for the linked resource
-            StringBuilder hrefURLResolved = new StringBuilder(hrefURL.startsWith("//") ? "//"
-                    : hrefURL.startsWith("/") ? "/" : baseURL);
+            StringBuilder hrefURLResolved = new StringBuilder(
+                    hrefURL.startsWith("//") ? "//" : hrefURL.startsWith("/") ? "/" : baseURL);
             for (CharSequence part : StringUtils.splitAsList(hrefURL, "/")) {
                 if (part.length() == 0 || part.equals(".")) {
                     // Ignore
@@ -186,7 +177,8 @@ public class WebUtils {
                     int lastIdx = hrefURLResolved.lastIndexOf("/");
                     hrefURLResolved.setLength(lastIdx < 0 ? 0 : lastIdx);
                 } else {
-                    if (hrefURLResolved.length() > 0 && hrefURLResolved.charAt(hrefURLResolved.length() - 1) != '/') {
+                    if (hrefURLResolved.length() > 0
+                            && hrefURLResolved.charAt(hrefURLResolved.length() - 1) != '/') {
                         hrefURLResolved.append('/');
                     }
                     hrefURLResolved.append(part);
@@ -223,11 +215,13 @@ public class WebUtils {
                         // Ignore truncated %-seq at end of string
                     } else {
                         char c1 = str.charAt(++segIdx);
-                        int digit1 = c1 >= '0' && c1 <= '9' ? (c1 - '0') : c1 >= 'a' && c1 <= 'f' ? (c1 - 'a' + 10)
-                                : c1 >= 'A' && c1 <= 'F' ? (c1 - 'A' + 10) : -1;
+                        int digit1 = c1 >= '0' && c1 <= '9' ? (c1 - '0')
+                                : c1 >= 'a' && c1 <= 'f' ? (c1 - 'a' + 10)
+                                        : c1 >= 'A' && c1 <= 'F' ? (c1 - 'A' + 10) : -1;
                         char c2 = str.charAt(++segIdx);
-                        int digit2 = c2 >= '0' && c2 <= '9' ? (c2 - '0') : c2 >= 'a' && c2 <= 'f' ? (c2 - 'a' + 10)
-                                : c2 >= 'A' && c2 <= 'F' ? (c2 - 'A' + 10) : -1;
+                        int digit2 = c2 >= '0' && c2 <= '9' ? (c2 - '0')
+                                : c2 >= 'a' && c2 <= 'f' ? (c2 - 'a' + 10)
+                                        : c2 >= 'A' && c2 <= 'F' ? (c2 - 'A' + 10) : -1;
                         if (digit1 < 0 || digit2 < 0) {
                             // Ignore invalid %-sequence
                         } else {
@@ -350,8 +344,8 @@ public class WebUtils {
             if (buf.length() > 0) {
                 buf.append("&");
             }
-            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1]
-                    : "", buf);
+            WebUtils.escapeQueryParamKeyVal(keyValuePairs[i],
+                    i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "", buf);
         }
         return buf.toString();
     }
@@ -517,7 +511,8 @@ public class WebUtils {
      * @return The sanitized/escaped HTML-safe string.
      */
     public static void encodeForHTML(CharSequence unsafeStr, EscapeAmpersand escapeAmpersand,
-            boolean preserveWhitespaceRuns, boolean preserveNewline, boolean turnNewlineIntoBreak, StringBuilder buf) {
+            boolean preserveWhitespaceRuns, boolean preserveNewline, boolean turnNewlineIntoBreak,
+            StringBuilder buf) {
         for (int i = 0, n = unsafeStr.length(); i < n; i++) {
             char c = unsafeStr.charAt(i);
             switch (c) {
@@ -753,57 +748,57 @@ public class WebUtils {
 
     // -----------------------------------------------------------------------------------------------------
 
-    /**
-     * Return true if the scheme, host and port match between the two URIs. Also returns null if one or both URIs
-     * are null.
-     */
-    public static boolean sameOrigin(URI uri1, URI uri2) {
-        if (uri1 == null || uri2 == null) {
-            return false;
-        }
-        String scheme1 = uri1.getScheme();
-        if (scheme1 == null) {
-            scheme1 = GribbitProperties.useTLS ? "https" : "http";
-        }
-        String scheme2 = uri2.getScheme();
-        if (scheme2 == null) {
-            scheme2 = GribbitProperties.useTLS ? "https" : "http";
-        }
-        if (!scheme1.equals(scheme2)) {
-            return false;
-        }
-        String host1 = uri1.getHost();
-        if (host1 == null) {
-            host1 = GribbitServer.host;
-        }
-        String host2 = uri2.getHost();
-        if (host2 == null) {
-            host2 = GribbitServer.host;
-        }
-        if (!host1.equals(host2)) {
-            return false;
-        }
-        int port1 = uri1.getPort();
-        if (port1 < 0) {
-            if ("http".equals(scheme1) || "ws".equals(scheme1)) {
-                port1 = 80;
-            } else if ("https".equals(scheme1) || "wss".equals(scheme1)) {
-                port1 = 443;
-            }
-        }
-        int port2 = uri2.getPort();
-        if (port2 < 0) {
-            if ("http".equals(scheme2) || "ws".equals(scheme2)) {
-                port2 = 80;
-            } else if ("https".equals(scheme2) || "wss".equals(scheme2)) {
-                port2 = 443;
-            }
-        }
-        if (port1 != port2) {
-            return false;
-        }
-        return true;
-    }
+    //    /**
+    //     * Return true if the scheme, host and port match between the two URIs. Also returns null if one or both URIs
+    //     * are null.
+    //     */
+    //    public static boolean sameOrigin(URI uri1, URI uri2) {
+    //        if (uri1 == null || uri2 == null) {
+    //            return false;
+    //        }
+    //        String scheme1 = uri1.getScheme();
+    //        if (scheme1 == null) {
+    //            scheme1 = GribbitProperties.useTLS ? "https" : "http";
+    //        }
+    //        String scheme2 = uri2.getScheme();
+    //        if (scheme2 == null) {
+    //            scheme2 = GribbitProperties.useTLS ? "https" : "http";
+    //        }
+    //        if (!scheme1.equals(scheme2)) {
+    //            return false;
+    //        }
+    //        String host1 = uri1.getHost();
+    //        if (host1 == null) {
+    //            host1 = GribbitServer.host;
+    //        }
+    //        String host2 = uri2.getHost();
+    //        if (host2 == null) {
+    //            host2 = GribbitServer.host;
+    //        }
+    //        if (!host1.equals(host2)) {
+    //            return false;
+    //        }
+    //        int port1 = uri1.getPort();
+    //        if (port1 < 0) {
+    //            if ("http".equals(scheme1) || "ws".equals(scheme1)) {
+    //                port1 = 80;
+    //            } else if ("https".equals(scheme1) || "wss".equals(scheme1)) {
+    //                port1 = 443;
+    //            }
+    //        }
+    //        int port2 = uri2.getPort();
+    //        if (port2 < 0) {
+    //            if ("http".equals(scheme2) || "ws".equals(scheme2)) {
+    //                port2 = 80;
+    //            } else if ("https".equals(scheme2) || "wss".equals(scheme2)) {
+    //                port2 = 443;
+    //            }
+    //        }
+    //        if (port1 != port2) {
+    //            return false;
+    //        }
+    //        return true;
+    //    }
 
     // -----------------------------------------------------------------------------------------------------
 

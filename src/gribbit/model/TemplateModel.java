@@ -25,7 +25,6 @@
  */
 package gribbit.model;
 
-import gribbit.http.logging.Log;
 import gribbit.model.field.annotation.IsURL;
 import gribbit.model.util.FieldChecker;
 import gribbit.route.RouteHandler;
@@ -34,6 +33,7 @@ import gribbit.server.config.GribbitProperties;
 import gribbit.server.siteresources.CacheExtension;
 import gribbit.server.siteresources.CacheExtension.HashInfo;
 import gribbit.util.JSON;
+import gribbit.util.Log;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import gribbit.util.WebUtils.EscapeAmpersand;

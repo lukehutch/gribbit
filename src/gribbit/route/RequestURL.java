@@ -1,11 +1,12 @@
-package gribbit.http.route;
+package gribbit.route;
 
-import gribbit.http.response.exception.BadRequestException;
-import gribbit.http.response.exception.ResponseException;
-import gribbit.http.utils.URLUtils;
+import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.ResponseException;
+import gribbit.util.URLUtils;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.QueryStringEncoder;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -81,5 +82,19 @@ public class RequestURL {
             }
         }
         return encoder.toString();
+    }
+
+    public File getFile(File rootDir) {
+        File curr = rootDir;
+        for (int i = 0; i < unescapedURLParts.size(); i++) {
+            curr = new File(curr, unescapedURLParts.get(i));
+            if (!curr.exists()) {
+                return null;
+            }
+        }
+        if (!curr.isFile()) {
+            return null;
+        }
+        return curr;
     }
 }

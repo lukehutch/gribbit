@@ -23,18 +23,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.response;
+package gribbit.response;
 
-import gribbit.http.request.Request;
-import gribbit.http.utils.UTF8;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.ext.web.RoutingContext;
 
-public class HTMLResponse extends ByteBufResponse {
-    public HTMLResponse(Request request, HttpResponseStatus status, String content) {
-        super(request, status, UTF8.stringToUTF8ByteBuf(content), "text/html;charset=utf-8");
+/** Buffer response. */
+public class BufferResponse extends Response {
+    protected Buffer content;
+    private String contentType;
+
+    public BufferResponse(HttpResponseStatus status, Buffer content, String contentType) {
+        super(status);
+        this.content = content;
+        this.contentType = contentType;
     }
 
-    public HTMLResponse(Request request, String content) {
-        this(request, HttpResponseStatus.OK, content);
+    public BufferResponse(Buffer content, String contentType) {
+        this(HttpResponseStatus.OK, content, contentType);
+    }
+    
+    @Override
+    public void send(RoutingContext routingContext) {
+        sendHeaders(routingContext, contentType);
+        routingContext.response().end(content);
     }
 }

@@ -25,21 +25,17 @@
  */
 package gribbit.model;
 
-import gribbit.auth.CSRF;
-import gribbit.http.logging.Log;
-import gribbit.http.request.Request;
-import gribbit.http.response.exception.BadRequestException;
-import gribbit.http.response.exception.InternalServerErrorException;
-import gribbit.http.response.exception.ResponseException;
-import gribbit.model.util.FieldChecker;
-import gribbit.server.GribbitServer;
-import gribbit.util.JSON;
-import io.netty.handler.codec.http.multipart.FileUpload;
-
 import java.lang.reflect.Field;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.HashSet;
+
+import gribbit.model.util.FieldChecker;
+import gribbit.response.exception.BadRequestException;
+import gribbit.response.exception.InternalServerErrorException;
+import gribbit.response.exception.ResponseException;
+import gribbit.server.GribbitServer;
+import gribbit.util.JSON;
+import io.vertx.core.http.HttpServerRequest;
 
 /**
  * A model that can be bound from the parameters in a POST request, and/or that can be used to populate an HTML
@@ -65,13 +61,13 @@ public abstract class DataModel {
      * @throws AppException
      *             if any of the constraint annotations are not specified
      */
-    public void bindFromPost(Request request) throws ResponseException {
+    public void bindFromPost(HttpServerRequest request) throws ResponseException {
 
         // Match field names against POST param names, and set values of fields whenever there is a match
-        HashSet<String> unusedPostParams = new HashSet<String>(request.getPostParamNames());
+        // HashSet<String> unusedPostParams = new HashSet<String>(request.getPostParamNames());
         for (Field field : getClass().getFields()) {
             String fieldName = field.getName();
-            unusedPostParams.remove(fieldName);
+            // unusedPostParams.remove(fieldName);
 
             if (FieldChecker.fieldIsPrivate(field, /* checkGet = */false, /* checkSet = */true)) {
                 // Ignore attempts to set fields annotated with @Private or @OnlySend,
@@ -88,31 +84,32 @@ public abstract class DataModel {
                 try {
                     // For each field in class, look up field name in POST parameters and then
                     // URL query parameters
-                    String postParamValForField = request.getPostParam(fieldName);
+                    String postParamValForField = request.getParam(fieldName);
                     if (postParamValForField == null) {
 
-                        FileUpload postFileUploadForField = request.getPostFileUploadParam(fieldName);
-                        if (postFileUploadForField != null) {
+                        // TODO
+                        // FileUpload postFileUploadForField = request.getPostFileUploadParam(fieldName);
+                        // if (postFileUploadForField != null) {
 
-                            // There was a file uploaded
-                            if (fieldType == FileUpload.class) {
-                                // Save the FileUpload object in the field. This doesn't actually read the
-                                // file contents (loading the file into RAM could kill the server). The
-                                // request handler must read the file before responding, or increment the
-                                // reference count if they want to keep the file after the request has been
-                                // sent, because the file will otherwise be released.
-                                field.set(this, postFileUploadForField);
-                            }
+                        //                            // There was a file uploaded
+                        //                            if (fieldType == FileUpload.class) {
+                        //                                // Save the FileUpload object in the field. This doesn't actually read the
+                        //                                // file contents (loading the file into RAM could kill the server). The
+                        //                                // request handler must read the file before responding, or increment the
+                        //                                // reference count if they want to keep the file after the request has been
+                        //                                // sent, because the file will otherwise be released.
+                        //                                field.set(this, postFileUploadForField);
+                        //                            }
 
-                        } else {
+                        // } else {
 
-                            // There is a field in formModelInstance DataModel that is not in the
-                            // POST request
-                            if (FieldChecker.fieldIsRequired(field)) {
-                                throw new BadRequestException(request, "Field " + getClass().getName() + "."
-                                        + fieldName + " required, but not sent in POST request");
-                            }
+                        // There is a field in formModelInstance DataModel that is not in the
+                        // POST request
+                        if (FieldChecker.fieldIsRequired(field)) {
+                            throw new BadRequestException("Field " + getClass().getName() + "." + fieldName
+                                    + " required, but not sent in POST request");
                         }
+                        // }
 
                     } else {
                         // Try binding POST request param to correspondingly-named field in
@@ -167,9 +164,9 @@ public abstract class DataModel {
                             // Character fields are bound from text, but limited to a length of 1
 
                             if (postParamValForField.length() > 1) {
-                                throw new BadRequestException(request, "Field " + getClass().getName() + "."
-                                        + fieldName + " requires a single character, got "
-                                        + postParamValForField.length() + " characters");
+                                throw new BadRequestException("Field " + getClass().getName() + "." + fieldName
+                                        + " requires a single character, got " + postParamValForField.length()
+                                        + " characters");
                             } else if (postParamValForField.length() == 1) {
                                 char c = postParamValForField.charAt(0);
                                 if (fieldType == Character.class) {
@@ -193,24 +190,24 @@ public abstract class DataModel {
                                 Enum<?> enumVal = Enum.valueOf((Class<Enum>) fieldType, postParamValForField);
                                 field.set(this, enumVal);
                             } catch (IllegalArgumentException e) {
-                                throw new BadRequestException(request, "Illegal value " + postParamValForField
+                                throw new BadRequestException("Illegal value " + postParamValForField
                                         + " for field " + getClass().getName() + "." + fieldName);
                             }
 
                         } else {
-                            throw new InternalServerErrorException(request, "Unsupported field type "
-                                    + fieldType.getSimpleName() + " for field " + getClass().getName() + "."
-                                    + fieldName);
+                            throw new InternalServerErrorException(
+                                    "Unsupported field type " + fieldType.getSimpleName() + " for field "
+                                            + getClass().getName() + "." + fieldName);
                         }
                     }
 
                 } catch (NumberFormatException | DateTimeParseException e) {
-                    throw new BadRequestException(request, "Could not parse value " + getClass().getName() + "."
-                            + fieldName + " from the request");
+                    throw new BadRequestException("Could not parse value " + getClass().getName() + "." + fieldName
+                            + " from the request");
 
                 } catch (IllegalArgumentException | IllegalAccessException e) {
-                    throw new InternalServerErrorException(request, "Could not set field " + getClass().getName()
-                            + "." + fieldName + " to the value passed in the request", e);
+                    throw new InternalServerErrorException("Could not set field " + getClass().getName() + "."
+                            + fieldName + " to the value passed in the request", e);
                 }
             }
         }
@@ -219,15 +216,15 @@ public abstract class DataModel {
         try {
             GribbitServer.siteResources.checkFieldValuesAgainstConstraintAnnotations(this);
         } catch (Exception e) {
-            throw new BadRequestException(request, "Form values do not satisfy constraints: " + e.getMessage());
+            throw new BadRequestException("Form values do not satisfy constraints: " + e.getMessage());
         }
 
-        for (String unusedParam : unusedPostParams) {
-            if (!unusedParam.equals(CSRF.CSRF_PARAM_NAME)) {
-                Log.warning("POST param \"" + unusedParam + "\" is not a public field in DataModel "
-                        + this.getClass().getName() + ", ignoring");
-            }
-        }
+        //        for (String unusedParam : unusedPostParams) {
+        //            if (!unusedParam.equals(CSRF.CSRF_PARAM_NAME)) {
+        //                Log.warning("POST param \"" + unusedParam + "\" is not a public field in DataModel "
+        //                        + this.getClass().getName() + ", ignoring");
+        //            }
+        //        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------

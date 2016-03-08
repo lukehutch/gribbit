@@ -25,27 +25,6 @@
  */
 package gribbit.server.siteresources;
 
-import gribbit.http.logging.Log;
-import gribbit.model.DBModel;
-import gribbit.model.DBModelStringKey;
-import gribbit.model.DataModel;
-import gribbit.model.TemplateModel;
-import gribbit.model.util.FieldChecker;
-import gribbit.route.Route;
-import gribbit.route.RouteHandler;
-import gribbit.route.RouteMapping;
-import gribbit.server.GribbitServer;
-import gribbit.server.config.GribbitProperties;
-import gribbit.util.StringUtils;
-import gribbit.util.WebUtils;
-import gribbit.util.thirdparty.UTF8;
-import gribbit.util.thirdparty.UTF8.UTF8Exception;
-import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
-import io.github.lukehutch.fastclasspathscanner.matchprocessor.FileMatchContentsProcessor;
-import io.github.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
-import io.github.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
-
-import java.io.File;
 import java.lang.reflect.ParameterizedType;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -55,10 +34,23 @@ import java.util.List;
 
 import org.jsoup.nodes.Node;
 
-public class SiteResources {
+import gribbit.model.DBModel;
+import gribbit.model.DBModelStringKey;
+import gribbit.model.DataModel;
+import gribbit.model.TemplateModel;
+import gribbit.model.util.FieldChecker;
+import gribbit.route.Route;
+import gribbit.route.RouteHandler;
+import gribbit.route.RouteMapping;
+import gribbit.server.GribbitServer;
+import gribbit.util.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8.UTF8Exception;
+import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.FileMatchContentsProcessor;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.StaticFinalFieldMatchProcessor;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.SubclassMatchProcessor;
 
-    // Location of static resources on filesystem
-    private File staticResourceRootDir;
+public class SiteResources {
 
     private final FastClasspathScanner classpathScanner;
 
@@ -69,6 +61,8 @@ public class SiteResources {
     private FieldChecker fieldChecker = new FieldChecker();
 
     private long resourcesLoadedEpochSeconds;
+
+    public static int CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS = 5000;
 
     // -----------------------------------------------------------------------------------------------------
 
@@ -165,88 +159,13 @@ public class SiteResources {
     // -----------------------------------------------------------------------------------------------------
 
     /**
-     * Returns a File reference to a static resource, if it exists within the static resource root. Returns null if
-     * the file with this URI does not exist under the static resource root.
-     * 
-     * TODO: this has been superceded with the factoring-out of gribbit-http -- the server nowe does path
-     * normalization.
-     */
-    public File getStaticResource(String reqURI) {
-        // Request URI must start with "/"
-        if (!reqURI.startsWith("/")) {
-            return null;
-        }
-        if (staticResourceRootDir == null || !staticResourceRootDir.exists()) {
-            return null;
-        }
-        File currFileOrDir = staticResourceRootDir;
-        int depth = 0;
-        String[] parts = StringUtils.split(reqURI, "/");
-        for (String subdirName : parts) {
-            // Unescape %20 -> ' ' etc.
-            // N.B. the unescape is performed only once here, between '/' characters (the URI is not
-            // unescaped by the caller prior to passing the URI to this method), and the unescaped string
-            // is passed directly to new File() below, after checking for "." and "..", so there is no
-            // possibility of a double-encoding attack -- see https://www.owasp.org/index.php/Double_Encoding
-            subdirName = WebUtils.unescapeURISegment(subdirName);
-            if (!currFileOrDir.isDirectory()) {
-                // Files don't have subdirectory
-                return null;
-            } else if (subdirName.isEmpty() || subdirName.equals(".")) {
-                // Skip empty or "." path segments
-            } else if (subdirName.equals("..")) {
-                if (depth <= 0) {
-                    // Explicitly disallow ".." above the static resource root
-                    return null;
-                } else {
-                    // Go up one dir
-                    --depth;
-                    currFileOrDir = currFileOrDir.getParentFile();
-                }
-            } else {
-                // Do down one dir
-                File subDir = new File(currFileOrDir, subdirName);
-                if (!subDir.exists() || subDir.isHidden()) {
-                    // This subdirectory or file does not exist, or is hidden
-                    return null;
-                } else {
-                    // Traverse into subdirectory
-                    ++depth;
-                    currFileOrDir = subDir;
-                }
-            }
-        }
-        if (!currFileOrDir.isFile()) {
-            // At end of URI, ended up at a directory -- can't serve this as a static resource
-            return null;
-        }
-        return currFileOrDir;
-    }
-
-    // -----------------------------------------------------------------------------------------------------
-
-    /**
      * Set up classpath scanner for detecting handler classes, models and templates.
+     * 
+     * @param basePackageName
+     *            The base package name for classpath scanning. (Templates, handlers etc. should be in this
+     *            package.)
      */
-    public SiteResources(String appPackageName) {
-        // Locate static resources
-        staticResourceRootDir = null;
-
-        if (GribbitProperties.STATIC_RESOURCE_ROOT != null) {
-            staticResourceRootDir = new File(GribbitProperties.STATIC_RESOURCE_ROOT);
-            if (!staticResourceRootDir.exists()) {
-                throw new RuntimeException(
-                        "Static resource root dir specified in gribbit.properties does not exist: "
-                                + GribbitProperties.STATIC_RESOURCE_ROOT);
-            }
-            if (!staticResourceRootDir.isDirectory()) {
-                throw new RuntimeException(
-                        "Static resource root specified in gribbit.properties is not a directory: "
-                                + GribbitProperties.STATIC_RESOURCE_ROOT);
-            }
-            Log.info("Static resource root: " + staticResourceRootDir);
-        }
-
+    public SiteResources(String basePackageName) {
         // If this is the second or subsequent loading of site resources, directly load constant literal
         // values of static fields that contain inline templates, so that we can dynamically pick up these
         // changes if running in the debugger in Eclipse. (Eclipse doesn't hot-swap static initializers.)
@@ -261,12 +180,17 @@ public class SiteResources {
         final Class<DBModel<?>> DBModelClass = (Class<DBModel<?>>) ((ParameterizedType) DBModelStringKey.class
                 .getGenericSuperclass()).getRawType();
 
+        // Whitelist Gribbit for scanning, so that Gribbit's own handlers and templates can be picked up
+        // TODO: Eliminate all custom templates and handlers from Gribbit?
+        String gribbitServerPackageName = GribbitServer.class.getPackage().getName();
+        String gribbitBasePackageName = gribbitServerPackageName.substring(0,
+                gribbitServerPackageName.lastIndexOf('.'));
+
         // Set up classpath scanner
-        classpathScanner = new FastClasspathScanner(//
-                staticResourceRootDir == null //
-                ? new String[] { "gribbit", appPackageName } //
-                        : new String[] { "gribbit", appPackageName, staticResourceRootDir.getPath() })
-        //
+        String[] scanSpec = basePackageName == null ? new String[] { gribbitBasePackageName }
+                : new String[] { gribbitBasePackageName, basePackageName };
+        classpathScanner = new FastClasspathScanner(scanSpec)
+                //
                 .matchSubclassesOf(RouteHandler.class, new SubclassMatchProcessor<RouteHandler>() {
                     @Override
                     public void processMatch(Class<? extends RouteHandler> matchingClass) {
@@ -311,8 +235,9 @@ public class SiteResources {
                         // N.B. Class-based MatchProcessors are called by FastClasspathScanner after all classfiles
                         // have been read, so by the time this code is called, classAndFieldNameToLatestValue has
                         // been populated with the latest values of all static template fields of all classes.
-                        String latestStaticFieldTemplateStr = classAndFieldNameToLatestValue.get(matchingClass
-                                .getName() + "." + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
+                        String latestStaticFieldTemplateStr = classAndFieldNameToLatestValue
+                                .get(matchingClass.getName() + "."
+                                        + TemplateModelLoader.TEMPLATE_MODEL_INLINE_TEMPLATE_FIELD_NAME);
 
                         // Load and parse template corresponding to each TemplateModel class
                         Class<? extends TemplateModel> templateClass = (Class<? extends TemplateModel>) matchingClass;

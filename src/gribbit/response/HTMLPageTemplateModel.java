@@ -26,7 +26,7 @@
 package gribbit.response;
 
 import gribbit.model.TemplateModel;
-import gribbit.response.flashmsg.FlashMessage;
+import gribbit.util.FlashMessages;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +41,7 @@ public class HTMLPageTemplateModel extends TemplateModel {
     public TemplateModel body;
 
     /** Each FlashMessage is rendered using the corresponding template. */
-    public ArrayList<FlashMessage> flashMessages;
+    public ArrayList<FlashMessages> flashMessages;
 
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -63,7 +63,7 @@ public class HTMLPageTemplateModel extends TemplateModel {
     // -----------------------------------------------------------------------------------------------------------------
 
     /** Set the flash messages field just before the template is rendered, if there are any flash messages. */
-    public void setFlashMessages(ArrayList<FlashMessage> flashMessages) {
+    public void setFlashMessages(ArrayList<FlashMessages> flashMessages) {
         this.flashMessages = flashMessages;
     }
 
@@ -77,10 +77,11 @@ public class HTMLPageTemplateModel extends TemplateModel {
      * FIXME: Add head and tail content to all subclasses of HTMLPageTemplate
      */
     public static final String _template = "<!DOCTYPE html>" //
-            // charset should come before title
             + "<html>"//
             + "<head>" //
+            // charset should come before title
             + "<meta charset=\"utf-8\">" //
+            + "<meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\">"
             + "<title>${title}</title>" + "</head>" //
             + "<body>" //
             // Include flash messages at beginning of body

@@ -23,18 +23,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package gribbit.http.response;
+package gribbit.response;
 
-import gribbit.http.request.Request;
-import gribbit.http.utils.UTF8;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
-public class TextResponse extends ByteBufResponse {
-    public TextResponse(Request request, HttpResponseStatus status, String content) {
-        super(request, status, UTF8.stringToUTF8ByteBuf(content), "text/plain;charset=utf-8");
-    }
-
-    public TextResponse(Request request, String content) {
-        this(request, HttpResponseStatus.OK, content);
+/**
+ * A redirect response.
+ */
+public class RedirectResponse extends EmptyErrorResponse {
+    public RedirectResponse(String redirectURL) {
+        super(HttpResponseStatus.FOUND);
+        addHeader("Location", redirectURL);
     }
 }

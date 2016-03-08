@@ -25,8 +25,7 @@
  */
 package gribbit.util;
 
-import gribbit.auth.User;
-import gribbit.http.response.exception.BadRequestException;
+import gribbit.response.exception.BadRequestException;
 import gribbit.util.thirdparty.BCrypt;
 
 /**
@@ -60,9 +59,7 @@ public class Hash {
      * @return true if the candidate matches, false otherwise.
      */
     public static boolean checkPassword(String candidate, String passwordHash) {
-        if (candidate == null || passwordHash == null //
-                // Can't validate username/password combination if user created account with Persona 
-                || passwordHash.equals(User.FEDERATED_LOGIN_PASSWORD_HASH_PLACEHOLDER)) {
+        if (candidate == null || passwordHash == null) {
             return false;
         }
         // Takes ~80ms
