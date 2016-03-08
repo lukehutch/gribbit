@@ -63,7 +63,7 @@ public class InternalServerErrorException extends ResponseException {
             return new ErrorResponse(responseStatus, getResponseMessage());
         } else {
             // Generate response using custom error handler, if available
-            return route.callErrorHandler(routingContext);
+            return route.callErrorHandler(routingContext, this);
         }
     }
 

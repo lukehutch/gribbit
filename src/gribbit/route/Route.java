@@ -373,8 +373,12 @@ public class Route {
     }
 
     /** Call the get() method of an error handler. */
-    public Response callErrorHandler(RoutingContext routingContext) {
+    public Response callErrorHandler(RoutingContext routingContext, ResponseException responseException) {
         try {
+            // TODO: responseException is currently ignored, but could be passed into the get() method of
+            // custom error handlers as the first parameter to provide more info about what went wrong.
+            // (Would need to change the expected number of params for a get() method of an error handler
+            // from 0 to 1 in RouteMapping.)
             Response response = invokeMethod(routingContext, getMethod, /* getParamVals = */ null, getRoles,
                     /* checkAuthorized = */ false, /* checkCSRFTok = */ false);
             if (response == null) {
