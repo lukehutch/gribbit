@@ -25,19 +25,6 @@
  */
 package gribbit.model;
 
-import gribbit.model.field.annotation.IsURL;
-import gribbit.model.util.FieldChecker;
-import gribbit.route.RouteHandler;
-import gribbit.server.GribbitServer;
-import gribbit.server.config.GribbitProperties;
-import gribbit.server.siteresources.CacheExtension;
-import gribbit.server.siteresources.CacheExtension.HashInfo;
-import gribbit.util.JSON;
-import gribbit.util.Log;
-import gribbit.util.StringUtils;
-import gribbit.util.WebUtils;
-import gribbit.util.WebUtils.EscapeAmpersand;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.net.URI;
@@ -56,6 +43,19 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.nodes.XmlDeclaration;
+
+import gribbit.model.field.annotation.IsURL;
+import gribbit.model.util.FieldChecker;
+import gribbit.route.RouteHandler;
+import gribbit.server.GribbitServer;
+import gribbit.server.config.GribbitProperties;
+import gribbit.server.siteresources.CacheExtension;
+import gribbit.server.siteresources.CacheExtension.HashInfo;
+import gribbit.util.JSON;
+import gribbit.util.Log;
+import gribbit.util.StringUtils;
+import gribbit.util.WebUtils;
+import gribbit.util.WebUtils.EscapeAmpersand;
 
 /**
  * Templates with context-aware escaping for near-complete protection against stored and reflected XSS attacks.
@@ -115,7 +115,9 @@ public abstract class TemplateModel {
         return new ContentArray(contentArgs);
     }
 
-    /** Wrap a list of TemplateModel objects into a single template that renders each of the arguments in sequence. */
+    /**
+     * Wrap a list of TemplateModel objects into a single template that renders each of the arguments in sequence.
+     */
     public static TemplateModel templateSequence(List<? extends TemplateModel> contentList) {
         return new ContentList(contentList);
     }
@@ -152,7 +154,8 @@ public abstract class TemplateModel {
      * text part starts in a space, skip initial spaces in the text part so as not to create a run of spaces, which
      * can throw off indenting if the text is at the beginning of an indented line.
      */
-    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint, StringBuilder buf) {
+    private void encodeForHTMLNormalizingInitialSpace(CharSequence textPart, boolean prettyPrint,
+            StringBuilder buf) {
         CharSequence suffixAfterInitialSpaces = textPart;
         if (prettyPrint && (buf.length() == 0 || buf.charAt(buf.length() - 1) == ' ') && textPart.length() > 0
                 && textPart.charAt(0) == ' ') {
@@ -269,8 +272,8 @@ public abstract class TemplateModel {
                     }
 
                     // Recursively render nested template
-                    wasIndented |= ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel,
-                            prettyPrint, buf);
+                    wasIndented |= ((TemplateModel) fieldValue).renderTemplate(reqURLPath, indentLevel, prettyPrint,
+                            buf);
 
                 } else if (fieldType.isArray() || List.class.isAssignableFrom(fieldType)) {
                     if (isAttrVal) {
@@ -309,8 +312,8 @@ public abstract class TemplateModel {
                     // (The concrete type parameter of all Class<?> fields were checked on template loading.)
                     @SuppressWarnings("unchecked")
                     Class<? extends RouteHandler> routeHandlerClass = (Class<? extends RouteHandler>) fieldValue;
-                    String uriForClass = GribbitServer.siteResources.routeForClass(routeHandlerClass)
-                            .getRoutePath().getNormalizedPath();
+                    String uriForClass = GribbitServer.siteResources.routeForClass(routeHandlerClass).getRoutePath()
+                            .getNormalizedPath();
                     buf.append(uriForClass);
 
                 } else {
@@ -347,8 +350,8 @@ public abstract class TemplateModel {
                 // the Java URI parser class to validate the URL.
                 URI url = WebUtils.parseURI(urlStr);
                 if (url == null) {
-                    throw new RuntimeException("String substituted into URI attr \"" + attrName
-                            + "\" is not a valid URI: " + urlStr);
+                    throw new RuntimeException(
+                            "String substituted into URI attr \"" + attrName + "\" is not a valid URI: " + urlStr);
                 }
 
                 String replacementURL = null;
@@ -418,14 +421,15 @@ public abstract class TemplateModel {
                 // Log.warning("Using parameter in URI attribute \"" + attrName + 
                 // "\" is unsafe due to the possibility for SVG script injection: http://goo.gl/cx16TR");
 
-            } else if (isAttrVal && (attrName.equals("id") || attrName.equals("name") || attrName.equals("class"))) {
+            } else if (isAttrVal
+                    && (attrName.equals("id") || attrName.equals("name") || attrName.equals("class"))) {
                 // OWASP Rule #1:
                 //     Strictly validate unsafe attributes such as background, id and name.
                 // See also http://goo.gl/fKZhFA -- we disallow '.' and ':' because they can cause
                 // problems with jQuery.
 
-                if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID : WebUtils.VALID_HTML_NAME_OR_ID).matcher(
-                        escapedTextWithSubstitutedParams).matches()) {
+                if (!(attrName.equals("class") ? WebUtils.VALID_CSS_ID : WebUtils.VALID_HTML_NAME_OR_ID)
+                        .matcher(escapedTextWithSubstitutedParams).matches()) {
                     throw new RuntimeException("Bad characters in attribute value: " + attrName + "=\""
                             + escapedTextWithSubstitutedParams + "\"");
                 }
@@ -612,7 +616,8 @@ public abstract class TemplateModel {
      * indented (which happens when prettyPrint == true and the node or one of its children is a block element).
      */
     private boolean renderDOMNode(Node node, Element enclosingForm, DataModel formModel, String selectName,
-            String reqURLPath, boolean normalizeTextSpacing, int indentLevel, boolean prettyPrint, StringBuilder buf) {
+            String reqURLPath, boolean normalizeTextSpacing, int indentLevel, boolean prettyPrint,
+            StringBuilder buf) {
         boolean nodeWasIndented = false;
 
         if (node instanceof Element) {

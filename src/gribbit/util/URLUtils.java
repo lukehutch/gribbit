@@ -55,11 +55,13 @@ public class URLUtils {
                         // Ignore truncated %-seq at end of string
                     } else {
                         char c1 = str.charAt(++segIdx);
-                        int digit1 = c1 >= '0' && c1 <= '9' ? (c1 - '0') : c1 >= 'a' && c1 <= 'f' ? (c1 - 'a' + 10)
-                                : c1 >= 'A' && c1 <= 'F' ? (c1 - 'A' + 10) : -1;
+                        int digit1 = c1 >= '0' && c1 <= '9' ? (c1 - '0')
+                                : c1 >= 'a' && c1 <= 'f' ? (c1 - 'a' + 10)
+                                        : c1 >= 'A' && c1 <= 'F' ? (c1 - 'A' + 10) : -1;
                         char c2 = str.charAt(++segIdx);
-                        int digit2 = c2 >= '0' && c2 <= '9' ? (c2 - '0') : c2 >= 'a' && c2 <= 'f' ? (c2 - 'a' + 10)
-                                : c2 >= 'A' && c2 <= 'F' ? (c2 - 'A' + 10) : -1;
+                        int digit2 = c2 >= '0' && c2 <= '9' ? (c2 - '0')
+                                : c2 >= 'a' && c2 <= 'f' ? (c2 - 'a' + 10)
+                                        : c2 >= 'A' && c2 <= 'F' ? (c2 - 'A' + 10) : -1;
                         if (digit1 < 0 || digit2 < 0) {
                             // Ignore invalid %-sequence
                         } else {
@@ -182,8 +184,8 @@ public class URLUtils {
             if (buf.length() > 0) {
                 buf.append("&");
             }
-            URLUtils.escapeQueryParamKeyVal(keyValuePairs[i], i < keyValuePairs.length - 1 ? keyValuePairs[i + 1]
-                    : "", buf);
+            URLUtils.escapeQueryParamKeyVal(keyValuePairs[i],
+                    i < keyValuePairs.length - 1 ? keyValuePairs[i + 1] : "", buf);
         }
         return buf.toString();
     }

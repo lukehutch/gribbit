@@ -69,7 +69,7 @@ public class ParsedURL {
         return unescapedQueryParams;
     }
 
-    /** Returns true if this URL starts with the given template URL. */ 
+    /** Returns true if this URL starts with the given template URL. */
     public boolean startsWith(ParsedURL templateURL) {
         if (templateURL.unescapedURLParts.size() > this.unescapedURLParts.size()) {
             return false;
@@ -81,19 +81,19 @@ public class ParsedURL {
         }
         return true;
     }
-    
+
     public int getNumURLParts() {
         return this.unescapedURLParts.size();
     }
-    
+
     public List<String> getUnescapedURLParts(int startIdx) {
         return unescapedURLParts.subList(startIdx, unescapedURLParts.size());
     }
-    
+
     public List<String> getUnescapedURLParts() {
         return unescapedURLParts;
     }
-    
+
     /** Return the URL and query params, with all URL parts properly escaped. */
     @Override
     public String toString() {

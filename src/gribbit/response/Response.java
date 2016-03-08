@@ -167,7 +167,7 @@ public abstract class Response {
         this.logOut = true;
         return this;
     }
-    
+
     // -----------------------------------------------------------------------------------------------------
 
     protected void sendHeaders(RoutingContext routingContext, String contentType) {
@@ -176,7 +176,7 @@ public abstract class Response {
         MultiMap headers = response.headers();
 
         headers.add("Content-Type", contentType);
-        
+
         if (customHeaders != null) {
             for (CustomHeader c : customHeaders) {
                 headers.add(c.key, c.value);
@@ -190,7 +190,7 @@ public abstract class Response {
                 routingContext.addCookie(Cookie.cookie(cookie));
             }
         }
-        
+
         if (logOut) {
             User.logOut(routingContext.session());
         }

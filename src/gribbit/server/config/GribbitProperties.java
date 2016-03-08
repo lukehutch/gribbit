@@ -66,10 +66,10 @@ public class GribbitProperties {
 
     public static boolean ALLOW_WEBSOCKETS = PropertyUtils.getPropertyBoolean(properties, "websockets.allow", true);
 
-    public static boolean PRETTY_PRINT_HTML = PropertyUtils
-            .getPropertyBoolean(properties, "prettyprint.html", true);
-    public static boolean PRETTY_PRINT_JSON = PropertyUtils
-            .getPropertyBoolean(properties, "prettyprint.json", true);
+    public static boolean PRETTY_PRINT_HTML = PropertyUtils.getPropertyBoolean(properties, "prettyprint.html",
+            true);
+    public static boolean PRETTY_PRINT_JSON = PropertyUtils.getPropertyBoolean(properties, "prettyprint.json",
+            true);
 
     public static boolean ALLOW_GET_MODEL = PropertyUtils.getPropertyBoolean(properties, "_getmodel.allow", true);
 }

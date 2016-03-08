@@ -25,6 +25,15 @@
  */
 package gribbit.model.util;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
 import gribbit.model.DBModel;
 import gribbit.model.field.annotation.DBIndex;
 import gribbit.model.field.annotation.Email;
@@ -42,15 +51,6 @@ import gribbit.model.field.visibility.annotation.PrivateSet;
 import gribbit.util.StringUtils;
 import gribbit.util.WebUtils;
 import io.netty.handler.codec.http.multipart.FileUpload;
-
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 public class FieldChecker {
 
@@ -98,14 +98,14 @@ public class FieldChecker {
                     if ((annotationType == Email.class || annotationType == MinLength.class
                             || annotationType == MaxLength.class || annotationType == Regex.class)
                             && fieldType != String.class) {
-                        throw new RuntimeException("Field " + klass.getName() + "." + fieldName
-                                + " must be of type String");
+                        throw new RuntimeException(
+                                "Field " + klass.getName() + "." + fieldName + " must be of type String");
 
                     } else if ((annotationType == MinIntegerValue.class || //
                             annotationType == MaxIntegerValue.class)
                             && !(fieldType == Integer.class || fieldType == Integer.TYPE)) {
-                        throw new RuntimeException("Field " + klass.getName() + "." + fieldName
-                                + " must be of type int or Integer");
+                        throw new RuntimeException(
+                                "Field " + klass.getName() + "." + fieldName + " must be of type int or Integer");
                     } else if (annotationType == Required.class && fieldIsPrimitiveType) {
                         throw new RuntimeException("Field " + klass.getName() + "." + fieldName
                                 + " has a Required annotation, but the field has a primitive type,"
@@ -137,23 +137,23 @@ public class FieldChecker {
                     try {
                         regex = Pattern.compile(((Regex) field.getAnnotation(Regex.class)).regex());
                     } catch (PatternSyntaxException e) {
-                        throw new RuntimeException(Regex.class.getName() + " annotation on field "
-                                + klass.getName() + "." + fieldName + " is not a valid regular expression");
+                        throw new RuntimeException(Regex.class.getName() + " annotation on field " + klass.getName()
+                                + "." + fieldName + " is not a valid regular expression");
                     }
                 } else {
                     regex = null;
                 }
                 boolean isInt = fieldType == Integer.class || fieldType == Integer.TYPE;
                 boolean checkMinIntValue = isInt && field.isAnnotationPresent(MinIntegerValue.class);
-                int minIntValue = checkMinIntValue ? ((MinIntegerValue) field.getAnnotation(MinIntegerValue.class))
-                        .value() : 0;
+                int minIntValue = checkMinIntValue
+                        ? ((MinIntegerValue) field.getAnnotation(MinIntegerValue.class)).value() : 0;
                 boolean checkMaxIntValue = isInt && field.isAnnotationPresent(MinIntegerValue.class);
-                int maxIntValue = checkMaxIntValue ? ((MaxIntegerValue) field.getAnnotation(MaxIntegerValue.class))
-                        .value() : 0;
+                int maxIntValue = checkMaxIntValue
+                        ? ((MaxIntegerValue) field.getAnnotation(MaxIntegerValue.class)).value() : 0;
 
                 // Add one value checker per constrained field
-                if (isString
-                        && (isRequired || normalizeSpacing || needToTrim || toLowerCase || checkMinLength || checkMaxLength)) {
+                if (isString && (isRequired || normalizeSpacing || needToTrim || toLowerCase || checkMinLength
+                        || checkMaxLength)) {
                     valueCheckers.add(new FieldValueConstraintChecker() {
                         @Override
                         public void checkFieldsAgainstConstraints(Object instance) {
@@ -186,10 +186,10 @@ public class FieldChecker {
                             if (isEmail) {
                                 // If there's an @Email annotation, the field cannot be null
                                 if (strValue == null
-                                // Validate email addresses
+                                        // Validate email addresses
                                         || !WebUtils.isValidEmailAddr(strValue)) {
-                                    throw new RuntimeException("Value of field " + klass.getName() + "."
-                                            + fieldName + " is not a valid email address"
+                                    throw new RuntimeException("Value of field " + klass.getName() + "." + fieldName
+                                            + " is not a valid email address"
                                             + (strValue == null ? ", its value is null" : ""));
                                 }
                             }
@@ -232,8 +232,8 @@ public class FieldChecker {
                                 try {
                                     intValue = field.getInt(instance);
                                 } catch (IllegalArgumentException | IllegalAccessException e) {
-                                    throw new RuntimeException("Could not read field " + klass.getName() + "."
-                                            + fieldName, e);
+                                    throw new RuntimeException(
+                                            "Could not read field " + klass.getName() + "." + fieldName, e);
                                 }
                             } else {
                                 Object fieldValue;
@@ -244,8 +244,8 @@ public class FieldChecker {
                                 }
                                 // All of @Required, @MinIntegerValue and @MaxIntegerValue require non-null values
                                 if (fieldValue == null) {
-                                    throw new RuntimeException("Required field " + klass.getName() + "."
-                                            + fieldName + " is null");
+                                    throw new RuntimeException(
+                                            "Required field " + klass.getName() + "." + fieldName + " is null");
                                 }
                                 intValue = (Integer) fieldValue;
                             }
@@ -253,10 +253,12 @@ public class FieldChecker {
                             // Handle min/max value constraint on int-typed field
                             if (checkMinIntValue && intValue < minIntValue) {
                                 throw new RuntimeException("Parameter " + klass.getName() + "." + fieldName
-                                        + " must have minimum value " + minIntValue + ", but has value " + intValue);
+                                        + " must have minimum value " + minIntValue + ", but has value "
+                                        + intValue);
                             } else if (checkMaxIntValue && intValue > maxIntValue) {
                                 throw new RuntimeException("Parameter " + klass.getName() + "." + fieldName
-                                        + " must have maximum value " + maxIntValue + ", but has value " + intValue);
+                                        + " must have maximum value " + maxIntValue + ", but has value "
+                                        + intValue);
                             }
                         }
                     });
@@ -307,9 +309,9 @@ public class FieldChecker {
         return
         // Class is not public
         (!Modifier.isPublic(field.getDeclaringClass().getModifiers()))
-        // Field is not public, or is abstract, static or final => treat as private
+                // Field is not public, or is abstract, static or final => treat as private
                 || (!Modifier.isPublic(modifiers) || Modifier.isAbstract(modifiers) || Modifier.isStatic(modifiers) //
-                || Modifier.isFinal(modifiers))
+                        || Modifier.isFinal(modifiers))
                 //
                 // DBModel id fields are private, they can't be sent to user or bound from forms
                 || (DBModel.class.isAssignableFrom(field.getDeclaringClass()) && field.getName().equals("id"))

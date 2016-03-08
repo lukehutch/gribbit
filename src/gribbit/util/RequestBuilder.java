@@ -25,8 +25,6 @@
  */
 package gribbit.util;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.StringWriter;
@@ -35,6 +33,8 @@ import java.net.URL;
 
 import org.apache.commons.io.IOUtils;
 import org.json.simple.JSONValue;
+
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 public class RequestBuilder {
 
@@ -87,11 +87,12 @@ public class RequestBuilder {
                     return writer.toString();
                 }
             } else {
-                throw new IllegalArgumentException("Got non-OK HTTP response code: " + connection.getResponseCode());
+                throw new IllegalArgumentException(
+                        "Got non-OK HTTP response code: " + connection.getResponseCode());
             }
         } catch (Exception e) {
-            throw new IllegalArgumentException("Exception during " + (isGET ? "GET" : "POST") + " request: "
-                    + e.getMessage(), e);
+            throw new IllegalArgumentException(
+                    "Exception during " + (isGET ? "GET" : "POST") + " request: " + e.getMessage(), e);
         } finally {
             if (connection != null) {
                 try {

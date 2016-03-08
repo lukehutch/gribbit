@@ -25,8 +25,6 @@
  */
 package gribbit.util;
 
-import gribbit.server.config.GribbitProperties;
-
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -36,6 +34,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+
+import gribbit.server.config.GribbitProperties;
 
 @SuppressWarnings("deprecation")
 public class JSONJackson {
@@ -58,13 +58,13 @@ public class JSONJackson {
         // mapper.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     }
 
-    public static <T> T jsonToObject(String jsonString, Class<T> klass) throws JsonParseException,
-            JsonMappingException, IOException {
+    public static <T> T jsonToObject(String jsonString, Class<T> klass)
+            throws JsonParseException, JsonMappingException, IOException {
         return mapper.readValue(jsonString, klass);
     }
 
-    public static <T> T jsonToObject(InputStream inputStream, Class<T> klass) throws JsonParseException,
-            JsonMappingException, IOException {
+    public static <T> T jsonToObject(InputStream inputStream, Class<T> klass)
+            throws JsonParseException, JsonMappingException, IOException {
         return mapper.readValue(inputStream, klass);
     }
 

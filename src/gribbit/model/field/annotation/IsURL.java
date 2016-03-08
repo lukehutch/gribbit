@@ -41,7 +41,7 @@ import java.lang.annotation.Target;
  *     public class UserBadge extends DataModel {
  *         public String name;
  *   
- *         @ IsURL                 // Had to insert a space after '@' so that Eclipse code formatter doesn't freak out
+ *         &#64; IsURL                 // Had to insert a space after '@' so that Eclipse code formatter doesn't freak out
  *         public String photoURL;
  *   
  *         public static final _template = "<user-badge name='${name}' photourl='${photoURL}'></user-badge>"; 

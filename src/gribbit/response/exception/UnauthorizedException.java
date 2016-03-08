@@ -39,7 +39,6 @@ public class UnauthorizedException extends LightweightResponseException {
     public UnauthorizedException() {
         super(HttpResponseStatus.UNAUTHORIZED);
     }
-    
 
     @Override
     public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {

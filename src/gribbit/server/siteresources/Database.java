@@ -25,15 +25,6 @@
  */
 package gribbit.server.siteresources;
 
-import gribbit.model.DBModel;
-import gribbit.model.DBModelLongKey;
-import gribbit.model.DBModelObjectIdKey;
-import gribbit.model.DBModelStringKey;
-import gribbit.model.field.annotation.DBIndex;
-import gribbit.server.config.GribbitProperties;
-import gribbit.util.Log;
-import gribbit.util.Reflection;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -49,6 +40,15 @@ import org.mongojack.WriteResult;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
+
+import gribbit.model.DBModel;
+import gribbit.model.DBModelLongKey;
+import gribbit.model.DBModelObjectIdKey;
+import gribbit.model.DBModelStringKey;
+import gribbit.model.field.annotation.DBIndex;
+import gribbit.server.config.GribbitProperties;
+import gribbit.util.Log;
+import gribbit.util.Reflection;
 
 public class Database {
 
@@ -201,16 +201,17 @@ public class Database {
                     // N.B. MongoJack has not yet been updated from getDB to getDatabase and related methods
                     // in the Mongo 3.x driver, so we still need to use the deprecated methods here.
                     @SuppressWarnings("deprecation")
-                    JacksonDBCollection<T, K> collDeprecated = (JacksonDBCollection<T, K>) JacksonDBCollection
-                            .wrap(mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName),
-                                    dbModelClass, idType);
+                    JacksonDBCollection<T, K> collDeprecated = (JacksonDBCollection<T, K>) JacksonDBCollection.wrap(
+                            mongoClient.getDB(GribbitProperties.DB_NAME).getCollection(collectionName),
+                            dbModelClass, idType);
                     coll = collDeprecated;
                 } catch (Exception e) {
                     throw new RuntimeException(
                             "Failure during JacksonDBCollection.wrap(), this can be caused by having methods "
                                     + "with the prefix \"get\" or \"set\". " + "Fields of "
                                     + DBModel.class.getName()
-                                    + " subclasses must be public, and getters/setters are not allowed.", e);
+                                    + " subclasses must be public, and getters/setters are not allowed.",
+                            e);
                 }
 
                 // Save mapping from DBModel class to collection
@@ -291,11 +292,11 @@ public class Database {
             // (We don't actually do anything with the field, we just try getting it to ensure it exists)
             dbModelClass.getField(fieldName);
         } catch (NoSuchFieldException e) {
-            throw new RuntimeException("Field \"" + fieldName + "\" is not a field of class "
-                    + dbModelClass.getName());
+            throw new RuntimeException(
+                    "Field \"" + fieldName + "\" is not a field of class " + dbModelClass.getName());
         } catch (SecurityException e) {
-            throw new RuntimeException("Field \"" + fieldName + "\" of class " + dbModelClass.getName()
-                    + " is not accessible", e);
+            throw new RuntimeException(
+                    "Field \"" + fieldName + "\" of class " + dbModelClass.getName() + " is not accessible", e);
         }
         HashSet<String> indexedFieldNames = dbModelClassToIndexedFieldNames.get(dbModelClass);
         if (indexedFieldNames == null) {

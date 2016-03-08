@@ -43,7 +43,7 @@ public class BufferResponse extends Response {
     public BufferResponse(Buffer content, String contentType) {
         this(HttpResponseStatus.OK, content, contentType);
     }
-    
+
     @Override
     public void send(RoutingContext routingContext) {
         sendHeaders(routingContext, contentType);

@@ -60,7 +60,7 @@ public class CSRF {
     public static final byte[] CSRF_TOKEN_PLACEHOLDER_BYTES = UTF8.stringToUTF8(CSRF_TOKEN_PLACEHOLDER);
 
     public static final int CSRF_TOKEN_LENGTH = 16;
-    
+
     /**
      * Placeholder used for substitution into forms when the user is not logged in (because if the user is not
      * logged in, the appropriate CSRF token for the user is not known).
@@ -99,7 +99,7 @@ public class CSRF {
         }
         return false;
     }
-    
+
     /**
      * Sets a non-HTTP-only cookie "_csrf" with the given token. To implement CSRF protection, the cookie value
      * should be read by Javascript code and added to any same-origin Javascript requests in the X-Csrf-Token

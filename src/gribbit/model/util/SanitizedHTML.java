@@ -25,10 +25,6 @@
  */
 package gribbit.model.util;
 
-import gribbit.util.StringUtils;
-import gribbit.util.WebUtils;
-import gribbit.util.WebUtils.EscapeAmpersand;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +34,10 @@ import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
+
+import gribbit.util.StringUtils;
+import gribbit.util.WebUtils;
+import gribbit.util.WebUtils.EscapeAmpersand;
 
 /**
  * Sanitized HTML.
@@ -91,7 +91,7 @@ public class SanitizedHTML {
     }
 
     private static HashMap<String, HashSet<String>> defaultWhitelist = //
-    createWhitelist(new String[] { "a.href", "br", "b", "i" });
+            createWhitelist(new String[] { "a.href", "br", "b", "i" });
 
     private static HashMap<String, HashSet<String>> createWhitelist(String[] strings) {
         HashMap<String, HashSet<String>> whitelist = new HashMap<>();

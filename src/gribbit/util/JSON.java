@@ -25,9 +25,6 @@
  */
 package gribbit.util;
 
-import gribbit.model.util.FieldChecker;
-import gribbit.server.config.GribbitProperties;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -35,6 +32,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import gribbit.model.util.FieldChecker;
+import gribbit.server.config.GribbitProperties;
 
 public class JSON {
     /**
@@ -184,8 +184,7 @@ public class JSON {
                         Field field = fields[i];
                         // DataModel fields annotated with @Private or @OnlyReceive and
                         // DBModel id fields cannot be sent to the user
-                        if (!FieldChecker.fieldIsPrivate(field,
-                        /* checkGet = */true, /* checkSet = */false)) {
+                        if (!FieldChecker.fieldIsPrivate(field, /* checkGet = */true, /* checkSet = */false)) {
                             // In case class is not itself public, need to call setAccessible(true)
                             // FIXME: Need to do the same everywhere else we get fields, or
                             // FIXME: alternatively catch IllegalAccessException and tell the user

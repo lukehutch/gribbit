@@ -51,7 +51,7 @@ public class BadRequestException extends LightweightResponseException {
     protected String getResponseMessage() {
         return msg == null ? super.getResponseMessage() : super.getResponseMessage() + " -- " + msg;
     }
-    
+
     @Override
     public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
         Route route = siteResources.getBadRequestRoute();

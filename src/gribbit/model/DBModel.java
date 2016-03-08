@@ -25,11 +25,11 @@
  */
 package gribbit.model;
 
-import gribbit.server.GribbitServer;
-import gribbit.server.siteresources.Database;
-
 import org.mongojack.Id;
 import org.mongojack.WriteResult;
+
+import gribbit.server.GribbitServer;
+import gribbit.server.siteresources.Database;
 
 public abstract class DBModel<K> extends DataModel {
     @Id
@@ -54,8 +54,8 @@ public abstract class DBModel<K> extends DataModel {
         try {
             GribbitServer.siteResources.checkFieldValuesAgainstConstraintAnnotations(this);
         } catch (Exception e) {
-            throw new RuntimeException("Object cannot be saved, constraint annotations not satisified: "
-                    + e.getMessage());
+            throw new RuntimeException(
+                    "Object cannot be saved, constraint annotations not satisified: " + e.getMessage());
         }
 
         return Database.save(this);

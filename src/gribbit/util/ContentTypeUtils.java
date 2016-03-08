@@ -7,11 +7,10 @@ import java.util.Map;
 public class ContentTypeUtils {
 
     public static boolean isCompressibleContentType(String contentType) {
-        return contentType != null
-                && (contentType.startsWith("text/") || contentType.startsWith("application/javascript")
-                        || contentType.startsWith("application/json") || contentType.startsWith("application/xml")
-                        || contentType.startsWith("image/svg+xml") || contentType
-                            .startsWith("application/x-font-ttf"));
+        return contentType != null && (contentType.startsWith("text/")
+                || contentType.startsWith("application/javascript") || contentType.startsWith("application/json")
+                || contentType.startsWith("application/xml") || contentType.startsWith("image/svg+xml")
+                || contentType.startsWith("application/x-font-ttf"));
     }
 
     // -------------------------------------------------------------------------------------------------------------
@@ -69,7 +68,7 @@ public class ContentTypeUtils {
         return set;
     }
 
-    public static final HashSet<String> FONT_EXTENSION = toSet(new String[] { "ttf", "ttc", "otf", "woff",
-            "woff2", "eot", "sfnt" });
+    public static final HashSet<String> FONT_EXTENSION = toSet(
+            new String[] { "ttf", "ttc", "otf", "woff", "woff2", "eot", "sfnt" });
 
 }

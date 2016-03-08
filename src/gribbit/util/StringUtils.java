@@ -25,8 +25,6 @@
  */
 package gribbit.util;
 
-import gribbit.server.config.GribbitProperties;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +32,8 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+
+import gribbit.server.config.GribbitProperties;
 
 public class StringUtils {
 

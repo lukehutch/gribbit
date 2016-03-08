@@ -1,11 +1,11 @@
 package gribbit.server.config;
 
-import gribbit.server.GribbitServer;
-import gribbit.util.Log;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
+
+import gribbit.server.GribbitServer;
+import gribbit.util.Log;
 
 public class PropertyUtils {
 

@@ -25,13 +25,13 @@
  */
 package gribbit.util;
 
-import gribbit.util.thirdparty.Base64;
-import gribbit.util.thirdparty.UTF8;
-import gribbit.util.thirdparty.UTF8.UTF8Exception;
-
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+
+import gribbit.util.thirdparty.Base64;
+import gribbit.util.thirdparty.UTF8;
+import gribbit.util.thirdparty.UTF8.UTF8Exception;
 
 /**
  * Perform base 64 encoding that is compatible with URL and cookie encoding: replaces '+' with '-' and '/' with '_',

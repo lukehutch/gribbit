@@ -30,7 +30,7 @@ import io.vertx.ext.web.RoutingContext;
 
 public class TextResponse extends Response {
     private String content;
-    
+
     public TextResponse(HttpResponseStatus status, String content) {
         super(status);
         this.content = content;
@@ -39,7 +39,7 @@ public class TextResponse extends Response {
     public TextResponse(String content) {
         this(HttpResponseStatus.OK, content);
     }
-    
+
     @Override
     public void send(RoutingContext routingContext) {
         sendHeaders(routingContext, "text/plain;charset=utf-8");
