@@ -28,6 +28,7 @@ package gribbit.route;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 import gribbit.auth.CSRF;
 import gribbit.auth.User;
@@ -51,7 +52,7 @@ import io.vertx.ext.web.RoutingContext;
 
 /** The metadata about a Route. */
 public class Route {
-    private String routePath;
+    private ParsedURL routePath;
     private Class<? extends RouteHandler> handlerClass;
     private Roles getRoles, postRoles;
 
@@ -65,7 +66,7 @@ public class Route {
 
     public Route(Class<? extends RouteHandler> handlerClass, String routePath) {
         this.handlerClass = handlerClass;
-        this.routePath = routePath;
+        this.routePath = new ParsedURL(routePath);
         Roles classRoles = handlerClass.getAnnotation(Roles.class);
 
         // Check for methods get() and post() in the handler subinterface
@@ -88,7 +89,6 @@ public class Route {
                 }
             }
 
-            // Get method parameter types
             if (isGet) {
                 // Check method parameters are key value pairs, and that the keys are strings, and the
                 // values are String or Integer
@@ -163,12 +163,16 @@ public class Route {
      * @param user
      */
     private Object[] bindPostParamFromPOSTData(HttpServerRequest request) throws ResponseException {
+        ParsedURL reqURL = new ParsedURL(request.uri());
+        if (reqURL.getUnescapedURLParts().size() != routePath.getUnescapedURLParts().size()) {
+            throw new BadRequestException("POST requests should not have URL parameters");
+        }
         if (postParamType == null) {
             // post() takes no params
             return null;
 
         } else {
-            // post() takes one param
+            // post() takes one param, which is the form model to bind
             DataModel postParam;
             try {
                 postParam = Reflection.instantiateWithDefaultConstructor(postParamType);
@@ -197,31 +201,33 @@ public class Route {
      * binding code into the RequestURL class.
      */
     private Object[] bindGetParamsFromURI(HttpServerRequest request) throws ResponseException {
-        String reqURI = request.uri();
+        ParsedURL reqURL = new ParsedURL(request.uri());
         if (getParamTypes.length == 0) {
             // get() takes no params
+            int numUrlParams = reqURL.getUnescapedURLParts().size();
+            int expectedNumUrlParams = routePath.getUnescapedURLParts().size();
+            if (numUrlParams != expectedNumUrlParams) {
+                throw new BadRequestException(
+                        "Wrong number of URL parameters: expected 0, got " + (numUrlParams - expectedNumUrlParams));
+            }
             return null;
 
         } else {
             // get() takes one or more params
             Object[] getParamVals = new Object[getParamTypes.length];
-            if (!reqURI.startsWith(routePath)) {
+            if (!reqURL.startsWith(routePath)) {
                 // This is an error handler that has been called to replace the normal route handler;
                 // don't try to parse URL params (leave them all as null)
 
             } else {
-                // Parse URI params
-                int slashIdx = routePath.length();
+                // Parse URL params
+                List<String> urlParams = reqURL.getUnescapedURLParts(routePath.getNumURLParts());
+                if (urlParams.size() != getParamTypes.length) {
+                    throw new BadRequestException("Wrong number of URL parameters: expected " + getParamTypes.length
+                            + ", got " + urlParams.size());
+                }
                 for (int i = 0; i < getParamTypes.length; i++) {
-                    int nextSlashIdx = slashIdx < reqURI.length() - 1 ? reqURI.indexOf('/', slashIdx + 1) : -1;
-                    if (nextSlashIdx < 0) {
-                        nextSlashIdx = reqURI.length();
-                    }
-                    if (nextSlashIdx - slashIdx < 2) {
-                        throw new BadRequestException(
-                                "Insufficient URL parameters, expected " + getParamTypes.length + ", got " + i);
-                    }
-                    String uriSegment = reqURI.substring(slashIdx + 1, nextSlashIdx);
+                    String uriSegment = urlParams.get(i);
                     if (getParamTypes[i] == Integer.class || getParamTypes[i] == Integer.TYPE) {
                         try {
                             // Specifically parse integers for int-typed method parameters 
@@ -231,18 +237,10 @@ public class Route {
                                     "Malformed URL parameter, expected integer for URI parameter");
                         }
                     } else {
-                        // N.B. the unescape is performed only once here, between '/' characters (the
-                        // URI is not unescaped by the caller prior to passing the URI to this method),
-                        // and the unescaped string is stored directly as a parameter value. Parameter
-                        // values should not be unescaped again after this, to prevent double-encoding
-                        // attacks: see https://www.owasp.org/index.php/Double_Encoding
-                        getParamVals[i] = URLUtils.unescapeURLSegment(uriSegment);
+                        // N.B. parameter values should not be unescaped again after this, to prevent
+                        // double-encoding attacks: see https://www.owasp.org/index.php/Double_Encoding
+                        getParamVals[i] = uriSegment;
                     }
-                    slashIdx = nextSlashIdx;
-                }
-                if (slashIdx < reqURI.length() - 1) {
-                    // Still at least one URL param left
-                    throw new BadRequestException("Too many URL parameters");
                 }
             }
             return getParamVals;
@@ -364,26 +362,6 @@ public class Route {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    //    @Roles({ RoleNames.PUBLIC })
-    //    private static final Object objectWithPublicRole;
-    //    private static final Roles publicRole = Route.class.getField("objectWithPublicRole").getAnnotation(Roles.class);
-    //
-    //    /**
-    //     * Call the get() method for an error handler Route. Error handlers are always public.
-    //     */
-    //    public Response callErrorHandler(Request request) throws ResponseException {
-    //        // Bind any URI params; invoke the get() method with URI params, and return the Response.
-    //        Object[] getParamVals = bindGetParamsFromURI(request);
-    //        // If the exception is UnauthorizedException, force public access, otherwise require the same authorization
-    //        // for the error handler as for the get() method (if there is a get() method, else at least require the
-    //        // user to be logged in, because getRoles will be null).
-    //        // TODO: is this the right way to handle this?
-    //        Roles roles = request instanceof UnauthorizedException ? publicRole : getRoles;
-    //        return invokeMethod(request, getMethod, getParamVals, roles);
-    //    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
     /**
      * Get the route annotated with the given HTTP method on the given RestHandler, substituting the key/value pairs
      * into the params in the URL template.
@@ -411,7 +389,7 @@ public class Route {
                         "Wrong number of URL params for method " + handlerClass.getName() + ".get()");
             }
             // Build new fully-specified route from route stem and URL params 
-            StringBuilder buf = new StringBuilder(handler.routePath);
+            StringBuilder buf = new StringBuilder(handler.routePath.getNormalizedPath());
             for (int i = 0; i < urlParams.length; i++) {
                 buf.append('/');
                 URLUtils.escapeURLSegment(urlParams[i].toString(), buf);
@@ -426,7 +404,7 @@ public class Route {
                 throw new RuntimeException(
                         "Tried to pass URL params to a POST method, " + handlerClass.getName() + ".post()");
             }
-            return handler.routePath;
+            return handler.routePath.getNormalizedPath();
 
         } else {
             throw new RuntimeException("Bad HTTP method: " + httpMethod);
@@ -449,17 +427,13 @@ public class Route {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    public String getRoutePath() {
+    public ParsedURL getRoutePath() {
         return routePath;
     }
 
     @Override
     public String toString() {
-        return routePath;
-    }
-
-    public void setRoutePath(String routePath) {
-        this.routePath = routePath;
+        return routePath.getNormalizedPath();
     }
 
     public Class<? extends RouteHandler> getHandler() {
@@ -488,19 +462,5 @@ public class Route {
      */
     public int getNumGetParams() {
         return getMethod == null ? 0 : getParamTypes.length;
-    }
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    /**
-     * Check if the passed URI matches this route, i.e. returns true if the handler corresponding to this route
-     * should handle the request.
-     */
-    public boolean matches(String reqURI) {
-        // Check if reqURI.equals(routePath) || reqURI.startsWith(routePath + "/"), without creating an intermediate
-        // object for (routePath + "/")
-        return reqURI.startsWith(routePath) && //
-                (reqURI.length() == routePath.length() || //
-                        (reqURI.length() > routePath.length() && reqURI.charAt(routePath.length()) == '/'));
     }
 }

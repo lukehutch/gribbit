@@ -102,7 +102,7 @@ public class User extends DBModelStringKey {
     }
 
     /** Invalidate login session for user. */
-    public void logOut(Session session) {
+    public static void logOut(Session session) {
         session.destroy();
     }
 
@@ -132,7 +132,7 @@ public class User extends DBModelStringKey {
             // Route is public, or there are no roles specified, and user is logged in
             return true;
         }
-        if (user.roles != null && roles.value() != null) {
+        if (user != null && user.roles != null && roles != null && roles.value() != null) {
             for (String userRole : user.roles) {
                 for (String reqdRole : roles.value()) {
                     if (userRole.equals(reqdRole) && !userRole.isEmpty() && !reqdRole.isEmpty()) {

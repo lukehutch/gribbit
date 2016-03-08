@@ -28,6 +28,7 @@ package gribbit.response;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import gribbit.auth.User;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.vertx.core.MultiMap;
@@ -44,6 +45,7 @@ public abstract class Response {
     protected final HttpResponseStatus status;
     protected HashMap<String, DefaultCookie> cookies;
     private ArrayList<CustomHeader> customHeaders;
+    private boolean logOut;
 
     public Response(HttpResponseStatus status) {
         this.status = status;
@@ -158,6 +160,14 @@ public abstract class Response {
         return this;
     }
 
+    /**
+     * Log out user when response is sent.
+     */
+    public Response logOut() {
+        this.logOut = true;
+        return this;
+    }
+    
     // -----------------------------------------------------------------------------------------------------
 
     protected void sendHeaders(RoutingContext routingContext, String contentType) {
@@ -179,6 +189,10 @@ public abstract class Response {
                 cookie.setSecure(request.isSSL());
                 routingContext.addCookie(Cookie.cookie(cookie));
             }
+        }
+        
+        if (logOut) {
+            User.logOut(routingContext.session());
         }
     }
 

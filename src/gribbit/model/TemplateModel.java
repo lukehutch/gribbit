@@ -310,7 +310,7 @@ public abstract class TemplateModel {
                     @SuppressWarnings("unchecked")
                     Class<? extends RouteHandler> routeHandlerClass = (Class<? extends RouteHandler>) fieldValue;
                     String uriForClass = GribbitServer.siteResources.routeForClass(routeHandlerClass)
-                            .getRoutePath();
+                            .getRoutePath().getNormalizedPath();
                     buf.append(uriForClass);
 
                 } else {

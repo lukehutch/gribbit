@@ -101,14 +101,14 @@ public class SiteResources {
      * Get the path (URI) for the Route corresponding to a given RestHandler class.
      */
     public String routeURIForHandler(Class<? extends RouteHandler> handlerClass) {
-        return routeMapping.routeForHandler(handlerClass).getRoutePath();
+        return routeMapping.routeForHandler(handlerClass).getRoutePath().getNormalizedPath();
     }
 
     /**
      * Get the path (URI) for the Route corresponding to a given DataModel class.
      */
     public String routeURIForDataModel(Class<? extends DataModel> formModelClass) {
-        return routeMapping.routeForFormDataModel(formModelClass).getRoutePath();
+        return routeMapping.routeForFormDataModel(formModelClass).getRoutePath().getNormalizedPath();
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -255,7 +255,8 @@ public class SiteResources {
                     public void processMatch(String relativePath, byte[] fileContents) {
                         // Load header files named "head-content.html" from anywhere in the classpath
                         try {
-                            templateModelLoader.loadHeadContent(relativePath, UTF8.utf8ToString(fileContents));
+                            // Log.info("Loading head content from: " + relativePath);
+                            templateModelLoader.loadHeadContent(UTF8.utf8ToString(fileContents));
                         } catch (UTF8Exception e) {
                             throw new RuntimeException("File " + relativePath + " is not in UTF8 format");
                         }
@@ -267,7 +268,8 @@ public class SiteResources {
                     public void processMatch(String relativePath, byte[] fileContents) {
                         // Load footer files named "tail-content.html" from anywhere in the classpath
                         try {
-                            templateModelLoader.loadTailContent(relativePath, UTF8.utf8ToString(fileContents));
+                            // Log.info("Loading tail content from: " + relativePath);
+                            templateModelLoader.loadTailContent(UTF8.utf8ToString(fileContents));
                         } catch (UTF8Exception e) {
                             throw new RuntimeException("File " + relativePath + " is not in UTF8 format");
                         }

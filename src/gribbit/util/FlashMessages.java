@@ -31,9 +31,9 @@ import gribbit.model.TemplateModel;
 import io.vertx.ext.web.Session;
 
 public class FlashMessages extends TemplateModel {
-    public final FlashType flashType;
-    public final String strongText;
-    public final String message;
+    public FlashType flashType;
+    public String strongText;
+    public String message;
 
     /** Type of flash message. */
     public enum FlashType {

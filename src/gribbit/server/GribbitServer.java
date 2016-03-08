@@ -30,15 +30,15 @@ import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import gribbit.request.handler.HttpErrorHandler;
-import gribbit.request.handler.HttpRequestHandler;
 import gribbit.response.Response;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.NotFoundException;
 import gribbit.response.exception.ResponseException;
+import gribbit.route.ParsedURL;
+import gribbit.route.Route;
 import gribbit.server.siteresources.Database;
 import gribbit.server.siteresources.SiteResources;
 import gribbit.util.Log;
@@ -79,12 +79,11 @@ public class GribbitServer {
     public URI uri;
     public URI wsUri;
 
-    private ArrayList<HttpRequestHandler> httpRequestHandlers;
     // private ArrayList<WebSocketHandler> webSocketHandlers; // TODO
     private HashMap<Class<? extends ResponseException>, HttpErrorHandler> errorHandlers;
 
     public static SiteResources siteResources;
-    private static boolean shutdown = false;
+    // private static boolean shutdown = false;
 
     public static String SERVER_IDENTIFIER = "Gribbit/1.0";
 
@@ -118,20 +117,20 @@ public class GribbitServer {
             }
         }
 
-        // Scan periodically, if polling interval is greater than zero, and provide hot-reload of changed
-        // HTML/JS/CSS/image resources. We also support hot-reload of inline HTML templates in static final
-        // String fields named "_template" in DataModel classes, by means of FastClasspathScanner's support
-        // for reading constants directly from the constant pool of a classfile.
-        // 
-        // If running in the Eclipse debugger, hot reload of RestHandler classes also works in the
-        // usual way. Full hot-reloading of classes is difficult to perform outside the Eclipse
-        // debugger, see: 
-        // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
-        if (!shutdown && SiteResources.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS > 0) {
-            vertx.setTimer(SiteResources.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, id -> {
-                loadSiteResources(vertx, basePackageName);
-            });
-        }
+        //        // Scan periodically, if polling interval is greater than zero, and provide hot-reload of changed
+        //        // HTML/JS/CSS/image resources. We also support hot-reload of inline HTML templates in static final
+        //        // String fields named "_template" in DataModel classes, by means of FastClasspathScanner's support
+        //        // for reading constants directly from the constant pool of a classfile.
+        //        // 
+        //        // If running in the Eclipse debugger, hot reload of RestHandler classes also works in the
+        //        // usual way. Full hot-reloading of classes is difficult to perform outside the Eclipse
+        //        // debugger, see: 
+        //        // http://tutorials.jenkov.com/java-reflection/dynamic-class-loading-reloading.html
+        //        if (!shutdown && SiteResources.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS > 0) {
+        //            vertx.setTimer(SiteResources.CLASSPATH_CHANGE_DETECTION_POLL_INTERVAL_MS, id -> {
+        //                loadSiteResources(vertx, basePackageName);
+        //            });
+        //        }
     }
 
     // -----------------------------------------------------------------------------------------------------
@@ -164,15 +163,6 @@ public class GribbitServer {
     }
 
     // -----------------------------------------------------------------------------------------------------
-
-    /** Add an HTTP request handler. Handlers are called in order until one of them returns a non-null response. */
-    public GribbitServer addHttpRequestHandler(HttpRequestHandler handler) {
-        if (httpRequestHandlers.isEmpty()) {
-            httpRequestHandlers = new ArrayList<>();
-        }
-        httpRequestHandlers.add(handler);
-        return this;
-    }
 
     //    /**
     //     * Add an WebSocket handler. Handlers are called in order until one of them handles the WebSocket upgrade
@@ -263,6 +253,7 @@ public class GribbitServer {
             vertx.executeBlocking(future -> {
                 Response response = null;
                 HttpServerRequest request = routingContext.request();
+                ParsedURL reqURL = new ParsedURL(request.uri());
                 try {
                     // RequestURL reqURL = new RequestURL(request.absoluteURI());  // TODO
                     boolean isWSUpgrade = false;
@@ -276,10 +267,10 @@ public class GribbitServer {
                     //                        }
                     //                    }
                     if (!isWSUpgrade) {
-                        if (httpRequestHandlers != null) {
-                            for (HttpRequestHandler handler : httpRequestHandlers) {
-                                // Try each HttpRequestHandler in turn
-                                response = handler.handle(request);
+                        // Try each route in turn
+                        for (Route route : siteResources.getAllRoutes()) {
+                            if (reqURL.startsWith(route.getRoutePath())) {
+                                response = route.callHandler(routingContext);
                                 if (response != null) {
                                     // Stop calling handlers after the first response
                                     break;
@@ -287,7 +278,7 @@ public class GribbitServer {
                             }
                         }
                         if (response == null) {
-                            // No route matched, and no static file found => 404
+                            // No route matched => 404
                             response = new NotFoundException().generateErrorResponse();
                         }
                     }
@@ -345,13 +336,13 @@ public class GribbitServer {
         return this;
     }
 
-    /**
-     * Close all connections and shut down the HTTP server. (This call is asynchronous, so the server may not shut
-     * down for some time if connections are being handled.)
-     */
-    public GribbitServer stop() {
-        shutdown = true;
-        server.close();
-        return this;
-    }
+    //    /**
+    //     * Close all connections and shut down the HTTP server. (This call is asynchronous, so the server may not shut
+    //     * down for some time if connections are being handled.)
+    //     */
+    //    public GribbitServer stop() {
+    //        shutdown = true;
+    //        server.close();
+    //        return this;
+    //    }
 }

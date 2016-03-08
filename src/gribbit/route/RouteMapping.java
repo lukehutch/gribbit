@@ -145,15 +145,6 @@ public class RouteMapping {
 
     // -------------------------------------------------------------------------------------------------------------
 
-    public void removeRoute(Route route) {
-        if (route != null) {
-            routeForHandler.remove(route.getHandler());
-            routeForRoutePath.remove(route.getRoutePath());
-            allRoutes.remove(route);
-            route.setRoutePath(null);
-        }
-    }
-
     /** Register a RestHandler route. */
     public void registerRoute(Class<? extends RouteHandler> handler) {
         if (handler.getAnnotation(Disabled.class) != null) {
@@ -243,7 +234,7 @@ public class RouteMapping {
             }
 
             // Make sure route is unique
-            Route existing = routeForRoutePath.put(routeInfo.getRoutePath(), routeInfo);
+            Route existing = routeForRoutePath.put(routeInfo.getRoutePath().getNormalizedPath(), routeInfo);
             if (existing != null) {
                 throw new RuntimeException(
                         "Two handlers have the same route: " + existing.getRoutePath() + " is handled by "
