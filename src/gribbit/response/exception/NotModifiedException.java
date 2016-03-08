@@ -27,7 +27,9 @@ package gribbit.response.exception;
 
 import gribbit.response.EmptyErrorResponse;
 import gribbit.response.Response;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown when a user tries to access a resource that hasn't changed.
@@ -36,9 +38,9 @@ public class NotModifiedException extends LightweightResponseException {
     public NotModifiedException() {
         super(HttpResponseStatus.NOT_MODIFIED);
     }
-    
+
     @Override
-    public Response generateErrorResponse() {
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
         return new EmptyErrorResponse(responseStatus);
     }
 }

@@ -25,7 +25,12 @@
  */
 package gribbit.response.exception;
 
+import gribbit.response.ErrorResponse;
+import gribbit.response.Response;
+import gribbit.route.Route;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown when a user tries to access a resource that doesn't exist (404).
@@ -34,4 +39,16 @@ public class NotFoundException extends LightweightResponseException {
     public NotFoundException() {
         super(HttpResponseStatus.NOT_FOUND);
     }
+
+    @Override
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
+        Route route = siteResources.getNotFoundRoute();
+        if (route == null) {
+            return new ErrorResponse(responseStatus, getResponseMessage());
+        } else {
+            // Generate response using custom error handler, if available
+            return route.callErrorHandler(routingContext);
+        }
+    }
+
 }

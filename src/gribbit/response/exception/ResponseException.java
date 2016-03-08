@@ -25,9 +25,10 @@
  */
 package gribbit.response.exception;
 
-import gribbit.response.ErrorResponse;
 import gribbit.response.Response;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This abstract class should be extended by all exceptions that can be thrown in the course of handling an HTTP
@@ -59,10 +60,6 @@ public abstract class ResponseException extends Exception {
         return buf.toString();
     }
 
-    /**
-     * Returns a default plaintext Response object for this exception.
-     */
-    public Response generateErrorResponse() {
-        return new ErrorResponse(responseStatus, getResponseMessage());
-    }
+    /** Returns a Response object for this exception. */
+    public abstract Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources);
 }

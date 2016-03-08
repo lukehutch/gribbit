@@ -87,7 +87,7 @@ public class ParsedURL {
     }
     
     public List<String> getUnescapedURLParts(int startIdx) {
-        return unescapedURLParts.subList(0, unescapedURLParts.size());
+        return unescapedURLParts.subList(startIdx, unescapedURLParts.size());
     }
     
     public List<String> getUnescapedURLParts() {

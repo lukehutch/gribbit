@@ -103,6 +103,9 @@ public class FlashMessages extends TemplateModel {
                 }
             }
         }
+        if (flashMessages != null) {
+            FlashMessages.clear(session);
+        }
         return flashMessages;
     }
 }

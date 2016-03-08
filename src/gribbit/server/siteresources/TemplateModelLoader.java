@@ -25,27 +25,6 @@
  */
 package gribbit.server.siteresources;
 
-import gribbit.auth.CSRF;
-import gribbit.model.DataModel;
-import gribbit.model.TemplateModel;
-import gribbit.model.field.annotation.Email;
-import gribbit.model.field.annotation.IsURL;
-import gribbit.model.field.annotation.MaxIntegerValue;
-import gribbit.model.field.annotation.MaxLength;
-import gribbit.model.field.annotation.MinIntegerValue;
-import gribbit.model.field.annotation.MinLength;
-import gribbit.model.field.annotation.NoTrim;
-import gribbit.model.field.annotation.NormalizeSpacing;
-import gribbit.model.field.annotation.Regex;
-import gribbit.model.util.FieldChecker;
-import gribbit.response.HTMLPageTemplateModel;
-import gribbit.route.RouteHandler;
-import gribbit.util.Log;
-import gribbit.util.MultiMapKeyToSet;
-import gribbit.util.StringUtils;
-import gribbit.util.WebUtils;
-import io.netty.handler.codec.http.multipart.FileUpload;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -69,6 +48,27 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
+
+import gribbit.auth.CSRF;
+import gribbit.model.DataModel;
+import gribbit.model.TemplateModel;
+import gribbit.model.field.annotation.Email;
+import gribbit.model.field.annotation.IsURL;
+import gribbit.model.field.annotation.MaxIntegerValue;
+import gribbit.model.field.annotation.MaxLength;
+import gribbit.model.field.annotation.MinIntegerValue;
+import gribbit.model.field.annotation.MinLength;
+import gribbit.model.field.annotation.NoTrim;
+import gribbit.model.field.annotation.NormalizeSpacing;
+import gribbit.model.field.annotation.Regex;
+import gribbit.model.util.FieldChecker;
+import gribbit.response.HTMLPageResponse.HTMLPageTemplateModel;
+import gribbit.route.RouteHandler;
+import gribbit.util.Log;
+import gribbit.util.MultiMapKeyToSet;
+import gribbit.util.StringUtils;
+import gribbit.util.WebUtils;
+import io.netty.handler.codec.http.multipart.FileUpload;
 
 class TemplateModelLoader {
 

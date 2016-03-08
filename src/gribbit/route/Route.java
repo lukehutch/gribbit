@@ -35,6 +35,7 @@ import gribbit.auth.User;
 import gribbit.handler.route.annotation.Roles;
 import gribbit.model.DataModel;
 import gribbit.response.ErrorResponse;
+import gribbit.response.HTMLPageResponse;
 import gribbit.response.HTMLResponse;
 import gribbit.response.Response;
 import gribbit.response.exception.BadRequestException;
@@ -162,8 +163,8 @@ public class Route {
      * 
      * @param user
      */
-    private Object[] bindPostParamFromPOSTData(HttpServerRequest request) throws ResponseException {
-        ParsedURL reqURL = new ParsedURL(request.uri());
+    private Object[] bindPostParamFromPOSTData(HttpServerRequest request, ParsedURL reqURL)
+            throws ResponseException {
         if (reqURL.getUnescapedURLParts().size() != routePath.getUnescapedURLParts().size()) {
             throw new BadRequestException("POST requests should not have URL parameters");
         }
@@ -200,8 +201,7 @@ public class Route {
      * FIXME: Use Vertx' URL binding syntax, e.g. "/person/:id" puts the URL value into the param "id". FIXME: Move
      * binding code into the RequestURL class.
      */
-    private Object[] bindGetParamsFromURI(HttpServerRequest request) throws ResponseException {
-        ParsedURL reqURL = new ParsedURL(request.uri());
+    private Object[] bindGetParamsFromURI(ParsedURL reqURL) throws ResponseException {
         if (getParamTypes.length == 0) {
             // get() takes no params
             int numUrlParams = reqURL.getUnescapedURLParts().size();
@@ -251,7 +251,7 @@ public class Route {
 
     /** Invoke a default method in a Route subinterface. */
     private Response invokeMethod(RoutingContext routingContext, Method method, Object[] methodParamVals,
-            Roles methodRoles, boolean checkCSRFTok) throws ResponseException {
+            Roles methodRoles, boolean checkAuthorized, boolean checkCSRFTok) throws ResponseException {
         // Create a handler instance
         RouteHandler instance;
         try {
@@ -273,7 +273,7 @@ public class Route {
         }
 
         // Check if user can call method
-        if (!User.userIsAuthorized(instance.user, methodRoles)) {
+        if (checkAuthorized && !User.userIsAuthorized(instance.user, methodRoles)) {
             throw new UnauthorizedException();
         }
 
@@ -300,12 +300,15 @@ public class Route {
                         }
                     }
                 }
+                // Add any flash messages to response
+                if (response instanceof HTMLPageResponse) {
+                    ((HTMLPageResponse) response).setFlashMessages(routingContext.session());
+                }
             }
-
             return response;
 
         } catch (InvocationTargetException e) {
-            // If method.invoke() throws a RequestHandlingException, it gets wrapped in an InvocationTargetException,
+            // If method.invoke() throws a ResponseException, it gets wrapped in an InvocationTargetException.
             // Unwrap it and re-throw it.
             Throwable cause = e.getCause();
             if (cause instanceof ResponseException) {
@@ -326,8 +329,12 @@ public class Route {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    /** Call the get() or post() method for the Route corresponding to the request URI. */
-    public Response callHandler(RoutingContext routingContext) throws ResponseException {
+    /**
+     * Call the get() or post() method for the Route corresponding to the request URI.
+     * 
+     * @param reqURL
+     */
+    public Response callHandler(RoutingContext routingContext, ParsedURL reqURL) throws ResponseException {
         Response response;
         // Determine param vals for method
         HttpServerRequest request = routingContext.request();
@@ -335,17 +342,19 @@ public class Route {
 
         if (reqMethod == HttpMethod.GET) {
             // Bind URI params
-            Object[] getParamVals = bindGetParamsFromURI(request);
+            Object[] getParamVals = bindGetParamsFromURI(reqURL);
 
             // Invoke the get() method with URI params
-            response = invokeMethod(routingContext, getMethod, getParamVals, getRoles, /* checkCSRFTok = */ false);
+            response = invokeMethod(routingContext, getMethod, getParamVals, getRoles, /* checkAuthorized = */ true,
+                    /* checkCSRFTok = */ false);
 
         } else if (reqMethod == HttpMethod.POST) {
             // Bind the post() method's single parameter (if it has one) from the POST data in the request
-            Object[] postParamVal = bindPostParamFromPOSTData(request);
+            Object[] postParamVal = bindPostParamFromPOSTData(request, reqURL);
 
             // Invoke the post() method
-            response = invokeMethod(routingContext, postMethod, postParamVal, postRoles, /* checkCSRFTok = */ true);
+            response = invokeMethod(routingContext, postMethod, postParamVal, postRoles,
+                    /* checkAuthorized = */ true, /* checkCSRFTok = */ true);
 
         } else {
             // Method not allowed
@@ -358,6 +367,21 @@ public class Route {
         }
 
         return response;
+    }
+
+    /** Call the get() method of an error handler. */
+    public Response callErrorHandler(RoutingContext routingContext) {
+        try {
+            Response response = invokeMethod(routingContext, getMethod, /* getParamVals = */ null, getRoles,
+                    /* checkAuthorized = */ false, /* checkCSRFTok = */ false);
+            if (response == null) {
+                // Should not happen
+                throw new RuntimeException("Error handler didn't generate a response");
+            }
+            return response;
+        } catch (ResponseException e) {
+            throw new RuntimeException("Exception in error handler", e);
+        }
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -462,5 +486,13 @@ public class Route {
      */
     public int getNumGetParams() {
         return getMethod == null ? 0 : getParamTypes.length;
+    }
+
+    public boolean matches(ParsedURL reqURL) {
+        if (routePath.getNumURLParts() == 0) {
+            // Special case: only "/" should match a routePath of "/", "/something" should not match
+            return reqURL.getNumURLParts() == 0;
+        }
+        return reqURL.startsWith(routePath);
     }
 }

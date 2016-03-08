@@ -25,8 +25,13 @@
  */
 package gribbit.response.exception;
 
+import gribbit.response.ErrorResponse;
+import gribbit.response.Response;
+import gribbit.route.Route;
+import gribbit.server.siteresources.SiteResources;
 import gribbit.util.Log;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown when an exception occurs due to internal state that is not the fault of the user.
@@ -38,16 +43,28 @@ public class InternalServerErrorException extends ResponseException {
 
     public InternalServerErrorException(String msg) {
         this();
-        Log.error("Exception while generating response: " + msg);
+        Log.error("InternalServerErrorException while generating response: " + msg);
     }
 
     public InternalServerErrorException(Throwable e) {
         this();
-        Log.exceptionWithoutCallerRef("Exception while generating response: " + e, e);
+        Log.exceptionWithoutCallerRef("InternalServerErrorException while generating response: " + e, e);
     }
 
     public InternalServerErrorException(String msg, Throwable e) {
         this();
-        Log.exceptionWithoutCallerRef("Exception while generating response: " + e, e);
+        Log.exceptionWithoutCallerRef("InternalServerErrorException while generating response: " + e, e);
     }
+
+    @Override
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
+        Route route = siteResources.getInternalServerErrorRoute();
+        if (route == null) {
+            return new ErrorResponse(responseStatus, getResponseMessage());
+        } else {
+            // Generate response using custom error handler, if available
+            return route.callErrorHandler(routingContext);
+        }
+    }
+
 }

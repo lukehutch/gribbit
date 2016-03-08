@@ -27,7 +27,9 @@ package gribbit.response.exception;
 
 import gribbit.response.RedirectResponse;
 import gribbit.response.Response;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown to redirect a user to another URL.
@@ -45,7 +47,7 @@ public class RedirectException extends LightweightResponseException {
     }
 
     @Override
-    public Response generateErrorResponse() {
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
         return new RedirectResponse(redirectURL);
     }
 }

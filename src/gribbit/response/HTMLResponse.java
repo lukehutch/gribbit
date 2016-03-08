@@ -35,7 +35,7 @@ import io.vertx.ext.web.RoutingContext;
 
 public class HTMLResponse extends Response {
 
-    private TemplateModel content;
+    protected TemplateModel content;
     private String csrfTok;
 
     public HTMLResponse(HttpResponseStatus status, TemplateModel content) {

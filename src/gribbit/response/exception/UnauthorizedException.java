@@ -25,7 +25,12 @@
  */
 package gribbit.response.exception;
 
+import gribbit.response.ErrorResponse;
+import gribbit.response.Response;
+import gribbit.route.Route;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown when a user tries to access a resource they are not authorized to access.
@@ -34,4 +39,17 @@ public class UnauthorizedException extends LightweightResponseException {
     public UnauthorizedException() {
         super(HttpResponseStatus.UNAUTHORIZED);
     }
+    
+
+    @Override
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
+        Route route = siteResources.getUnauthorizedRoute();
+        if (route == null) {
+            return new ErrorResponse(responseStatus, getResponseMessage());
+        } else {
+            // Generate response using custom error handler, if available
+            return route.callErrorHandler(routingContext);
+        }
+    }
+
 }

@@ -170,7 +170,7 @@ public class RouteMapping {
                         + "these route prefixes are reserved for hash URIs. Got URI: " + routePath);
             }
 
-            Route routeInfo = new Route(handler, routePath);
+            Route route = new Route(handler, routePath);
 
             // Check for error handler annotations
             for (Annotation ann : handler.getAnnotations()) {
@@ -181,23 +181,23 @@ public class RouteMapping {
                 if (annType == OnInternalServerError.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = internalServerErrorRoute;
-                    internalServerErrorRoute = routeInfo;
+                    internalServerErrorRoute = route;
                 } else if (annType == OnBadRequest.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = badRequestRoute;
-                    badRequestRoute = routeInfo;
+                    badRequestRoute = route;
                 } else if (annType == On404NotFound.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = notFoundRoute;
-                    notFoundRoute = routeInfo;
+                    notFoundRoute = route;
                 } else if (annType == OnUnauthorized.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = unauthorizedRoute;
-                    unauthorizedRoute = routeInfo;
+                    unauthorizedRoute = route;
                 } else if (annType == OnRegistrationNotYetCompleted.class) {
                     hasErrHandlerAnnotation = true;
                     existingErrHandler = unauthorizedEmailNotValidatedRoute;
-                    unauthorizedEmailNotValidatedRoute = routeInfo;
+                    unauthorizedEmailNotValidatedRoute = route;
                 }
                 if (existingErrHandler != null) {
                     // Can't have two non-default error handlers with an error handler annotation, because
@@ -206,7 +206,7 @@ public class RouteMapping {
                             + handler.getName() + " have the annotation @" + annType.getSimpleName()
                             + " -- you cannot have two error handlers with the same annotation");
                 }
-                if (hasErrHandlerAnnotation && (!routeInfo.hasGetMethod() || routeInfo.getNumGetParams() > 0)) {
+                if (hasErrHandlerAnnotation && (!route.hasGetMethod() || route.getNumGetParams() > 0)) {
                     // All errors are served using GET
                     throw new RuntimeException("Handler " + handler.getName() + " has an error handler "
                             + "annotation, but does not have a get() method that takes zero params");
@@ -234,22 +234,22 @@ public class RouteMapping {
             }
 
             // Make sure route is unique
-            Route existing = routeForRoutePath.put(routeInfo.getRoutePath().getNormalizedPath(), routeInfo);
+            Route existing = routeForRoutePath.put(route.getRoutePath().getNormalizedPath(), route);
             if (existing != null) {
                 throw new RuntimeException(
                         "Two handlers have the same route: " + existing.getRoutePath() + " is handled by "
-                                + existing.getHandler().getName() + " and " + routeInfo.getHandler().getName());
+                                + existing.getHandler().getName() + " and " + route.getHandler().getName());
             }
-            if (routeForHandler.put(handler, routeInfo) != null) {
+            if (routeForHandler.put(handler, route) != null) {
                 // Should not happen, objects on classpath should only be scanned once
                 throw new RuntimeException("Handler added twice: " + handler.getName());
             }
-            allRoutes.add(routeInfo);
+            allRoutes.add(route);
 
             // Check type of parameter of any post() method is handled by only one handler (this is required
             // because the "submit" attribute of the form is filled in with the route of the handler that
             // handles the POST request)
-            Class<? extends DataModel> postParamType = routeInfo.getPostParamType();
+            Class<? extends DataModel> postParamType = route.getPostParamType();
             if (postParamType != null) {
                 // Try instantiating DataModel with default constructor to make sure there will be no problems
                 // instantiating it later 
@@ -263,14 +263,14 @@ public class RouteMapping {
                             + "static if it is an inner class");
                 }
 
-                Route prev = formModelToRoute.put(postParamType, routeInfo);
+                Route prev = formModelToRoute.put(postParamType, route);
                 if (prev != null) {
                     throw new RuntimeException(DataModel.class.getName() + " subclass " + postParamType.getName()
                             + " is handled by two different post() methods, in classes "
-                            + routeInfo.getHandler().getName() + ", " + prev.getHandler().getName());
+                            + route.getHandler().getName() + ", " + prev.getHandler().getName());
                 }
             }
-            Log.fine("Registering route handler: " + handler.getName() + " -> " + routeInfo.getRoutePath());
+            Log.fine("Registering route handler: " + handler.getName() + " -> " + route.getRoutePath());
         }
     }
 }

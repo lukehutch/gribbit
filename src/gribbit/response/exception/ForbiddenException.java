@@ -25,7 +25,12 @@
  */
 package gribbit.response.exception;
 
+import gribbit.response.ErrorResponse;
+import gribbit.response.Response;
+import gribbit.route.Route;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown when a user tries to access a resource that is forbidden, or using a forbidden method.
@@ -33,5 +38,17 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 public class ForbiddenException extends LightweightResponseException {
     public ForbiddenException() {
         super(HttpResponseStatus.FORBIDDEN);
+    }
+
+    @Override
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
+        // TODO: add custom handler for Forbidden errors
+        Route route = siteResources.getBadRequestRoute();
+        if (route == null) {
+            return new ErrorResponse(responseStatus, getResponseMessage());
+        } else {
+            // Generate response using custom error handler, if available
+            return route.callErrorHandler(routingContext);
+        }
     }
 }

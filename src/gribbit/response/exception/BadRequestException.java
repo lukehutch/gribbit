@@ -25,7 +25,12 @@
  */
 package gribbit.response.exception;
 
+import gribbit.response.ErrorResponse;
+import gribbit.response.Response;
+import gribbit.route.Route;
+import gribbit.server.siteresources.SiteResources;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.ext.web.RoutingContext;
 
 /**
  * This exception is thrown when user-supplied data in the request is invalid.
@@ -45,5 +50,16 @@ public class BadRequestException extends LightweightResponseException {
     @Override
     protected String getResponseMessage() {
         return msg == null ? super.getResponseMessage() : super.getResponseMessage() + " -- " + msg;
+    }
+    
+    @Override
+    public Response generateErrorResponse(RoutingContext routingContext, SiteResources siteResources) {
+        Route route = siteResources.getBadRequestRoute();
+        if (route == null) {
+            return new ErrorResponse(responseStatus, getResponseMessage());
+        } else {
+            // Generate response using custom error handler, if available
+            return route.callErrorHandler(routingContext);
+        }
     }
 }

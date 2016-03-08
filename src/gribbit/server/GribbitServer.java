@@ -30,9 +30,7 @@ import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashMap;
 
-import gribbit.request.handler.HttpErrorHandler;
 import gribbit.response.Response;
 import gribbit.response.exception.InternalServerErrorException;
 import gribbit.response.exception.NotFoundException;
@@ -78,9 +76,7 @@ public class GribbitServer {
 
     public URI uri;
     public URI wsUri;
-
     // private ArrayList<WebSocketHandler> webSocketHandlers; // TODO
-    private HashMap<Class<? extends ResponseException>, HttpErrorHandler> errorHandlers;
 
     public static SiteResources siteResources;
     // private static boolean shutdown = false;
@@ -177,16 +173,6 @@ public class GribbitServer {
     //        return this;
     //    }
 
-    /** Add an error handler that overrides a default plain text error response. */
-    public <E extends ResponseException> GribbitServer addHttpErrorHandler(Class<E> exceptionType,
-            HttpErrorHandler errorHandler) {
-        if (errorHandlers == null) {
-            errorHandlers = new HashMap<>();
-        }
-        errorHandlers.put(exceptionType, errorHandler);
-        return this;
-    }
-
     // -----------------------------------------------------------------------------------------------------
 
     /**
@@ -269,8 +255,8 @@ public class GribbitServer {
                     if (!isWSUpgrade) {
                         // Try each route in turn
                         for (Route route : siteResources.getAllRoutes()) {
-                            if (reqURL.startsWith(route.getRoutePath())) {
-                                response = route.callHandler(routingContext);
+                            if (route.matches(reqURL)) {
+                                response = route.callHandler(routingContext, reqURL);
                                 if (response != null) {
                                     // Stop calling handlers after the first response
                                     break;
@@ -279,31 +265,26 @@ public class GribbitServer {
                         }
                         if (response == null) {
                             // No route matched => 404
-                            response = new NotFoundException().generateErrorResponse();
+                            response = new NotFoundException().generateErrorResponse(routingContext, siteResources);
                         }
                     }
                 } catch (Exception e) {
                     // Convert Exception to InternalServerErrorException if it's not already a ResponseException 
-                    ResponseException re;
+                    ResponseException responseException;
                     if (e instanceof ResponseException) {
-                        re = (ResponseException) e;
+                        responseException = (ResponseException) e;
                     } else {
-                        re = new InternalServerErrorException(e);
+                        responseException = new InternalServerErrorException(e);
                     }
                     try {
-                        // See if there's a custom override for this error type
-                        HttpErrorHandler errorHandler = errorHandlers.get(e.getClass());
-                        if (errorHandler != null) {
-                            // If so, generate a custom response
-                            response = errorHandler.generateResponse(request, re);
-                        } else {
-                            // Otherwise, use the default response for this error type
-                            response = re.generateErrorResponse();
-                        }
+                        // Otherwise, use the default response for this error type
+                        response = responseException.generateErrorResponse(routingContext, siteResources);
                     } catch (Exception e2) {
                         // Generate a generic InternalServerErrorException response if an exception was thrown
                         // while generating a response
-                        response = new InternalServerErrorException(e).generateErrorResponse();
+                        response = new InternalServerErrorException(
+                                "Exception in error handler while handling exception " + e.getMessage(), e2)
+                                        .generateErrorResponse(routingContext, siteResources);
                     }
                 }
                 try {
